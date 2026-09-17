@@ -1,349 +1,282 @@
-export type ThemeId = 'light' | 'pure-black'
-
-
-// ThemeVars every visual layer of the application
+export type ThemeId = "light" | "pure-black";
 
 export interface ThemeVars {
-  // Tailwind-compat (space-sep RGB used in rgb(var(--X) / alpha))
-  bgBase:        string
-  bgSurface:     string
-  bgElevated:    string
-  border:        string
-  textPrimary:   string
-  textSecondary: string
-  textMuted:     string
-  textAccent:    string
-  accent:        string   // also drives --c-accent
-  accent2:       string
-  accent3:       string
-
-  // App atmosphere full CSS values
-  appBg:    string   // background property value (can be gradient)
-  appBloom1: string  // rgba for ambient blob 1
-  appBloom2: string  // rgba for ambient blob 2
-  appBloom3: string  // rgba for ambient blob 3
-
-  // Card surfaces â€” glassmorphism / matte / frosted per theme
-  cardBg:              string  // background
-  cardBorder:          string  // full border shorthand
-  cardShadow:          string  // box-shadow
-  cardBlur:            string  // e.g. '28px' â€” used inside backdrop-filter: blur()
-  cardHighlight:       string  // inset top-edge glow (light on dark, subtle on light)
-  cardHoverBg:         string
-  cardHoverBorder:     string
-  cardHoverShadow:     string
-  cardElevatedBg:      string
-  cardElevatedBorder:  string
-  cardElevatedShadow:  string
-  glassShadow:         string  // outer shadow for .glass utility class
-  glassElevatedShadow: string  // outer shadow for .glass-elevated utility class
-
-  // Sidebar atmosphere
-  sidebarBg:           string
-  sidebarBorderRight:  string
-  sidebarActiveBg:     string
-  sidebarActiveBorder: string  // border-left shorthand for active pill
-  sidebarActiveShadow: string
-  sidebarHoverBg:      string
-
-  // Button â€” primary action
-  btnPrimaryBg:     string  // background (gradient)
-  btnPrimaryShadow: string  // box-shadow
-
-  // Progress / stat bars
-  progressTrack:    string  // track background
-  progressGradient: string  // fill gradient
-
-  // Glow system
-  glowPrimary: string  // full box-shadow value for .glow-primary
-
-  // Charts (hex â€” read directly by Recharts)
-  graph1:    string
-  graph2:    string
-  graph3:    string
-  chartGrid: string  // rgba for CartesianGrid stroke
-
-  // Scrollbar
-  scrollThumb:      string
-  scrollThumbHover: string
-
-  // Modal surfaces
-  modalBg:     string
-  modalBorder: string
-  modalShadow: string
-
-  // Floating overlay window
-  overlayBg: string
-
-  // Text selection
-  selectionBg:   string  // ::selection background
-  selectionText: string  // ::selection text color
-
-  // Skeleton shimmer
-  skeletonFrom: string  // skeleton animation low color
-  skeletonTo:   string  // skeleton animation peak color
-
-  // Semantic (fixed across themes for legibility)
-  success: string
-  warning: string
-  danger:  string
+  bgBase: string;
+  bgSurface: string;
+  bgElevated: string;
+  border: string;
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  textAccent: string;
+  accent: string;
+  accent2: string;
+  accent3: string;
+  appBg: string;
+  appBloom1: string;
+  appBloom2: string;
+  appBloom3: string;
+  cardBg: string;
+  cardBorder: string;
+  cardShadow: string;
+  cardBlur: string;
+  cardHighlight: string;
+  cardHoverBg: string;
+  cardHoverBorder: string;
+  cardHoverShadow: string;
+  cardElevatedBg: string;
+  cardElevatedBorder: string;
+  cardElevatedShadow: string;
+  glassShadow: string;
+  glassElevatedShadow: string;
+  sidebarBg: string;
+  sidebarBorderRight: string;
+  sidebarActiveBg: string;
+  sidebarActiveBorder: string;
+  sidebarActiveShadow: string;
+  sidebarHoverBg: string;
+  btnPrimaryBg: string;
+  btnPrimaryShadow: string;
+  progressTrack: string;
+  progressGradient: string;
+  glowPrimary: string;
+  graph1: string;
+  graph2: string;
+  graph3: string;
+  chartGrid: string;
+  scrollThumb: string;
+  scrollThumbHover: string;
+  modalBg: string;
+  modalBorder: string;
+  modalShadow: string;
+  overlayBg: string;
+  selectionBg: string;
+  selectionText: string;
+  skeletonFrom: string;
+  skeletonTo: string;
+  success: string;
+  warning: string;
+  danger: string;
 }
 
 export interface Theme {
-  id:          ThemeId
-  name:        string
-  description: string
-  preview: {
-    bg:     string
-    card:   string
-    accent: string
-    text:   string
-  }
-  vars: ThemeVars
+  id: ThemeId;
+  name: string;
+  description: string;
+  preview: { bg: string; card: string; accent: string; text: string };
+  vars: ThemeVars;
 }
 
-// THEME DEFINITIONS — every theme must provide values for all ThemeVars
 export const THEMES: Record<ThemeId, Theme> = {
-
-
-  // Premium warm light mode Â· Apple / Windows 11 aesthetic Â· frosted glass cards
-  'light': {
-    id: 'light',
-    name: 'Light',
-    description: 'Premium warm light mode frosted glass cards with soft elevated surfaces',
-    preview: { bg: '#f0f0f8', card: '#ffffff', accent: '#6366f1', text: '#0f0f23' },
+  light: {
+    id: "light",
+    name: "Light",
+    description: "Warm, calm and focused",
+    preview: {
+      bg: "#F5F6F1",
+      card: "#FFFFFF",
+      accent: "#5AA63C",
+      text: "#151914",
+    },
     vars: {
-      bgBase:        '240 240 248',
-      bgSurface:     '248 248 255',
-      bgElevated:    '255 255 255',
-      border:        '100 100 140',
-      textPrimary:   '15 15 35',
-      textSecondary: '88 88 120',
-      textMuted:     '148 148 175',
-      textAccent:    '99 102 241',
-      accent:        '99 102 241',
-      accent2:       '139 92 246',
-      accent3:       '59 130 246',
-      appBg:
-        'radial-gradient(ellipse 80% 60% at 15% 50%, rgba(99,102,241,0.07) 0%, transparent 60%),' +
-        'radial-gradient(ellipse 60% 50% at 88% 15%, rgba(59,130,246,0.05) 0%, transparent 55%),' +
-        'radial-gradient(ellipse 50% 70% at 50% 100%, rgba(139,92,246,0.04) 0%, transparent 60%),' +
-        'linear-gradient(155deg, #f5f5ff 0%, #f0f0f8 45%, #f4f8ff 100%)',
-      appBloom1: 'rgba(99,102,241,0.09)',
-      appBloom2: 'rgba(59,130,246,0.07)',
-      appBloom3: 'rgba(139,92,246,0.05)',
-      // Light frosted glass — warm white translucent surfaces
-      cardBg:              'rgba(255,255,255,0.68)',
-      cardBorder:          '1px solid rgba(100,100,140,0.14)',
-      cardShadow:          '0 4px 24px rgba(0,0,30,0.08), inset 0 1px 0 rgba(255,255,255,0.90)',
-      cardBlur:            '20px',
-      cardHighlight:       'rgba(255,255,255,0.80)',
-      cardHoverBg:         'rgba(255,255,255,0.88)',
-      cardHoverBorder:     '1px solid rgba(99,102,241,0.24)',
-      cardHoverShadow:     '0 8px 32px rgba(0,0,30,0.12), 0 0 0 1px rgba(99,102,241,0.12), 0 0 24px rgba(99,102,241,0.06)',
-      cardElevatedBg:      'rgba(255,255,255,0.85)',
-      cardElevatedBorder:  '1px solid rgba(100,100,140,0.18)',
-      cardElevatedShadow:  '0 8px 36px rgba(0,0,30,0.11), inset 0 1px 0 rgba(255,255,255,0.95)',
-      glassShadow:         '0 4px 24px rgba(0,0,30,0.09)',
-      glassElevatedShadow: '0 8px 36px rgba(0,0,30,0.12)',
-      // Light matte sidebar
-      sidebarBg:           'rgba(242,242,252,0.92)',
-      sidebarBorderRight:  '1px solid rgba(100,100,140,0.12)',
-      sidebarActiveBg:     'rgba(99,102,241,0.10)',
-      sidebarActiveBorder: '3px solid rgba(99,102,241,0.55)',
-      sidebarActiveShadow: 'inset 0 0 20px rgba(99,102,241,0.07)',
-      sidebarHoverBg:      'rgba(99,102,241,0.06)',
-      btnPrimaryBg:     'linear-gradient(135deg, #4338ca 0%, #6366f1 55%, #7c3aed 100%)',
-      btnPrimaryShadow: '0 4px 16px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.30)',
-      progressTrack:    'rgba(99,102,241,0.10)',
-      progressGradient: 'linear-gradient(90deg, #4338ca, #6366f1, #8b5cf6)',
-      glowPrimary:  '0 0 20px rgba(99,102,241,0.28), 0 0 56px rgba(99,102,241,0.10)',
-      graph1:    '#6366f1',
-      graph2:    '#8b5cf6',
-      graph3:    '#3b82f6',
-      chartGrid: 'rgba(99,102,241,0.07)',
-      scrollThumb:      'rgba(100,100,140,0.22)',
-      scrollThumbHover: 'rgba(99,102,241,0.40)',
-      modalBg:     'rgba(248,248,255,0.97)',
-      modalBorder: '1px solid rgba(100,100,140,0.18)',
-      modalShadow: '0 28px 80px rgba(0,0,30,0.18), 0 0 0 1px rgba(100,100,140,0.12)',
-      overlayBg:  'rgba(242,242,252,0.95)',
-      selectionBg:   'rgba(99,102,241,0.20)',
-      selectionText: '#0f0f23',
-      skeletonFrom:  'rgba(0,0,30,0.04)',
-      skeletonTo:    'rgba(0,0,30,0.08)',
-      success: '#059669',
-      warning: '#d97706',
-      danger:  '#dc2626',
+      bgBase: "245 246 241",
+      bgSurface: "250 251 248",
+      bgElevated: "255 255 255",
+      border: "87 101 81",
+      textPrimary: "21 25 20",
+      textSecondary: "104 112 100",
+      textMuted: "150 157 145",
+      textAccent: "63 127 42",
+      accent: "90 166 60",
+      accent2: "63 127 42",
+      accent3: "117 145 71",
+      appBg: "linear-gradient(145deg, #f8f9f5 0%, #f3f5ef 54%, #f7f8f3 100%)",
+      appBloom1: "rgba(90,166,60,.06)",
+      appBloom2: "rgba(63,127,42,.04)",
+      appBloom3: "rgba(117,145,71,.03)",
+      cardBg: "rgba(255,255,255,.92)",
+      cardBorder: "1px solid rgba(76,91,70,.12)",
+      cardShadow:
+        "0 1px 2px rgba(28,40,24,.04), 0 8px 24px rgba(28,40,24,.035)",
+      cardBlur: "10px",
+      cardHighlight: "rgba(255,255,255,.85)",
+      cardHoverBg: "#ffffff",
+      cardHoverBorder: "1px solid rgba(90,166,60,.28)",
+      cardHoverShadow:
+        "0 2px 4px rgba(28,40,24,.05), 0 12px 30px rgba(28,40,24,.07)",
+      cardElevatedBg: "#ffffff",
+      cardElevatedBorder: "1px solid rgba(76,91,70,.14)",
+      cardElevatedShadow: "0 16px 44px rgba(28,40,24,.11)",
+      glassShadow:
+        "0 1px 2px rgba(28,40,24,.04), 0 8px 24px rgba(28,40,24,.035)",
+      glassElevatedShadow: "0 16px 44px rgba(28,40,24,.11)",
+      sidebarBg: "rgba(250,251,248,.96)",
+      sidebarBorderRight: "1px solid rgba(76,91,70,.12)",
+      sidebarActiveBg: "rgba(90,166,60,.11)",
+      sidebarActiveBorder: "1px solid rgba(90,166,60,.22)",
+      sidebarActiveShadow: "inset 3px 0 #5AA63C",
+      sidebarHoverBg: "rgba(90,166,60,.055)",
+      btnPrimaryBg: "#4f9636",
+      btnPrimaryShadow:
+        "0 1px 2px rgba(35,80,24,.18), 0 6px 14px rgba(63,127,42,.16)",
+      progressTrack: "rgba(90,166,60,.12)",
+      progressGradient: "linear-gradient(90deg,#5AA63C,#3F7F2A)",
+      glowPrimary: "0 0 0 4px rgba(90,166,60,.12)",
+      graph1: "#4f9636",
+      graph2: "#9a7b45",
+      graph3: "#687064",
+      chartGrid: "rgba(87,101,81,.10)",
+      scrollThumb: "rgba(87,101,81,.22)",
+      scrollThumbHover: "rgba(90,166,60,.42)",
+      modalBg: "rgba(255,255,255,.98)",
+      modalBorder: "1px solid rgba(76,91,70,.14)",
+      modalShadow: "0 28px 80px rgba(28,40,24,.18)",
+      overlayBg: "rgba(248,249,245,.97)",
+      selectionBg: "rgba(90,166,60,.20)",
+      selectionText: "#151914",
+      skeletonFrom: "rgba(63,80,57,.045)",
+      skeletonTo: "rgba(90,166,60,.11)",
+      success: "#3F7F2A",
+      warning: "#B7791F",
+      danger: "#C94C43",
     },
   },
-
-  //  Pure Black
-  // AMOLED-optimised ultra-premium dark Â· matte void black Â· neon purple glow
-  'pure-black': {
-    id: 'pure-black',
-    name: 'Pure Black',
-    description: 'AMOLED-optimized ultra-premium dark neon glow on void black',
-    preview: { bg: '#000000', card: '#0d0d0d', accent: '#a855f7', text: '#ffffff' },
+  "pure-black": {
+    id: "pure-black",
+    name: "Dark",
+    description: "Deep charcoal with quiet green accents",
+    preview: {
+      bg: "#171A16",
+      card: "#20251F",
+      accent: "#72BC58",
+      text: "#F3F5F0",
+    },
     vars: {
-      bgBase:        '0 0 0',
-      bgSurface:     '8 8 8',
-      bgElevated:    '14 14 14',
-      border:        '200 200 200',
-      textPrimary:   '255 255 255',
-      textSecondary: '160 160 160',
-      textMuted:     '88 88 88',
-      textAccent:    '192 132 252',
-      accent:        '168 85 247',
-      accent2:       '192 132 252',
-      accent3:       '96 165 250',
-      appBg:
-        'radial-gradient(ellipse 65% 55% at 20% 60%, rgba(168,85,247,0.10) 0%, transparent 58%),' +
-        'radial-gradient(ellipse 50% 45% at 85% 15%, rgba(96,165,250,0.07) 0%, transparent 55%),' +
-        '#000000',
-      appBloom1: 'rgba(168,85,247,0.12)',
-      appBloom2: 'rgba(96,165,250,0.08)',
-      appBloom3: 'rgba(192,132,252,0.06)',
-      // MATTE black no blur for OLED efficiency, razor-sharp edges
-      cardBg:              'rgba(12,12,12,0.96)',
-      cardBorder:          '1px solid rgba(255,255,255,0.07)',
-      cardShadow:          '0 4px 24px rgba(0,0,0,0.80), inset 0 1px 0 rgba(255,255,255,0.04)',
-      cardBlur:            '0px',
-      cardHighlight:       'rgba(255,255,255,0.04)',
-      cardHoverBg:         'rgba(20,20,20,0.98)',
-      cardHoverBorder:     '1px solid rgba(192,132,252,0.30)',
-      cardHoverShadow:     '0 8px 36px rgba(0,0,0,0.88), 0 0 0 1px rgba(168,85,247,0.22), 0 0 28px rgba(168,85,247,0.12)',
-      cardElevatedBg:      'rgba(16,16,16,0.98)',
-      cardElevatedBorder:  '1px solid rgba(255,255,255,0.09)',
-      cardElevatedShadow:  '0 8px 32px rgba(0,0,0,0.84), inset 0 1px 0 rgba(255,255,255,0.05)',
-      glassShadow:         '0 8px 32px rgba(0,0,0,0.80)',
-      glassElevatedShadow: '0 12px 40px rgba(0,0,0,0.88)',
-      sidebarBg:           'rgba(0,0,0,0.98)',
-      sidebarBorderRight:  '1px solid rgba(255,255,255,0.06)',
-      sidebarActiveBg:     'rgba(168,85,247,0.12)',
-      sidebarActiveBorder: '3px solid rgba(192,132,252,0.60)',
-      sidebarActiveShadow: 'inset 0 0 28px rgba(168,85,247,0.10)',
-      sidebarHoverBg:      'rgba(255,255,255,0.04)',
-      btnPrimaryBg:     'linear-gradient(135deg, #581c87 0%, #7e22ce 50%, #a855f7 100%)',
-      btnPrimaryShadow: '0 4px 22px rgba(168,85,247,0.50), inset 0 1px 0 rgba(255,255,255,0.16)',
-      progressTrack:    'rgba(168,85,247,0.10)',
-      progressGradient: 'linear-gradient(90deg, #581c87, #7e22ce, #c084fc)',
-      glowPrimary:  '0 0 28px rgba(168,85,247,0.55), 0 0 80px rgba(168,85,247,0.22)',
-      graph1:    '#a855f7',
-      graph2:    '#c084fc',
-      graph3:    '#60a5fa',
-      chartGrid: 'rgba(168,85,247,0.08)',
-      scrollThumb:      'rgba(168,85,247,0.38)',
-      scrollThumbHover: 'rgba(168,85,247,0.62)',
-      modalBg:     'rgba(4,4,4,0.99)',
-      modalBorder: '1px solid rgba(255,255,255,0.09)',
-      modalShadow: '0 28px 80px rgba(0,0,0,0.96), 0 0 0 1px rgba(168,85,247,0.16)',
-      overlayBg:  'rgba(0,0,0,0.97)',
-      selectionBg:   'rgba(168,85,247,0.40)',
-      selectionText: '#ffffff',
-      skeletonFrom:  'rgba(255,255,255,0.03)',
-      skeletonTo:    'rgba(255,255,255,0.07)',
-      success: '#10b981',
-      warning: '#f59e0b',
-      danger:  '#ef4444',
+      bgBase: "23 26 22",
+      bgSurface: "29 33 28",
+      bgElevated: "35 40 34",
+      border: "189 202 183",
+      textPrimary: "243 245 240",
+      textSecondary: "177 186 172",
+      textMuted: "126 136 121",
+      textAccent: "126 190 101",
+      accent: "114 188 88",
+      accent2: "86 155 60",
+      accent3: "167 176 127",
+      appBg: "linear-gradient(145deg,#1b1f1a 0%,#171a16 58%,#1c211a 100%)",
+      appBloom1: "rgba(114,188,88,.06)",
+      appBloom2: "rgba(86,155,60,.04)",
+      appBloom3: "rgba(167,176,127,.03)",
+      cardBg: "rgba(31,36,30,.94)",
+      cardBorder: "1px solid rgba(211,224,205,.09)",
+      cardShadow: "0 1px 2px rgba(0,0,0,.24), 0 10px 28px rgba(0,0,0,.16)",
+      cardBlur: "10px",
+      cardHighlight: "rgba(255,255,255,.035)",
+      cardHoverBg: "#252b24",
+      cardHoverBorder: "1px solid rgba(114,188,88,.30)",
+      cardHoverShadow: "0 12px 34px rgba(0,0,0,.25)",
+      cardElevatedBg: "#252b24",
+      cardElevatedBorder: "1px solid rgba(211,224,205,.12)",
+      cardElevatedShadow: "0 20px 55px rgba(0,0,0,.36)",
+      glassShadow: "0 1px 2px rgba(0,0,0,.24), 0 10px 28px rgba(0,0,0,.16)",
+      glassElevatedShadow: "0 20px 55px rgba(0,0,0,.36)",
+      sidebarBg: "rgba(25,29,24,.97)",
+      sidebarBorderRight: "1px solid rgba(211,224,205,.08)",
+      sidebarActiveBg: "rgba(114,188,88,.12)",
+      sidebarActiveBorder: "1px solid rgba(114,188,88,.22)",
+      sidebarActiveShadow: "inset 3px 0 #72BC58",
+      sidebarHoverBg: "rgba(255,255,255,.035)",
+      btnPrimaryBg: "#66ad4b",
+      btnPrimaryShadow:
+        "0 1px 2px rgba(0,0,0,.25), 0 7px 16px rgba(70,130,48,.18)",
+      progressTrack: "rgba(114,188,88,.12)",
+      progressGradient: "linear-gradient(90deg,#72BC58,#569B3C)",
+      glowPrimary: "0 0 0 4px rgba(114,188,88,.13)",
+      graph1: "#72BC58",
+      graph2: "#D0AD6D",
+      graph3: "#A7B07F",
+      chartGrid: "rgba(211,224,205,.08)",
+      scrollThumb: "rgba(211,224,205,.16)",
+      scrollThumbHover: "rgba(114,188,88,.38)",
+      modalBg: "rgba(30,35,29,.99)",
+      modalBorder: "1px solid rgba(211,224,205,.11)",
+      modalShadow: "0 30px 90px rgba(0,0,0,.5)",
+      overlayBg: "rgba(23,26,22,.98)",
+      selectionBg: "rgba(114,188,88,.30)",
+      selectionText: "#F3F5F0",
+      skeletonFrom: "rgba(255,255,255,.035)",
+      skeletonTo: "rgba(114,188,88,.10)",
+      success: "#72BC58",
+      warning: "#D7A84C",
+      danger: "#E06A60",
     },
   },
-}
+};
 
-export const THEME_ORDER: ThemeId[] = [
-  'light',
-  'pure-black',
-]
+export const THEME_ORDER: ThemeId[] = ["light", "pure-black"];
 
-// ─────────────────────────────────────────────────────────────────────────────
-// applyTheme — injects all CSS variables into document.documentElement.style
-// ─────────────────────────────────────────────────────────────────────────────
 export function applyTheme(id: ThemeId): void {
-  const theme = THEMES[id]
-  if (!theme) return
-  const v = theme.vars
-  const r = document.documentElement
-
-  // data-theme attribute (for CSS selector overrides)
-  r.setAttribute('data-theme', id) // Core CSS variables for Tailwind and custom styles
-
-  // Tailwind-compat vars (space-sep RGB)
-  r.style.setProperty('--t-bg-base',        v.bgBase)
-  r.style.setProperty('--t-bg-surface',     v.bgSurface)
-  r.style.setProperty('--t-bg-elevated',    v.bgElevated)
-  r.style.setProperty('--t-border',         v.border)
-  r.style.setProperty('--t-text-primary',   v.textPrimary)
-  r.style.setProperty('--t-text-secondary', v.textSecondary)
-  r.style.setProperty('--t-text-muted',     v.textMuted)
-  r.style.setProperty('--t-text-accent',    v.textAccent)
-  r.style.setProperty('--t-accent',         v.accent)
-  r.style.setProperty('--t-accent2',        v.accent2)
-  r.style.setProperty('--t-accent3',        v.accent3)
-  r.style.setProperty('--c-accent',         v.accent)   // alias for accent picker
-
-  // App atmosphere
-  r.style.setProperty('--t-app-bg',      v.appBg)
-  r.style.setProperty('--t-app-bloom-1', v.appBloom1)
-  r.style.setProperty('--t-app-bloom-2', v.appBloom2)
-  r.style.setProperty('--t-app-bloom-3', v.appBloom3)
-
-  // Card surfaces
-  r.style.setProperty('--t-card-bg',                  v.cardBg)
-  r.style.setProperty('--t-card-border',              v.cardBorder)
-  r.style.setProperty('--t-card-shadow',              v.cardShadow)
-  r.style.setProperty('--t-card-blur',                v.cardBlur)
-  r.style.setProperty('--t-card-highlight',           v.cardHighlight)
-  r.style.setProperty('--t-card-hover-bg',            v.cardHoverBg)
-  r.style.setProperty('--t-card-hover-border',        v.cardHoverBorder)
-  r.style.setProperty('--t-card-hover-shadow',        v.cardHoverShadow)
-  r.style.setProperty('--t-card-elevated-bg',         v.cardElevatedBg)
-  r.style.setProperty('--t-card-elevated-border',     v.cardElevatedBorder)
-  r.style.setProperty('--t-card-elevated-shadow',     v.cardElevatedShadow)
-  r.style.setProperty('--t-glass-shadow',             v.glassShadow)
-  r.style.setProperty('--t-glass-elevated-shadow',    v.glassElevatedShadow)
-
-  // Sidebar
-  r.style.setProperty('--t-sidebar-bg',            v.sidebarBg)
-  r.style.setProperty('--t-sidebar-border-right',  v.sidebarBorderRight)
-  r.style.setProperty('--t-sidebar-active-bg',     v.sidebarActiveBg)
-  r.style.setProperty('--t-sidebar-active-border', v.sidebarActiveBorder)
-  r.style.setProperty('--t-sidebar-active-shadow', v.sidebarActiveShadow)
-  r.style.setProperty('--t-sidebar-hover-bg',      v.sidebarHoverBg)
-
-  // Buttons
-  r.style.setProperty('--t-btn-bg',     v.btnPrimaryBg)
-  r.style.setProperty('--t-btn-shadow', v.btnPrimaryShadow)
-
-  // Progress
-  r.style.setProperty('--t-progress-track',    v.progressTrack)
-  r.style.setProperty('--t-progress-gradient', v.progressGradient)
-
-  // Glow
-  r.style.setProperty('--t-glow-primary', v.glowPrimary)
-
-  // Charts
-  r.style.setProperty('--graph-1',      v.graph1)
-  r.style.setProperty('--graph-2',      v.graph2)
-  r.style.setProperty('--graph-3',      v.graph3)
-  r.style.setProperty('--t-chart-grid', v.chartGrid)
-
-  // Scrollbar
-  r.style.setProperty('--t-scroll-thumb',       v.scrollThumb)
-  r.style.setProperty('--t-scroll-thumb-hover', v.scrollThumbHover)
-
-  // Modal
-  r.style.setProperty('--t-modal-bg',     v.modalBg)
-  r.style.setProperty('--t-modal-border', v.modalBorder)
-  r.style.setProperty('--t-modal-shadow', v.modalShadow)
-
-  // Overlay
-  r.style.setProperty('--overlay-bg', v.overlayBg)
-
-  // Selection
-  r.style.setProperty('--t-selection-bg',   v.selectionBg)
-  r.style.setProperty('--t-selection-text', v.selectionText)
-
-  // Skeleton
-  r.style.setProperty('--t-skeleton-from', v.skeletonFrom)
-  r.style.setProperty('--t-skeleton-to',   v.skeletonTo)
+  const v = THEMES[id]?.vars;
+  if (!v) return;
+  const r = document.documentElement;
+  r.setAttribute("data-theme", id);
+  const values: Record<string, string> = {
+    "--t-bg-base": v.bgBase,
+    "--t-bg-surface": v.bgSurface,
+    "--t-bg-elevated": v.bgElevated,
+    "--t-border": v.border,
+    "--t-text-primary": v.textPrimary,
+    "--t-text-secondary": v.textSecondary,
+    "--t-text-muted": v.textMuted,
+    "--t-text-accent": v.textAccent,
+    "--t-accent": v.accent,
+    "--t-accent2": v.accent2,
+    "--t-accent3": v.accent3,
+    "--c-accent": v.accent,
+    "--t-app-bg": v.appBg,
+    "--t-app-bloom-1": v.appBloom1,
+    "--t-app-bloom-2": v.appBloom2,
+    "--t-app-bloom-3": v.appBloom3,
+    "--t-card-bg": v.cardBg,
+    "--t-card-border": v.cardBorder,
+    "--t-card-shadow": v.cardShadow,
+    "--t-card-blur": v.cardBlur,
+    "--t-card-highlight": v.cardHighlight,
+    "--t-card-hover-bg": v.cardHoverBg,
+    "--t-card-hover-border": v.cardHoverBorder,
+    "--t-card-hover-shadow": v.cardHoverShadow,
+    "--t-card-elevated-bg": v.cardElevatedBg,
+    "--t-card-elevated-border": v.cardElevatedBorder,
+    "--t-card-elevated-shadow": v.cardElevatedShadow,
+    "--t-glass-shadow": v.glassShadow,
+    "--t-glass-elevated-shadow": v.glassElevatedShadow,
+    "--t-sidebar-bg": v.sidebarBg,
+    "--t-sidebar-border-right": v.sidebarBorderRight,
+    "--t-sidebar-active-bg": v.sidebarActiveBg,
+    "--t-sidebar-active-border": v.sidebarActiveBorder,
+    "--t-sidebar-active-shadow": v.sidebarActiveShadow,
+    "--t-sidebar-hover-bg": v.sidebarHoverBg,
+    "--t-btn-bg": v.btnPrimaryBg,
+    "--t-btn-shadow": v.btnPrimaryShadow,
+    "--t-progress-track": v.progressTrack,
+    "--t-progress-gradient": v.progressGradient,
+    "--t-glow-primary": v.glowPrimary,
+    "--graph-1": v.graph1,
+    "--graph-2": v.graph2,
+    "--graph-3": v.graph3,
+    "--t-chart-grid": v.chartGrid,
+    "--t-scroll-thumb": v.scrollThumb,
+    "--t-scroll-thumb-hover": v.scrollThumbHover,
+    "--t-modal-bg": v.modalBg,
+    "--t-modal-border": v.modalBorder,
+    "--t-modal-shadow": v.modalShadow,
+    "--overlay-bg": v.overlayBg,
+    "--t-selection-bg": v.selectionBg,
+    "--t-selection-text": v.selectionText,
+    "--t-skeleton-from": v.skeletonFrom,
+    "--t-skeleton-to": v.skeletonTo,
+  };
+  Object.entries(values).forEach(([key, value]) =>
+    r.style.setProperty(key, value),
+  );
 }

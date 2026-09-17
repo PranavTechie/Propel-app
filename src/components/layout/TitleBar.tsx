@@ -1,101 +1,101 @@
-import React, { memo } from 'react'
-import { Minus, Square, X, Shield } from 'lucide-react'
-import { useAppStore } from '@/store/appStore'
-import { cn } from '@/utils/cn'
+import React, { memo } from "react";
+import { Minus, Square, X, Leaf, CircleUserRound } from "lucide-react";
+import { useAppStore } from "@/store/appStore";
+import { cn } from "@/utils/cn";
 
-// ── Live stat pill ─────────────────────────────────────────────────────────
-
-const StatPill = memo<{ label: string; value: string; warn: boolean }>(({ label, value, warn }) => (
-  <div className={cn(
-    'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium tabular-nums',
-    warn
-      ? 'text-amber-400 bg-amber-400/10'
-      : 'text-text-muted bg-white/[0.04]',
-  )}>
-    <span className="text-text-muted/60">{label}</span>
-    <span>{value}</span>
-  </div>
-))
-StatPill.displayName = 'StatPill'
+const Metric = memo<{ label: string; value: string; warn: boolean }>(
+  ({ label, value, warn }) => (
+    <div className="flex items-center gap-1.5 text-[11px] tabular-nums">
+      <span className="text-text-muted">{label}</span>
+      <span
+        className={cn(
+          "font-semibold",
+          warn ? "text-amber-600" : "text-text-primary",
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  ),
+);
+Metric.displayName = "Metric";
 
 export const TitleBar: React.FC = () => {
-  const entitlement = useAppStore(s => s.entitlementStatus)
-  const stats = useAppStore(s => s.stats)
-
-  const handleMinimize = () => window.electronAPI?.window.minimize()
-  const handleMaximize = () => window.electronAPI?.window.maximize()
-  const handleClose = () => window.electronAPI?.window.close()
-
-  const badgeText = 
-    entitlement.plan === 'PRO' || entitlement.plan === 'MAX'
-      ? entitlement.trial_active 
-        ? `Trial · PRO`
-        : entitlement.plan
-      : null
-
-  const badgeColor =
-    entitlement.trial_active
-      ? 'text-amber-400 bg-amber-400/10 border-amber-400/20'
-      : 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
-
+  const entitlement = useAppStore((s) => s.entitlementStatus);
+  const stats = useAppStore((s) => s.stats);
+  const plan = entitlement.trial_active ? "PRO trial" : entitlement.plan;
+  const control =
+    "flex h-9 w-10 items-center justify-center text-text-muted hover:bg-black/5 hover:text-text-primary dark:hover:bg-white/5";
   return (
-    <div
-      className={cn(
-        'drag-region flex items-center justify-between h-10 px-4',
-        'border-b border-border/50',
-        'bg-bg-base/80 backdrop-blur-xl',
-        'shrink-0',
-      )}
-    >
-      {/* Left: Logo + license */}
-      <div className="no-drag flex items-center gap-2.5">
-        <div className="relative w-6 h-6 flex items-center justify-center">
-          <div className="absolute inset-0 bg-gradient-brand rounded-lg opacity-20 blur-sm" />
-          <Shield className="w-4 h-4 text-brand-primary relative z-10" />
+    <header className="drag-region relative z-20 flex h-12 shrink-0 items-center border-b border-border/50 bg-bg-surface/90 pl-4 backdrop-blur-xl">
+      <div className="no-drag flex w-[232px] items-center gap-2.5">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-primary text-white shadow-sm">
+          <Leaf className="h-4 w-4" />
         </div>
-        <span className="text-sm font-semibold text-text-primary">Propel</span>
-        {badgeText && (
-          <span className={cn('text-2xs font-semibold px-2 py-0.5 rounded-full border', badgeColor)}>
-            {badgeText}
-          </span>
-        )}
+        <div>
+          <p className="text-[13px] font-bold leading-none tracking-tight text-text-primary">
+            PROPEL
+          </p>
+          <p className="mt-1 text-[9px] font-medium uppercase tracking-[.16em] text-text-muted">
+            System care
+          </p>
+        </div>
       </div>
-
-      {/* Center: Live stats (drag region passes through) */}
-      <div className="no-drag flex items-center gap-1.5">
+      <div className="flex flex-1 items-center justify-center gap-5">
         {stats && (
           <>
-            <StatPill label="CPU" value={`${Math.round(stats.cpu)}%`} warn={stats.cpu >= 75} />
-            <StatPill label="RAM" value={`${Math.round(stats.ram.percent)}%`} warn={stats.ram.percent >= 80} />
-            <StatPill label="Disk" value={`${Math.round(stats.disk.percent)}%`} warn={stats.disk.percent >= 85} />
+            <Metric
+              label="CPU"
+              value={`${Math.round(stats.cpu)}%`}
+              warn={stats.cpu >= 75}
+            />
+            <span className="h-3 w-px bg-border/70" />
+            <Metric
+              label="Memory"
+              value={`${Math.round(stats.ram.percent)}%`}
+              warn={stats.ram.percent >= 80}
+            />
+            <span className="h-3 w-px bg-border/70" />
+            <Metric
+              label="Disk"
+              value={`${Math.round(stats.disk.percent)}%`}
+              warn={stats.disk.percent >= 85}
+            />
           </>
         )}
       </div>
-
-      {/* Right: Window Controls */}
-      <div className="no-drag flex items-center gap-0.5">
+      <div className="no-drag flex items-center">
+        <div className="mr-3 flex items-center gap-2 rounded-lg border border-border/60 bg-bg-elevated/60 px-2.5 py-1.5">
+          <CircleUserRound className="h-3.5 w-3.5 text-text-muted" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary">
+            {plan}
+          </span>
+        </div>
         <button
-          onClick={handleMinimize}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-white/5 transition-all"
+          aria-label="Minimize"
           title="Minimize"
+          onClick={() => window.electronAPI?.window.minimize()}
+          className={control}
         >
-          <Minus className="w-3.5 h-3.5" />
+          <Minus className="h-3.5 w-3.5" />
         </button>
         <button
-          onClick={handleMaximize}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-text-primary hover:bg-white/5 transition-all"
-          title="Maximize"
+          aria-label="Maximize or restore"
+          title="Maximize or restore"
+          onClick={() => window.electronAPI?.window.maximize()}
+          className={control}
         >
-          <Square className="w-3 h-3" />
+          <Square className="h-3 w-3" />
         </button>
         <button
-          onClick={handleClose}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-text-muted hover:text-red-400 hover:bg-red-400/10 transition-all"
+          aria-label="Close"
           title="Close"
+          onClick={() => window.electronAPI?.window.close()}
+          className={cn(control, "hover:bg-red-500 hover:text-white")}
         >
-          <X className="w-3.5 h-3.5" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
-    </div>
-  )
-}
+    </header>
+  );
+};

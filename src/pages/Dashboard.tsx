@@ -1,224 +1,322 @@
-import React, { useState, useEffect, memo, useMemo } from 'react'
-import { motion } from 'framer-motion'
-import { Cpu, MemoryStick, HardDrive, Wifi, Zap, Trash2, Activity, Shield, Lightbulb } from 'lucide-react'
-import { useAppStore } from '@/store/appStore'
-import { StatCard } from '@/components/common/StatCard'
-import { LiveChart } from '@/components/charts/LiveChart'
-import { MotionCard, CardHeader, CardContent, CardTitle } from '@/components/ui/Card'
-import { Button } from '@/components/ui/Button'
-import { InsightsPanel } from '@/components/common/InsightsPanel'
-import { staggerContainer, staggerItem } from '@/animations/variants'
-import { formatBytes, formatMbps, formatUptime, getHealthScore, getHealthLabel } from '@/utils/format'
-
-// ── Live clock ────────────────────────────────────────────────────────────
-
+import React, { useState, useEffect, memo, useMemo } from "react";
+import { motion } from "framer-motion";
+import {
+  Cpu,
+  MemoryStick,
+  HardDrive,
+  Wifi,
+  Trash2,
+  Activity,
+  ShieldCheck,
+  Lightbulb,
+  ArrowRight,
+  ScanLine,
+  CheckCircle2,
+  Clock3,
+} from "lucide-react";
+import { useAppStore } from "@/store/appStore";
+import { StatCard } from "@/components/common/StatCard";
+import { LiveChart } from "@/components/charts/LiveChart";
+import {
+  MotionCard,
+  CardHeader,
+  CardContent,
+  CardTitle,
+} from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { InsightsPanel } from "@/components/common/InsightsPanel";
+import { staggerContainer, staggerItem } from "@/animations/variants";
+import {
+  formatBytes,
+  formatMbps,
+  formatUptime,
+  getHealthScore,
+  getHealthLabel,
+} from "@/utils/format";
 const LiveClock = memo(() => {
-  const [time, setTime] = useState(() => new Date())
+  const [time, setTime] = useState(() => new Date());
   useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000)
-    return () => clearInterval(id)
-  }, [])
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
   return (
-    <span className="tabular-nums text-text-muted text-xs">
-      {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+    <span className="text-xs tabular-nums text-text-muted">
+      {time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
     </span>
-  )
-})
-LiveClock.displayName = 'LiveClock'
-
+  );
+});
+LiveClock.displayName = "LiveClock";
 export const Dashboard = memo(function Dashboard() {
-  const stats = useAppStore(s => s.stats)
-  const chartData = useAppStore(s => s.chartData)
-  const setActivePage = useAppStore(s => s.setActivePage)
-  const entitlementStatus = useAppStore(s => s.entitlementStatus)
-
-  const healthScore = stats
+  const stats = useAppStore((s) => s.stats);
+  const chartData = useAppStore((s) => s.chartData);
+  const setActivePage = useAppStore((s) => s.setActivePage);
+  const entitlement = useAppStore((s) => s.entitlementStatus);
+  const score = stats
     ? getHealthScore(stats.cpu, stats.ram.percent, stats.disk.percent)
-    : 0
-  const { label: healthLabel, color: healthColor } = getHealthLabel(healthScore)
-
-  const quickActions = useMemo(() => [
-    { label: 'Deep Clean',   desc: 'Scan & remove junk',   icon: <Trash2 className="w-4 h-4" />,   page: 'cleaner' as const,     color: 'from-brand-primary to-brand-secondary' },
-    { label: 'Performance',  desc: 'View live stats',       icon: <Activity className="w-4 h-4" />, page: 'performance' as const, color: 'from-brand-accent to-brand-primary'   },
-    { label: 'Manage Account', desc: 'Subscription details',     icon: <Shield className="w-4 h-4" />,   page: 'settings' as const,       color: 'from-emerald-500 to-teal-500'  },
-  ], [])
-
+    : 0;
+  const { label } = getHealthLabel(score);
+  const actions = useMemo(
+    () => [
+      {
+        label: "Run system check",
+        desc: "Inspect health and security",
+        icon: ScanLine,
+        page: "systemcheck" as const,
+      },
+      {
+        label: "Clean unnecessary files",
+        desc: "Review safe cleanup options",
+        icon: Trash2,
+        page: "cleaner" as const,
+      },
+      {
+        label: "Open performance center",
+        desc: "Explore live resource data",
+        icon: Activity,
+        page: "performance" as const,
+      },
+    ],
+    [],
+  );
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
+    <div className="page-shell space-y-6">
+      <motion.header
+        initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex items-center justify-between"
+        className="flex items-end justify-between gap-5"
       >
         <div>
-          <h1 className="text-xl font-bold text-text-primary">System Dashboard</h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <p className="text-sm text-text-secondary">
-              {stats ? `${stats.cpuModel} · ${stats.cpuCores} cores` : 'Loading system info...'}
-            </p>
-            <span className="text-text-muted/30 select-none">·</span>
-            <LiveClock />
-          </div>
+          <p className="section-label">System overview</p>
+          <h1 className="mt-1 text-[25px] font-semibold tracking-[-.035em] text-text-primary">
+            Your PC, at a glance
+          </h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            {stats
+              ? `${stats.cpuModel} · ${stats.cpuCores} cores`
+              : "Connecting to system services…"}
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          {stats && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.15 }}
-              className="glass rounded-xl px-4 py-2 flex items-center gap-2"
-            >
-              <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: healthColor }} />
-              <span className="text-sm font-semibold" style={{ color: healthColor }}>{healthLabel}</span>
-              <span className="text-xs text-text-muted">{healthScore}/100</span>
-            </motion.div>
-          )}
-          <Button variant="primary" size="sm" icon={<Trash2 className="w-3.5 h-3.5" />}
-            onClick={() => setActivePage('cleaner')}>
-            Quick Clean
-          </Button>
-        </div>
-      </motion.div>
-
-      {/* Stat Cards */}
-      <motion.div
+        <LiveClock />
+      </motion.header>
+      <motion.section
         variants={staggerContainer}
         initial="initial"
         animate="animate"
-        className="grid grid-cols-4 gap-4"
+        className="grid grid-cols-[minmax(340px,1.2fr)_minmax(320px,.8fr)] gap-5 max-[1050px]:grid-cols-1"
       >
-        <StatCard
-          title="CPU Usage"
-          value={stats ? `${Math.round(stats.cpu)}%` : '—'}
-          subtitle={stats ? `${stats.cpuSpeed.toFixed(1)} GHz` : undefined}
-          icon={<Cpu className="w-full h-full" />}
-          percent={stats?.cpu}
-          color="purple"
-        />
-        <StatCard
-          title="Memory"
-          value={stats ? `${Math.round(stats.ram.percent)}%` : '—'}
-          subtitle={stats ? `${formatBytes(stats.ram.used)} / ${formatBytes(stats.ram.total)}` : undefined}
-          icon={<MemoryStick className="w-full h-full" />}
-          percent={stats?.ram.percent}
-          color="blue"
-        />
-        <StatCard
-          title="Disk Usage"
-          value={stats ? `${Math.round(stats.disk.percent)}%` : '—'}
-          subtitle={stats ? `${formatBytes(stats.disk.free)} free` : undefined}
-          icon={<HardDrive className="w-full h-full" />}
-          percent={stats?.disk.percent}
-          color="emerald"
-        />
-        <StatCard
-          title="Network"
-          value={stats ? formatMbps(stats.network.download) : '—'}
-          subtitle={stats ? `↑ ${formatMbps(stats.network.upload)}` : undefined}
-          icon={<Wifi className="w-full h-full" />}
-          color="orange"
-        />
-      </motion.div>
-
-      {/* Chart + Quick Actions */}
-      <div className="grid grid-cols-3 gap-4">
-        <MotionCard
+        <motion.div
           variants={staggerItem}
+          className="relative overflow-hidden rounded-2xl border border-brand-primary/20 bg-bg-elevated p-6 shadow-[0_12px_38px_rgba(42,72,32,.07)]"
+        >
+          <div className="absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_center,rgb(var(--t-accent)/.10),transparent_68%)]" />
+          <div className="relative flex h-full flex-col justify-between gap-8">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="status-dot" />
+                  <span className="text-xs font-semibold text-brand-secondary">
+                    Live system health
+                  </span>
+                </div>
+                <h2 className="mt-4 text-[34px] font-semibold leading-none tracking-[-.045em] text-text-primary">
+                  {stats ? label : "Assessing"}
+                </h2>
+                <p className="mt-3 max-w-lg text-sm leading-6 text-text-secondary">
+                  {stats
+                    ? score >= 75
+                      ? "Core resources are operating within a healthy range. Keep maintenance current for the best experience."
+                      : score >= 45
+                        ? "Your system is usable, but one or more resources would benefit from attention."
+                        : "Propel found resource pressure that deserves attention. Run a check for clear next steps."
+                    : "Propel is reading live CPU, memory and disk signals."}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[44px] font-semibold leading-none tracking-[-.06em] text-brand-secondary tabular-nums">
+                  {stats ? score : "—"}
+                </p>
+                <p className="mt-1 text-[10px] font-bold uppercase tracking-[.14em] text-text-muted">
+                  Health score
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setActivePage("systemcheck")}
+                icon={<ShieldCheck className="h-4 w-4" />}
+              >
+                Run system check
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => setActivePage("cleaner")}
+                iconRight={<ArrowRight className="h-4 w-4" />}
+              >
+                Quick clean
+              </Button>
+            </div>
+          </div>
+        </motion.div>
+        <motion.div
+          variants={staggerItem}
+          className="rounded-2xl border border-border/70 bg-bg-surface/65 p-5"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="section-label">Recommended</p>
+              <h2 className="mt-1 text-base font-semibold text-text-primary">
+                Next best actions
+              </h2>
+            </div>
+            <CheckCircle2 className="h-5 w-5 text-brand-primary" />
+          </div>
+          <div className="mt-4 divide-y divide-border/50">
+            {actions.map(({ label: actionLabel, desc, icon: Icon, page }) => (
+              <button
+                key={actionLabel}
+                onClick={() => setActivePage(page)}
+                className="group flex w-full items-center gap-3 py-3 text-left"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border/60 bg-bg-elevated text-text-secondary group-hover:border-brand-primary/30 group-hover:text-brand-secondary">
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold text-text-primary">
+                    {actionLabel}
+                  </p>
+                  <p className="text-[11px] text-text-muted">{desc}</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-text-muted transition-transform group-hover:translate-x-0.5" />
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      </motion.section>
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <p className="section-label">Live resources</p>
+            <h2 className="mt-1 text-base font-semibold text-text-primary">
+              Current workload
+            </h2>
+          </div>
+          <span className="flex items-center gap-2 text-[11px] text-text-muted">
+            <span className="status-dot" />
+            Updating now
+          </span>
+        </div>
+        <motion.div
+          variants={staggerContainer}
           initial="initial"
           animate="animate"
-          className="col-span-2"
+          className="grid grid-cols-4 gap-3 max-[1100px]:grid-cols-2"
         >
+          <StatCard
+            title="CPU"
+            value={stats ? `${Math.round(stats.cpu)}%` : "—"}
+            subtitle={stats ? `${stats.cpuSpeed.toFixed(1)} GHz` : undefined}
+            icon={<Cpu className="h-full w-full" />}
+            percent={stats?.cpu}
+          />
+          <StatCard
+            title="Memory"
+            value={stats ? `${Math.round(stats.ram.percent)}%` : "—"}
+            subtitle={
+              stats
+                ? `${formatBytes(stats.ram.used)} of ${formatBytes(stats.ram.total)}`
+                : undefined
+            }
+            icon={<MemoryStick className="h-full w-full" />}
+            percent={stats?.ram.percent}
+          />
+          <StatCard
+            title="Disk"
+            value={stats ? `${Math.round(stats.disk.percent)}%` : "—"}
+            subtitle={
+              stats ? `${formatBytes(stats.disk.free)} available` : undefined
+            }
+            icon={<HardDrive className="h-full w-full" />}
+            percent={stats?.disk.percent}
+          />
+          <StatCard
+            title="Network"
+            value={stats ? formatMbps(stats.network.download) : "—"}
+            subtitle={
+              stats ? `Upload ${formatMbps(stats.network.upload)}` : undefined
+            }
+            icon={<Wifi className="h-full w-full" />}
+          />
+        </motion.div>
+      </section>
+      <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(260px,.7fr)] gap-5 max-[1050px]:grid-cols-1">
+        <MotionCard variants={staggerItem} initial="initial" animate="animate">
           <CardHeader>
-            <CardTitle>Live Performance</CardTitle>
-            <div className="flex items-center gap-1.5 text-xs text-text-muted">
-              <span className="w-2 h-2 rounded-full bg-brand-primary inline-block" />CPU
-              <span className="w-2 h-2 rounded-full bg-brand-accent inline-block ml-2" />RAM
+            <div>
+              <p className="section-label">Performance</p>
+              <CardTitle className="mt-1 text-base">
+                Resource activity
+              </CardTitle>
+            </div>
+            <div className="flex items-center gap-4 text-[11px] text-text-muted">
+              <span className="flex items-center gap-1.5">
+                <i className="h-2 w-2 rounded-sm bg-brand-primary" />
+                CPU
+              </span>
+              <span className="flex items-center gap-1.5">
+                <i className="h-2 w-2 rounded-sm bg-[#9a7b45]" />
+                Memory
+              </span>
             </div>
           </CardHeader>
           <CardContent>
-            <LiveChart data={chartData} height={180} />
+            <LiveChart data={chartData} height={210} />
           </CardContent>
         </MotionCard>
-
-        <MotionCard
-          variants={staggerItem}
-          initial="initial"
-          animate="animate"
-        >
-          <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            {quickActions.map(item => (
-              <motion.button
-                key={item.label}
-                whileHover={{ x: 2 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => setActivePage(item.page)}
-                className="w-full flex items-center gap-3 p-3 rounded-xl glass-hover text-left group"
-              >
-                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${item.color} flex items-center justify-center text-white shrink-0`}>
-                  {item.icon}
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-text-primary">{item.label}</p>
-                  <p className="text-xs text-text-muted">{item.desc}</p>
-                </div>
-              </motion.button>
-            ))}
-          </CardContent>
-        </MotionCard>
-      </div>
-
-      {/* System Info row — plain divs, no motion needed here */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          {
-            title: 'Uptime',
-            value: stats ? formatUptime(stats.uptime) : '—',
-            icon: <Zap className="w-3.5 h-3.5 text-amber-400" />,
-          },
-          {
-            title: 'Processes',
-            value: stats ? stats.processes.toString() : '—',
-            icon: <Activity className="w-3.5 h-3.5 text-brand-accent" />,
-          },
-          {
-            title: 'Account',
-            value: entitlementStatus.plan === 'FREE' 
-              ? 'FREE Plan'
-              : entitlementStatus.trial_active ? 'PRO Trial' : 'Active Plan',
-            icon: <Shield className="w-3.5 h-3.5 text-emerald-400" />,
-          },
-        ].map(item => (
-          <div
-            key={item.title}
-            className="glass rounded-xl p-4 flex items-center gap-3"
-          >
-            <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-              {item.icon}
-            </div>
-            <div>
-              <p className="text-xs text-text-muted">{item.title}</p>
-              <p className="text-sm font-semibold text-text-primary tabular-nums">{item.value}</p>
-            </div>
+        <div className="space-y-3">
+          <div className="rounded-xl border border-border/70 bg-bg-surface/65 p-4">
+            <Clock3 className="h-4 w-4 text-text-muted" />
+            <p className="mt-3 text-[10px] font-bold uppercase tracking-[.13em] text-text-muted">
+              Uptime
+            </p>
+            <p className="mt-1 text-base font-semibold text-text-primary tabular-nums">
+              {stats ? formatUptime(stats.uptime) : "—"}
+            </p>
           </div>
-        ))}
+          <div className="rounded-xl border border-border/70 bg-bg-surface/65 p-4">
+            <Activity className="h-4 w-4 text-text-muted" />
+            <p className="mt-3 text-[10px] font-bold uppercase tracking-[.13em] text-text-muted">
+              Processes
+            </p>
+            <p className="mt-1 text-base font-semibold text-text-primary tabular-nums">
+              {stats ? stats.processes : "—"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border/70 bg-bg-surface/65 p-4">
+            <ShieldCheck className="h-4 w-4 text-text-muted" />
+            <p className="mt-3 text-[10px] font-bold uppercase tracking-[.13em] text-text-muted">
+              Account
+            </p>
+            <p className="mt-1 text-base font-semibold text-text-primary">
+              {entitlement.trial_active
+                ? "PRO trial"
+                : `${entitlement.plan} plan`}
+            </p>
+          </div>
+        </div>
       </div>
-
-      {/* Smart Insights */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <Lightbulb className="w-4 h-4 text-amber-400" />
-          <h2 className="text-sm font-semibold text-text-primary">Smart Insights</h2>
-          <span className="text-xs text-text-muted/50">— real-time system analysis</span>
+      <section>
+        <div className="mb-3 flex items-center gap-2">
+          <Lightbulb className="h-4 w-4 text-[#9a7b45]" />
+          <div>
+            <p className="section-label">Propel intelligence</p>
+            <h2 className="mt-1 text-base font-semibold text-text-primary">
+              Smart insights
+            </h2>
+          </div>
         </div>
         <InsightsPanel />
-      </div>
+      </section>
     </div>
-  )
-})
-
-Dashboard.displayName = 'Dashboard'
+  );
+});
+Dashboard.displayName = "Dashboard";
