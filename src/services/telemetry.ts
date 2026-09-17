@@ -13,7 +13,7 @@
 import * as Sentry from '@sentry/react'
 
 // Version constant — keep in sync with updaterService.ts APP_VERSION
-const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? '3.2.0'
+const APP_VERSION = (import.meta.env.VITE_APP_VERSION as string | undefined) ?? '1.2'
 
 let _initialized = false
 let _enabled = true

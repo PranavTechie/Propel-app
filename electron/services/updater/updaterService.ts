@@ -7,7 +7,7 @@ import { captureServiceError, captureServiceWarning } from '../telemetry/service
 // ── Constants ──────────────────────────────────────────────────────────────
 const VERSION_URL =
   'https://raw.githubusercontent.com/pranavop45/Propel/refs/heads/main/version.json'
-export const APP_VERSION = '3.2.0'
+export const APP_VERSION = '1.2'
 
 // ── Remote version.json shape ──────────────────────────────────────────────
 interface RemoteVersionInfo {

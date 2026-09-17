@@ -42,7 +42,7 @@ const VersionPill: React.FC<{
       'text-sm font-mono font-bold',
       highlight ? 'text-brand-primary' : 'text-text-secondary',
     )}>
-      v{version}
+      {version}
     </p>
   </div>
 )

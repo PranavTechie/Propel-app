@@ -22,7 +22,6 @@ release/
 build/
 dist-electron/
 # ── Generated build artifacts (never commit — auto-generated each build) ──
-electron/security/integrity-manifest.json
 
 # ── Electron-specific packaging artifacts ─────────────────────
 *.blockmap

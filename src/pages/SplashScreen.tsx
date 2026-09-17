@@ -302,7 +302,7 @@ export const SplashScreen: React.FC = () => {
         className="absolute bottom-5 left-6 right-6 flex items-center justify-between text-[9px] font-medium uppercase tracking-[.16em] text-text-muted/70"
       >
         <span>Propel Desktop</span>
-        <span>Version 3.2.0</span>
+        <span>Version 1.2</span>
       </motion.div>
     </div>
   );

@@ -1,0 +1,31 @@
+{
+  "version": "1.2",
+  "builtAt": "2026-09-17T15:28:00.771Z",
+  "files": {
+    "out/main/index.js": "6c578ebb0f6350dac6f7c1a6dfb044428cc4fb5a8d8c10572f42eda8da5309ed",
+    "out/preload/index.js": "132c7721b430a340f2cf0c2aca51923c0047b39a5624e525852f08de24748ea9",
+    "out/renderer/assets/AboutPage-Ct7Hp54g.js": "a38777b9328018c09005608ab20b08bc54a37dc2b3b3c6150118826a56a8deb4",
+    "out/renderer/assets/AIFeaturesPage-6dYY3BQv.js": "6f485968376fdfbdcf636f24fb0c1c9463cd1784e46e6d9e3aa106cd9e3aed1e",
+    "out/renderer/assets/alert-circle-COTgbpm8.js": "e46abfe2a14edf00c7dd5adc51e19bf389c451573da20df6da6596cd886ce31c",
+    "out/renderer/assets/bar-chart-3-M7XOjzCZ.js": "448c55685f7f922659eb50e3c0048071495773e773439ac1ae3d2a923b644ed1",
+    "out/renderer/assets/bell-CaZW5urm.js": "64cedfc18541bc7fdfc5a16b0f1ddabab4965ebdf8ebd47bcb5e8dd3b06696c9",
+    "out/renderer/assets/check-circle-Vmseylf9.js": "c6edb1369a9301614fb452dd961ad2999ef87ed184c26c33111163a845363c2a",
+    "out/renderer/assets/chevron-down-C7scXCqc.js": "4a0739680615e012b466cd29ee6de649e609cb497740e67fc9a6da23a5f0ed3b",
+    "out/renderer/assets/chevron-right-lRXm-2pE.js": "0eac89b943d9b38e7d401ba55faffae3373bcccf26cc022adbf4b99107420a0e",
+    "out/renderer/assets/CleanerPage-BHLgCLjz.js": "3793e3aa52df9135bc97b0a77adfefb384a85e3b6d141d8fefbeb5bbb6a77717",
+    "out/renderer/assets/clock-CHhaHjbp.js": "0ceaf74aee8ef0696ae70fd87ffd3c8bf1ae4a8714ecf9ff6f00d45d8fc70685",
+    "out/renderer/assets/files-JvUBOfIp.js": "b1e0dcb615e1a08b5be77cf9678f6f12486df739c55703c90f5bf69d8ebcf6cd",
+    "out/renderer/assets/index-BdaqzHKH.js": "4bc9f81637305a4b9d3bf010e92433466d6b331c68873a8544216dfa6a2cdbc5",
+    "out/renderer/assets/MemoryPage-spFyhYQ7.js": "c6027adb3f32fc1ae35249b3115b9921a7352759da465c2acc4b2e859080da5e",
+    "out/renderer/assets/monitor-CTHGULvc.js": "cc8a22c9778ce4d517828d34a23e4baabc85944c3fcdfba55090ccfecc8ad8db",
+    "out/renderer/assets/PerformancePage-DLqlSAli.js": "4cdd8d7f25f4b8902fa5cfc51ffed1ba5616348cfcc4cce0314330b485dafde8",
+    "out/renderer/assets/perfProfiler-BKS8Vygc.js": "1830ff45d774cec5b4508da8177ee82e6c0b7ae10caac86fd3c3c12b2b58cc1b",
+    "out/renderer/assets/PermissionsPage-Cet4KyXm.js": "1a3f4e285b20ca52933147ac9f4322f179b95b5fe31cc394e43a688e16141e45",
+    "out/renderer/assets/rocket-CiSx07sV.js": "12e44aad8324a98d0cc7c42e571d28186f10d5c09c094e3825ccc431c3ed97f1",
+    "out/renderer/assets/search-h_u2EEgv.js": "a08fe2878076178a7f22c9ce06d8bd09399c88a5b447974fc7ab9867bb25aa9b",
+    "out/renderer/assets/SettingsPage-B_dBwN8T.js": "ab93a3e6d32156c89088bf68f9a1f2a3192a3220180e3a63ac8641ce9b9d6712",
+    "out/renderer/assets/SmartMaintenancePage-DT0Z5Lji.js": "6df2dc71499e5c4001a5107e1e12141abbef8f18defd86360b214b77f3b7b824",
+    "out/renderer/assets/SystemCheckPage-CpC65qB-.js": "b6ce955fbee1d4df844913887df25eb0c2e448b190f07c7cc554c894dddc0fe8"
+  },
+  "signature": "181cef57c6a9ddfc1345321b941e9a60f22c5b420ff5474af0322a64a78ba18b"
+}

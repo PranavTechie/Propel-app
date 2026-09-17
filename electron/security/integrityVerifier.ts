@@ -49,7 +49,7 @@ interface VerificationFailure {
  * All fields are derived from the local manifest and bound to the request nonce.
  */
 export interface IntegrityProof {
-  /** App version string, e.g. "3.2.0" */
+  /** App version string, e.g. "1.2" */
   appVersion:      string
   /** SHA-256 of the full manifest JSON (compact fingerprint of all file hashes) */
   manifestHash:    string
@@ -247,6 +247,9 @@ export async function verifyIntegrity(): Promise<void> {
   _integrityPassed = true
 
   const elapsedMs = Date.now() - startMs
+  writeSecurityLog(
+    `Verification passed | files=${Object.keys(manifest.files).length} | elapsedMs=${elapsedMs} | version=${APP_VERSION}`
+  )
   console.log(`[integrity] Verification passed (${Object.keys(manifest.files).length} files, ${elapsedMs}ms)`)
 }
 

@@ -3,7 +3,7 @@ import axios from 'axios'
 import { getSystemStats } from '../native/system'
 
 const VERSION_URL = 'https://raw.githubusercontent.com/propel/updates/main/version.json'
-const APP_VERSION = '3.2.0'
+const APP_VERSION = '1.2'
 
 export function setupIPC(): void {
   ipcMain.handle('system:get-stats', async () => {
