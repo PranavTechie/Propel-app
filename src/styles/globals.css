@@ -418,3 +418,75 @@
     white-space: nowrap;
   }
 }
+
+/* Premium startup environment */
+.splash-grid {
+  background-image:
+    linear-gradient(rgb(var(--t-border) / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--t-border) / 0.045) 1px, transparent 1px);
+  background-size: 38px 38px;
+  mask-image: radial-gradient(circle at 50% 42%, black 0%, transparent 70%);
+}
+.splash-vignette {
+  box-shadow: inset 0 0 150px rgb(var(--t-bg-base) / 0.72);
+}
+.splash-shield-layer,
+.splash-shield-face {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: 118px;
+  width: 118px;
+  transform: translate(-50%, -50%);
+}
+.splash-shield-layer {
+  color: rgb(var(--t-accent));
+  filter: drop-shadow(0 10px 18px rgb(var(--t-accent2) / 0.12));
+}
+.splash-shield-layer--back {
+  transform: translate3d(-46%, -46%, -22px);
+  color: rgb(var(--t-accent2) / 0.28);
+}
+.splash-shield-layer--middle {
+  transform: translate3d(-48%, -48%, -10px);
+  color: rgb(var(--t-accent) / 0.5);
+}
+.splash-shield-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  clip-path: polygon(
+    50% 1%,
+    91% 17%,
+    86% 64%,
+    72% 84%,
+    50% 99%,
+    28% 84%,
+    14% 64%,
+    9% 17%
+  );
+  background: linear-gradient(145deg, #6fb753 0%, #559b3b 48%, #3f7f2a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow:
+    inset 10px 8px 24px rgba(255, 255, 255, 0.16),
+    inset -12px -14px 24px rgba(29, 71, 18, 0.22),
+    0 18px 32px rgb(var(--t-accent2) / 0.2);
+  transform: translate3d(-50%, -50%, 8px);
+}
+[data-theme="pure-black"] .splash-shield-face {
+  box-shadow:
+    inset 10px 8px 24px rgba(255, 255, 255, 0.13),
+    inset -12px -14px 24px rgba(0, 0, 0, 0.25),
+    0 20px 42px rgba(60, 120, 40, 0.22);
+}
+@media (max-height: 650px) {
+  .splash-shield-layer,
+  .splash-shield-face {
+    height: 96px;
+    width: 96px;
+  }
+  .splash-shield-face > div {
+    transform: scale(0.85);
+  }
+}
