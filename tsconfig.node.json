@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "outDir": "out",
+    "rootDir": ".",
+        "baseUrl": ".",
+    "paths": {
+      "@main/*": ["electron/main/*"],
+      "@ipc/*": ["electron/ipc/*"],
+      "@native/*": ["electron/native/*"]
+    }
+  },
+  "include": ["electron", "electron.vite.config.ts"]
+}

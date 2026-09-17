@@ -1,0 +1,314 @@
+import { execSync } from 'child_process'
+import * as os from 'os'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as crypto from 'crypto'
+import si from 'systeminformation'
+
+export interface SystemStats {
+  cpu: number
+  ram: { used: number; total: number; free: number; percent: number }
+  disk: { used: number; total: number; free: number; percent: number }
+  network: { download: number; upload: number }
+  uptime: number
+  processes: number
+  cpuModel: string
+  cpuCores: number
+  cpuSpeed: number
+}
+
+let _lastNetRx = 0
+let _lastNetTx = 0
+let _lastNetTime = 0
+
+export async function getSystemStats(): Promise<SystemStats> {
+  const [cpuLoad, mem, diskData, netStats, processes, cpuInfo] = await Promise.all([
+    si.currentLoad(),
+    si.mem(),
+    si.fsSize(),
+    si.networkStats(),
+    si.processes(),
+    si.cpu(),
+  ])
+
+  const systemDrive = diskData.find(d => d.mount === 'C:' || d.mount === '/') ?? diskData[0]
+
+  const now = Date.now()
+  let download = 0
+  let upload = 0
+  if (_lastNetTime > 0 && netStats.length > 0) {
+    const elapsed = (now - _lastNetTime) / 1000
+    const totalRx = netStats.reduce((a, n) => a + n.rx_bytes, 0)
+    const totalTx = netStats.reduce((a, n) => a + n.tx_bytes, 0)
+    download = Math.max(0, ((totalRx - _lastNetRx) * 8) / elapsed / 1_000_000)
+    upload = Math.max(0, ((totalTx - _lastNetTx) * 8) / elapsed / 1_000_000)
+    _lastNetRx = totalRx
+    _lastNetTx = totalTx
+  } else if (netStats.length > 0) {
+    _lastNetRx = netStats.reduce((a, n) => a + n.rx_bytes, 0)
+    _lastNetTx = netStats.reduce((a, n) => a + n.tx_bytes, 0)
+  }
+  _lastNetTime = now
+
+  return {
+    cpu: Math.round(cpuLoad.currentLoad),
+    ram: {
+      used: Math.round(mem.used / 1024 / 1024),
+      total: Math.round(mem.total / 1024 / 1024),
+      free: Math.round(mem.free / 1024 / 1024),
+      percent: Math.round((mem.used / mem.total) * 100),
+    },
+    disk: {
+      used: Math.round((systemDrive?.used ?? 0) / 1024 / 1024 / 1024),
+      total: Math.round((systemDrive?.size ?? 0) / 1024 / 1024 / 1024),
+      free: Math.round(((systemDrive?.size ?? 0) - (systemDrive?.used ?? 0)) / 1024 / 1024 / 1024),
+      percent: Math.round(systemDrive?.use ?? 0),
+    },
+    network: { download: parseFloat(download.toFixed(2)), upload: parseFloat(upload.toFixed(2)) },
+    uptime: Math.floor(os.uptime()),
+    processes: processes.all,
+    cpuModel: `${cpuInfo.manufacturer} ${cpuInfo.brand}`.trim(),
+    cpuCores: cpuInfo.physicalCores,
+    cpuSpeed: cpuInfo.speed,
+  }
+}
+
+function wmicQuery(args: string[]): string {
+  try {
+    const result = execSync(`wmic ${args.join(' ')}`, {
+      timeout: 5000,
+      windowsHide: true,
+      encoding: 'utf8',
+    })
+    const lines = result.split('\n').map(l => l.trim()).filter(Boolean)
+    return lines[1] ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function getHWID(): string {
+  try {
+    let board = wmicQuery(['baseboard', 'get', 'SerialNumber'])
+    let disk = wmicQuery(['diskdrive', 'get', 'SerialNumber'])
+    let cpu = wmicQuery(['cpu', 'get', 'ProcessorId'])
+
+    const isGeneric = (s: string) =>
+      !s ||
+      s.toLowerCase().includes('o.e.m') ||
+      s.toLowerCase().includes('default') ||
+      s.toLowerCase().includes('to be filled') ||
+      s.toLowerCase().includes('none') ||
+      s === '0'
+
+    if (isGeneric(board)) board = os.hostname()
+    if (isGeneric(disk)) disk = os.arch()
+    if (isGeneric(cpu)) cpu = os.cpus()[0]?.model ?? 'unknown'
+
+    const raw = `${board}|${disk}|${cpu}`
+    return crypto.createHash('sha256').update(raw).digest('hex')
+  } catch {
+    const fallback = `${os.hostname()}|${os.platform()}|${os.arch()}`
+    return crypto.createHash('sha256').update(fallback).digest('hex')
+  }
+}
+
+export function getFingerprint(): string {
+  try {
+    const data = [
+      os.platform(),
+      os.version(),
+      os.arch(),
+      os.cpus()[0]?.model ?? '',
+      os.userInfo().username,
+      String(os.totalmem()),
+    ].join('|')
+    return crypto.createHash('sha256').update(data).digest('hex')
+  } catch {
+    return 'unknown'
+  }
+}
+
+export interface ScanCategory {
+  name: string
+  label: string
+  paths: string[]
+  totalSize: number
+  fileCount: number
+  items: ScanItem[]
+}
+
+export interface ScanItem {
+  path: string
+  size: number
+  type: string
+}
+
+function getDirSize(dirPath: string): { size: number; count: number; items: ScanItem[] } {
+  let size = 0
+  let count = 0
+  const items: ScanItem[] = []
+
+  try {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+    for (const entry of entries) {
+      const full = path.join(dirPath, entry.name)
+      try {
+        if (entry.isDirectory()) {
+          const sub = getDirSize(full)
+          size += sub.size
+          count += sub.count
+        } else if (entry.isFile()) {
+          const stat = fs.statSync(full)
+          size += stat.size
+          count++
+          if (items.length < 100) {
+            items.push({ path: full, size: stat.size, type: path.extname(entry.name) })
+          }
+        }
+      } catch {
+        // skip locked files
+      }
+    }
+  } catch {
+    // skip inaccessible dirs
+  }
+
+  return { size, count, items }
+}
+
+export async function scanJunk(): Promise<ScanCategory[]> {
+  const local = process.env.LOCALAPPDATA ?? ''
+  const temp = process.env.TEMP ?? os.tmpdir()
+  const appdata = process.env.APPDATA ?? ''
+
+  const categories: Array<{ name: string; label: string; paths: string[] }> = [
+    {
+      name: 'user_temp',
+      label: 'User Temp Files',
+      paths: [temp, path.join(local, 'Temp')],
+    },
+    {
+      name: 'browser_cache',
+      label: 'Browser Cache',
+      paths: [
+        path.join(local, 'Google', 'Chrome', 'User Data', 'Default', 'Cache'),
+        path.join(local, 'Google', 'Chrome', 'User Data', 'Default', 'Code Cache'),
+        path.join(local, 'Microsoft', 'Edge', 'User Data', 'Default', 'Cache'),
+        path.join(local, 'Microsoft', 'Edge', 'User Data', 'Default', 'Code Cache'),
+        path.join(appdata, 'Mozilla', 'Firefox', 'Profiles'),
+      ],
+    },
+    {
+      name: 'crash_dumps',
+      label: 'Crash Dumps',
+      paths: [
+        path.join(local, 'CrashDumps'),
+        path.join(local, 'Microsoft', 'Windows', 'WER', 'ReportArchive'),
+      ],
+    },
+    {
+      name: 'dx_cache',
+      label: 'DirectX Shader Cache',
+      paths: [
+        path.join(local, 'D3DSCache'),
+        path.join(local, 'NVIDIA', 'DXCache'),
+        path.join(local, 'NVIDIA', 'GLCache'),
+      ],
+    },
+    {
+      name: 'thumbnail_cache',
+      label: 'Thumbnail Cache',
+      paths: [path.join(local, 'Microsoft', 'Windows', 'Explorer')],
+    },
+  ]
+
+  const results: ScanCategory[] = []
+
+  for (const cat of categories) {
+    let totalSize = 0
+    let fileCount = 0
+    const allItems: ScanItem[] = []
+
+    for (const p of cat.paths) {
+      if (fs.existsSync(p)) {
+        const res = getDirSize(p)
+        totalSize += res.size
+        fileCount += res.count
+        allItems.push(...res.items)
+      }
+    }
+
+    results.push({
+      ...cat,
+      totalSize,
+      fileCount,
+      items: allItems.slice(0, 200),
+    })
+  }
+
+  return results
+}
+
+export async function cleanPaths(pathsToClean: string[]): Promise<{ freed: number; errors: number }> {
+  let freed = 0
+  let errors = 0
+
+  for (const p of pathsToClean) {
+    try {
+      if (!fs.existsSync(p)) continue
+      const stat = fs.statSync(p)
+
+      if (stat.isDirectory()) {
+        const entries = fs.readdirSync(p, { withFileTypes: true })
+        for (const entry of entries) {
+          const full = path.join(p, entry.name)
+          try {
+            const s = fs.statSync(full)
+            freed += s.size
+            if (entry.isDirectory()) {
+              fs.rmSync(full, { recursive: true, force: true })
+            } else {
+              fs.unlinkSync(full)
+            }
+          } catch {
+            errors++
+          }
+        }
+      } else {
+        freed += stat.size
+        fs.unlinkSync(p)
+      }
+    } catch {
+      errors++
+    }
+  }
+
+  return { freed, errors }
+}
+
+export function getLicenseStorePath(): string {
+  const userData = process.env.APPDATA ?? os.homedir()
+  return path.join(userData, 'cm_license.json')
+}
+
+export function saveLicenseKey(key: string): void {
+  fs.writeFileSync(getLicenseStorePath(), JSON.stringify({ key, saved_at: new Date().toISOString() }))
+}
+
+export function loadLicenseKey(): string | null {
+  try {
+    const raw = fs.readFileSync(getLicenseStorePath(), 'utf8')
+    return JSON.parse(raw).key ?? null
+  } catch {
+    return null
+  }
+}
+
+export function clearLicenseKey(): void {
+  try {
+    fs.unlinkSync(getLicenseStorePath())
+  } catch {
+    // already gone
+  }
+}
