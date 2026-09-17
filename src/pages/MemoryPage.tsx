@@ -1,39 +1,58 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Zap, Activity, Cpu, HardDrive, RefreshCw,
-  Gauge, Sparkles, ChevronUp, Clock, BarChart3,
-  Shield, AlertTriangle, CheckCircle, Power,
-} from 'lucide-react'
-import { useAppStore } from '@/store/appStore'
-import { Button } from '@/components/ui/Button'
-import { formatBytes } from '@/utils/format'
-import { cn } from '@/utils/cn'
-import { staggerContainer, staggerItem } from '@/animations/variants'
-import type { MemoryDetails, ProcessMemInfo, OptimizationResult } from '@/types'
+  Zap,
+  Activity,
+  Cpu,
+  HardDrive,
+  RefreshCw,
+  Gauge,
+  Sparkles,
+  ChevronUp,
+  Clock,
+  BarChart3,
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  Power,
+} from "lucide-react";
+import { useAppStore } from "@/store/appStore";
+import { Button } from "@/components/ui/Button";
+import { formatBytes } from "@/utils/format";
+import { cn } from "@/utils/cn";
+import { staggerContainer, staggerItem } from "@/animations/variants";
+import type {
+  MemoryDetails,
+  ProcessMemInfo,
+  OptimizationResult,
+} from "@/types";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function pressureColor(pct: number): string {
-  if (pct < 50) return 'rgb(16,185,129)'   // green
-  if (pct < 70) return 'rgb(245,158,11)'   // yellow
-  if (pct < 85) return 'rgb(249,115,22)'   // orange
-  return 'rgb(239,68,68)'                  // red
+  if (pct < 50) return "rgb(16,185,129)"; // green
+  if (pct < 70) return "rgb(245,158,11)"; // yellow
+  if (pct < 85) return "rgb(249,115,22)"; // orange
+  return "rgb(239,68,68)"; // red
 }
 
 function pressureLabel(pct: number): string {
-  if (pct < 50) return 'Low'
-  if (pct < 70) return 'Moderate'
-  if (pct < 85) return 'High'
-  return 'Critical'
+  if (pct < 50) return "Low";
+  if (pct < 70) return "Moderate";
+  if (pct < 85) return "High";
+  return "Critical";
 }
 
 // ── Memory Ring ────────────────────────────────────────────────────────────
-const MemoryRing: React.FC<{ percent: number; label: string; sub: string }> = ({ percent, label, sub }) => {
-  const R = 56
-  const C = Math.PI * 2 * R
-  const offset = C * (1 - Math.min(100, percent) / 100)
-  const color = pressureColor(percent)
+const MemoryRing: React.FC<{ percent: number; label: string; sub: string }> = ({
+  percent,
+  label,
+  sub,
+}) => {
+  const R = 56;
+  const C = Math.PI * 2 * R;
+  const offset = C * (1 - Math.min(100, percent) / 100);
+  const color = pressureColor(percent);
 
   return (
     <div className="relative w-36 h-36 flex items-center justify-center">
@@ -44,10 +63,19 @@ const MemoryRing: React.FC<{ percent: number; label: string; sub: string }> = ({
       />
       <svg className="w-36 h-36 -rotate-90" viewBox="0 0 128 128">
         {/* Track */}
-        <circle cx="64" cy="64" r={R} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+        <circle
+          cx="64"
+          cy="64"
+          r={R}
+          fill="none"
+          stroke="rgba(255,255,255,0.05)"
+          strokeWidth="8"
+        />
         {/* Progress */}
         <motion.circle
-          cx="64" cy="64" r={R}
+          cx="64"
+          cy="64"
+          r={R}
           fill="none"
           stroke={color}
           strokeWidth="8"
@@ -55,7 +83,7 @@ const MemoryRing: React.FC<{ percent: number; label: string; sub: string }> = ({
           strokeDasharray={C}
           initial={{ strokeDashoffset: C }}
           animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 0.8, ease: 'easeOut' }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
           style={{ filter: `drop-shadow(0 0 6px ${color})` }}
         />
       </svg>
@@ -74,33 +102,49 @@ const MemoryRing: React.FC<{ percent: number; label: string; sub: string }> = ({
         <span className="text-2xs text-text-muted">{sub}</span>
       </div>
     </div>
-  )
-}
+  );
+};
 
 // ── Stat Tile ──────────────────────────────────────────────────────────────
 const StatTile: React.FC<{
-  label: string
-  value: string
-  sub?: string
-  color: string
-  icon: React.ReactNode
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+  icon: React.ReactNode;
 }> = ({ label, value, sub, color, icon }) => (
   <div className="glass rounded-xl p-3 flex items-start gap-2.5">
-    <div className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5', color)}>
+    <div
+      className={cn(
+        "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
+        color,
+      )}
+    >
       {icon}
     </div>
     <div className="min-w-0">
       <p className="text-2xs text-text-muted">{label}</p>
-      <p className="text-sm font-bold text-text-primary tabular-nums">{value}</p>
+      <p className="text-sm font-bold text-text-primary tabular-nums">
+        {value}
+      </p>
       {sub && <p className="text-2xs text-text-muted tabular-nums">{sub}</p>}
     </div>
   </div>
-)
+);
 
 // ── Process Row ────────────────────────────────────────────────────────────
-const ProcessRow: React.FC<{ proc: ProcessMemInfo; max: number; rank: number }> = ({ proc, max, rank }) => {
-  const pct = max > 0 ? (proc.memBytes / max) * 100 : 0
-  const hue = rank < 3 ? 'bg-brand-primary' : rank < 6 ? 'bg-brand-accent' : 'bg-white/20'
+const ProcessRow: React.FC<{
+  proc: ProcessMemInfo;
+  max: number;
+  rank: number;
+}> = ({ proc, max, rank }) => {
+  const pct = max > 0 ? (proc.memBytes / max) * 100 : 0;
+  const hue =
+    rank < 3
+      ? "bg-brand-primary"
+      : rank < 6
+        ? "bg-brand-accent"
+        : "bg-white/20";
 
   return (
     <motion.div
@@ -108,15 +152,19 @@ const ProcessRow: React.FC<{ proc: ProcessMemInfo; max: number; rank: number }> 
       layout
       className="flex items-center gap-3 py-2 border-b border-white/[0.04] last:border-0"
     >
-      <span className="text-2xs text-text-muted w-4 tabular-nums shrink-0">{rank + 1}</span>
+      <span className="text-2xs text-text-muted w-4 tabular-nums shrink-0">
+        {rank + 1}
+      </span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-text-primary truncate">{proc.name}</p>
+        <p className="text-xs font-medium text-text-primary truncate">
+          {proc.name}
+        </p>
         <div className="mt-1 h-1 rounded-full bg-white/5 overflow-hidden">
           <motion.div
-            className={cn('h-full rounded-full', hue)}
+            className={cn("h-full rounded-full", hue)}
             initial={{ width: 0 }}
             animate={{ width: `${pct}%` }}
-            transition={{ duration: 0.5, ease: 'easeOut', delay: rank * 0.03 }}
+            transition={{ duration: 0.5, ease: "easeOut", delay: rank * 0.03 }}
           />
         </div>
       </div>
@@ -124,19 +172,22 @@ const ProcessRow: React.FC<{ proc: ProcessMemInfo; max: number; rank: number }> 
         {formatBytes(proc.memBytes)}
       </span>
     </motion.div>
-  )
-}
+  );
+};
 
 // ── Optimization Report ───────────────────────────────────────────────────
-const OptimizeReport: React.FC<{ result: OptimizationResult; onDismiss: () => void }> = ({ result, onDismiss }) => {
-  const secs = (result.durationMs / 1000).toFixed(1)
+const OptimizeReport: React.FC<{
+  result: OptimizationResult;
+  onDismiss: () => void;
+}> = ({ result, onDismiss }) => {
+  const secs = (result.durationMs / 1000).toFixed(1);
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.97 }}
-      transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+      transition={{ type: "spring", stiffness: 280, damping: 22 }}
       className="glass rounded-2xl overflow-hidden border border-emerald-500/25"
     >
       <div className="bg-gradient-to-r from-emerald-500/15 to-teal-500/10 p-4 flex items-center gap-3">
@@ -144,24 +195,48 @@ const OptimizeReport: React.FC<{ result: OptimizationResult; onDismiss: () => vo
           <Sparkles className="w-5 h-5 text-emerald-400" />
         </div>
         <div className="flex-1">
-          <p className="text-sm font-bold text-emerald-400">Optimization Complete</p>
-          <p className="text-xs text-text-secondary">Memory working sets trimmed safely</p>
+          <p className="text-sm font-bold text-emerald-400">
+            Optimization Complete
+          </p>
+          <p className="text-xs text-text-secondary">
+            Memory working sets trimmed safely
+          </p>
         </div>
-        <button onClick={onDismiss} className="text-text-muted hover:text-text-secondary transition-colors text-xs">
+        <button
+          onClick={onDismiss}
+          className="text-text-muted hover:text-text-secondary transition-colors text-xs"
+        >
           Dismiss
         </button>
       </div>
       <div className="p-4 grid grid-cols-3 gap-3">
         {[
-          { label: 'RAM Freed', value: formatBytes(result.recoveredBytes), icon: <HardDrive className="w-3.5 h-3.5 text-emerald-400" /> },
-          { label: 'Processes', value: `${result.processesOptimized}`, icon: <Cpu className="w-3.5 h-3.5 text-blue-400" /> },
-          { label: 'Duration', value: `${secs}s`, icon: <Clock className="w-3.5 h-3.5 text-brand-secondary" /> },
-        ].map(item => (
-          <div key={item.label} className="glass rounded-lg p-2.5 flex items-center gap-2">
+          {
+            label: "RAM Freed",
+            value: formatBytes(result.recoveredBytes),
+            icon: <HardDrive className="w-3.5 h-3.5 text-emerald-400" />,
+          },
+          {
+            label: "Processes",
+            value: `${result.processesOptimized}`,
+            icon: <Cpu className="w-3.5 h-3.5 text-blue-400" />,
+          },
+          {
+            label: "Duration",
+            value: `${secs}s`,
+            icon: <Clock className="w-3.5 h-3.5 text-brand-secondary" />,
+          },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className="glass rounded-lg p-2.5 flex items-center gap-2"
+          >
             {item.icon}
             <div>
               <p className="text-2xs text-text-muted">{item.label}</p>
-              <p className="text-xs font-bold text-text-primary">{item.value}</p>
+              <p className="text-xs font-bold text-text-primary">
+                {item.value}
+              </p>
             </div>
           </div>
         ))}
@@ -170,139 +245,153 @@ const OptimizeReport: React.FC<{ result: OptimizationResult; onDismiss: () => vo
         <div className="px-4 pb-4">
           <p className="text-2xs text-text-muted mb-1.5">Optimized processes</p>
           <div className="flex flex-wrap gap-1.5">
-            {result.optimizedProcesses.slice(0, 10).map(name => (
-              <span key={name} className="text-2xs bg-white/5 text-text-secondary px-1.5 py-0.5 rounded-md">
+            {result.optimizedProcesses.slice(0, 10).map((name) => (
+              <span
+                key={name}
+                className="text-2xs bg-white/5 text-text-secondary px-1.5 py-0.5 rounded-md"
+              >
                 {name}
               </span>
             ))}
             {result.optimizedProcesses.length > 10 && (
-              <span className="text-2xs text-text-muted">+{result.optimizedProcesses.length - 10} more</span>
+              <span className="text-2xs text-text-muted">
+                +{result.optimizedProcesses.length - 10} more
+              </span>
             )}
           </div>
         </div>
       )}
     </motion.div>
-  )
-}
+  );
+};
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 export const MemoryPage: React.FC = () => {
-  const { addToast } = useAppStore()
+  const { addToast } = useAppStore();
 
-  const [memStats, setMemStats] = useState<MemoryDetails | null>(null)
-  const [processes, setProcesses] = useState<ProcessMemInfo[]>([])
-  const [isOptimizing, setIsOptimizing] = useState(false)
-  const [optimizeStep, setOptimizeStep] = useState('')
-  const [optimizeResult, setOptimizeResult] = useState<OptimizationResult | null>(null)
-  const [perfMode, setPerfMode] = useState(false)
-  const [perfModeLoading, setPerfModeLoading] = useState(false)
-  const [isRefreshing, setIsRefreshing] = useState(false)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const memApi = useRef(window.propel?.memory)
+  const [memStats, setMemStats] = useState<MemoryDetails | null>(null);
+  const [processes, setProcesses] = useState<ProcessMemInfo[]>([]);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizeStep, setOptimizeStep] = useState("");
+  const [optimizeResult, setOptimizeResult] =
+    useState<OptimizationResult | null>(null);
+  const [perfMode, setPerfMode] = useState(false);
+  const [perfModeLoading, setPerfModeLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const memApi = useRef(window.propel?.memory);
 
   // ── Fetch memory stats ──────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
-    if (!memApi.current) return
+    if (!memApi.current) return;
     try {
       const [stats, procs] = await Promise.all([
         memApi.current.getStats(),
         memApi.current.getProcesses(12),
-      ])
-      setMemStats(stats)
-      setProcesses(procs)
+      ]);
+      setMemStats(stats);
+      setProcesses(procs);
     } catch {
       // silently ignore polling errors
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    memApi.current = window.propel?.memory
-    fetchStats()
-    pollRef.current = setInterval(fetchStats, 3000)
+    memApi.current = window.propel?.memory;
+    fetchStats();
+    pollRef.current = setInterval(fetchStats, 3000);
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current)
-      memApi.current?.removeListeners()
-    }
-  }, [fetchStats])
+      if (pollRef.current) clearInterval(pollRef.current);
+      memApi.current?.removeListeners();
+    };
+  }, [fetchStats]);
 
   // ── Manual refresh ──────────────────────────────────────────────────────
   const handleRefresh = useCallback(async () => {
-    setIsRefreshing(true)
-    await fetchStats()
-    setTimeout(() => setIsRefreshing(false), 600)
-  }, [fetchStats])
+    setIsRefreshing(true);
+    await fetchStats();
+    setTimeout(() => setIsRefreshing(false), 600);
+  }, [fetchStats]);
 
   // ── Optimize ────────────────────────────────────────────────────────────
   const handleOptimize = useCallback(async () => {
-    if (!memApi.current || isOptimizing) return
+    if (!memApi.current || isOptimizing) return;
 
-    setIsOptimizing(true)
-    setOptimizeResult(null)
-    setOptimizeStep('Preparing…')
+    setIsOptimizing(true);
+    setOptimizeResult(null);
+    setOptimizeStep("Preparing…");
 
-    memApi.current.removeListeners()
-    memApi.current.onOptimizeProgress(info => {
-      setOptimizeStep(info.step)
-    })
+    memApi.current.removeListeners();
+    memApi.current.onOptimizeProgress((info) => {
+      setOptimizeStep(info.step);
+    });
 
     try {
-      const result = await memApi.current.optimize()
-      setOptimizeResult(result)
-      await fetchStats()
+      const result = await memApi.current.optimize();
+      setOptimizeResult(result);
+      await fetchStats();
       addToast({
-        type: 'success',
-        title: 'Memory Optimized',
-        description: result.recoveredBytes > 0
-          ? `Recovered ${formatBytes(result.recoveredBytes)} from ${result.processesOptimized} processes`
-          : `Trimmed ${result.processesOptimized} working sets`,
-      })
+        type: "success",
+        title: "Memory Optimized",
+        description:
+          result.recoveredBytes > 0
+            ? `Recovered ${formatBytes(result.recoveredBytes)} from ${result.processesOptimized} processes`
+            : `Trimmed ${result.processesOptimized} working sets`,
+      });
     } catch {
-      addToast({ type: 'error', title: 'Optimization Failed', description: 'Could not run optimizer.' })
+      addToast({
+        type: "error",
+        title: "Optimization Failed",
+        description: "Could not run optimizer.",
+      });
     } finally {
-      setIsOptimizing(false)
-      setOptimizeStep('')
-      memApi.current?.removeListeners()
+      setIsOptimizing(false);
+      setOptimizeStep("");
+      memApi.current?.removeListeners();
     }
-  }, [isOptimizing, fetchStats, addToast])
+  }, [isOptimizing, fetchStats, addToast]);
 
   // ── Performance Mode ────────────────────────────────────────────────────
   const handleTogglePerfMode = useCallback(async () => {
-    if (!memApi.current || perfModeLoading) return
-    setPerfModeLoading(true)
+    if (!memApi.current || perfModeLoading) return;
+    setPerfModeLoading(true);
     try {
-      const result = await memApi.current.setPerformanceMode(!perfMode)
-      setPerfMode(result.enabled)
+      const result = await memApi.current.setPerformanceMode(!perfMode);
+      setPerfMode(result.enabled);
       addToast({
-        type: result.enabled ? 'success' : 'info',
-        title: result.enabled ? 'Performance Mode On' : 'Performance Mode Off',
+        type: result.enabled ? "success" : "info",
+        title: result.enabled ? "Performance Mode On" : "Performance Mode Off",
         description: result.enabled
           ? `${result.processesAffected} background processes deprioritized`
           : `${result.processesAffected} processes restored to normal priority`,
-      })
+      });
     } catch {
-      addToast({ type: 'error', title: 'Failed to toggle Performance Mode' })
+      addToast({ type: "error", title: "Failed to toggle Performance Mode" });
     } finally {
-      setPerfModeLoading(false)
+      setPerfModeLoading(false);
     }
-  }, [perfMode, perfModeLoading, addToast])
+  }, [perfMode, perfModeLoading, addToast]);
 
-  const maxProcMem = processes[0]?.memBytes ?? 1
-  const pressure = memStats?.pressurePercent ?? 0
-  const pressColor = pressureColor(pressure)
+  const maxProcMem = processes[0]?.memBytes ?? 1;
+  const pressure = memStats?.pressurePercent ?? 0;
+  const pressColor = pressureColor(pressure);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* ── Header ── */}
       <motion.div
-        initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
         className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0"
       >
         <div>
-          <h1 className="text-xl font-bold text-text-primary">Memory Optimizer</h1>
+          <h1 className="text-xl font-bold text-text-primary">
+            Memory Optimizer
+          </h1>
           <p className="text-sm text-text-secondary mt-0.5">
             {memStats
               ? `${formatBytes(memStats.used)} used of ${formatBytes(memStats.total)} · ${pressureLabel(pressure)} pressure`
-              : 'Real-time memory analysis and safe optimization'}
+              : "Real-time memory analysis and safe optimization"}
           </p>
         </div>
         <button
@@ -310,31 +399,34 @@ export const MemoryPage: React.FC = () => {
           className="p-2 rounded-lg text-text-muted hover:text-text-secondary hover:bg-white/5 transition-all"
           title="Refresh"
         >
-          <RefreshCw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
+          <RefreshCw
+            className={cn("w-4 h-4", isRefreshing && "animate-spin")}
+          />
         </button>
       </motion.div>
 
       {/* ── Scrollable Body ── */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
-
+      <div className="memory-workspace flex-1 overflow-y-auto px-6 pb-6">
         {/* ── Memory Ring + Stats ── */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          className="glass rounded-2xl p-5"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="memory-summary glass rounded-2xl p-5"
         >
           <div className="flex items-center gap-6">
             {/* Ring */}
             <div className="shrink-0">
-              {memStats
-                ? <MemoryRing
-                    percent={memStats.pressurePercent}
-                    label="Memory"
-                    sub={pressureLabel(memStats.pressurePercent)}
-                  />
-                : <div className="w-36 h-36 rounded-full border-2 border-white/5 flex items-center justify-center animate-pulse">
-                    <HardDrive className="w-8 h-8 text-text-muted" />
-                  </div>
-              }
+              {memStats ? (
+                <MemoryRing
+                  percent={memStats.pressurePercent}
+                  label="Memory"
+                  sub={pressureLabel(memStats.pressurePercent)}
+                />
+              ) : (
+                <div className="w-36 h-36 rounded-full border-2 border-white/5 flex items-center justify-center animate-pulse">
+                  <HardDrive className="w-8 h-8 text-text-muted" />
+                </div>
+              )}
             </div>
 
             {/* Stats grid */}
@@ -378,13 +470,16 @@ export const MemoryPage: React.FC = () => {
                   Page File (Swap)
                 </p>
                 <p className="text-xs text-text-secondary tabular-nums">
-                  {formatBytes(memStats.swapUsed)} / {formatBytes(memStats.swapTotal)}
+                  {formatBytes(memStats.swapUsed)} /{" "}
+                  {formatBytes(memStats.swapTotal)}
                 </p>
               </div>
               <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
                 <motion.div
                   className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500"
-                  animate={{ width: `${memStats.swapTotal > 0 ? (memStats.swapUsed / memStats.swapTotal) * 100 : 0}%` }}
+                  animate={{
+                    width: `${memStats.swapTotal > 0 ? (memStats.swapUsed / memStats.swapTotal) * 100 : 0}%`,
+                  }}
                   transition={{ duration: 0.6 }}
                 />
               </div>
@@ -394,21 +489,36 @@ export const MemoryPage: React.FC = () => {
 
         {/* ── Top Memory Consumers ── */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-          className="glass rounded-2xl p-5"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="memory-processes glass rounded-2xl p-5"
         >
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Cpu className="w-4 h-4 text-brand-primary" />
-              <p className="text-sm font-semibold text-text-primary">Top Memory Consumers</p>
+              <p className="text-sm font-semibold text-text-primary">
+                Top Memory Consumers
+              </p>
             </div>
-            <span className="text-2xs text-text-muted">Live · updates every 3s</span>
+            <span className="text-2xs text-text-muted">
+              Live · updates every 3s
+            </span>
           </div>
 
           {processes.length > 0 ? (
-            <motion.div variants={staggerContainer} initial="initial" animate="animate">
+            <motion.div
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+            >
               {processes.map((proc, i) => (
-                <ProcessRow key={proc.pid} proc={proc} max={maxProcMem} rank={i} />
+                <ProcessRow
+                  key={proc.pid}
+                  proc={proc}
+                  max={maxProcMem}
+                  rank={i}
+                />
               ))}
             </motion.div>
           ) : (
@@ -432,43 +542,57 @@ export const MemoryPage: React.FC = () => {
         </AnimatePresence>
 
         {/* ── Action Cards ── */}
-        <div className="grid grid-cols-2 gap-4">
-
+        <div className="memory-actions grid grid-cols-1 gap-4">
           {/* Optimize Button */}
           <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
             className={cn(
-              'glass rounded-2xl p-5 flex flex-col items-center text-center border transition-all duration-300',
-              isOptimizing ? 'border-brand-primary/30' : 'border-border hover:border-brand-primary/30',
+              "glass rounded-2xl p-5 flex flex-col items-center text-center border transition-all duration-300",
+              isOptimizing
+                ? "border-brand-primary/30"
+                : "border-border hover:border-brand-primary/30",
             )}
           >
             {/* Animated glow ring around icon */}
             <div className="relative mb-4">
-              <div className={cn(
-                'absolute inset-0 rounded-full transition-all duration-300',
-                isOptimizing ? 'animate-ping bg-brand-primary/20' : 'bg-transparent',
-              )} />
+              <div
+                className={cn(
+                  "absolute inset-0 rounded-full transition-all duration-300",
+                  isOptimizing
+                    ? "animate-ping bg-brand-primary/20"
+                    : "bg-transparent",
+                )}
+              />
               <motion.div
                 className={cn(
-                  'relative w-14 h-14 rounded-full flex items-center justify-center',
+                  "relative w-14 h-14 rounded-full flex items-center justify-center",
                   isOptimizing
-                    ? 'bg-brand-primary/20 shadow-glow-md'
-                    : 'bg-brand-primary/10 hover:bg-brand-primary/15',
+                    ? "bg-brand-primary/20 shadow-glow-md"
+                    : "bg-brand-primary/10 hover:bg-brand-primary/15",
                 )}
                 animate={isOptimizing ? { scale: [1, 1.05, 1] } : { scale: 1 }}
                 transition={{ repeat: Infinity, duration: 1.5 }}
               >
-                <Zap className={cn('w-7 h-7', isOptimizing ? 'text-brand-primary/70' : 'text-brand-primary')} />
+                <Zap
+                  className={cn(
+                    "w-7 h-7",
+                    isOptimizing
+                      ? "text-brand-primary/70"
+                      : "text-brand-primary",
+                  )}
+                />
               </motion.div>
             </div>
 
             <p className="text-sm font-bold text-text-primary mb-1">
-              {isOptimizing ? 'Optimizing…' : 'Optimize Memory'}
+              {isOptimizing ? "Optimizing…" : "Optimize Memory"}
             </p>
             <p className="text-xs text-text-muted mb-4 leading-relaxed">
               {isOptimizing
                 ? optimizeStep
-                : 'Safely trim inactive working sets to reclaim RAM without killing any processes'}
+                : "Safely trim inactive working sets to reclaim RAM without killing any processes"}
             </p>
 
             <Button
@@ -479,32 +603,49 @@ export const MemoryPage: React.FC = () => {
               icon={<Zap className="w-3.5 h-3.5" />}
               onClick={handleOptimize}
             >
-              {isOptimizing ? 'Running…' : 'Optimize Now'}
+              {isOptimizing ? "Running…" : "Optimize Now"}
             </Button>
           </motion.div>
 
           {/* Performance Mode */}
           <motion.div
-            initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.13 }}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.13 }}
             className={cn(
-              'glass rounded-2xl p-5 flex flex-col items-center text-center border transition-all duration-300',
-              perfMode ? 'border-brand-secondary/30 bg-brand-secondary/5' : 'border-border hover:border-brand-secondary/30',
+              "glass rounded-2xl p-5 flex flex-col items-center text-center border transition-all duration-300",
+              perfMode
+                ? "border-brand-secondary/30 bg-brand-secondary/5"
+                : "border-border hover:border-brand-secondary/30",
             )}
           >
             <div className="relative mb-4">
               {perfMode && (
                 <div className="absolute inset-0 rounded-full animate-pulse bg-brand-secondary/15" />
               )}
-              <div className={cn(
-                'relative w-14 h-14 rounded-full flex items-center justify-center',
-                perfMode ? 'bg-brand-secondary/20 shadow-glow-sm' : 'bg-brand-secondary/10',
-              )}>
-                <Gauge className={cn('w-7 h-7', perfMode ? 'text-brand-secondary/70' : 'text-brand-secondary')} />
+              <div
+                className={cn(
+                  "relative w-14 h-14 rounded-full flex items-center justify-center",
+                  perfMode
+                    ? "bg-brand-secondary/20 shadow-glow-sm"
+                    : "bg-brand-secondary/10",
+                )}
+              >
+                <Gauge
+                  className={cn(
+                    "w-7 h-7",
+                    perfMode
+                      ? "text-brand-secondary/70"
+                      : "text-brand-secondary",
+                  )}
+                />
               </div>
             </div>
 
             <div className="flex items-center gap-2 mb-1">
-              <p className="text-sm font-bold text-text-primary">Performance Mode</p>
+              <p className="text-sm font-bold text-text-primary">
+                Performance Mode
+              </p>
               {perfMode && (
                 <span className="text-2xs bg-brand-secondary/15 text-brand-secondary px-1.5 py-0.5 rounded-full font-medium">
                   ON
@@ -513,35 +654,43 @@ export const MemoryPage: React.FC = () => {
             </div>
             <p className="text-xs text-text-muted mb-4 leading-relaxed">
               {perfMode
-                ? 'Background processes deprioritized — more CPU for foreground apps'
-                : 'Deprioritize background tasks to boost gaming and workload performance'}
+                ? "Background processes deprioritized — more CPU for foreground apps"
+                : "Deprioritize background tasks to boost gaming and workload performance"}
             </p>
 
             <Button
-              variant={perfMode ? 'danger' : 'outline'}
+              variant={perfMode ? "danger" : "outline"}
               size="sm"
               loading={perfModeLoading}
               icon={<Power className="w-3.5 h-3.5" />}
               onClick={handleTogglePerfMode}
             >
-              {perfMode ? 'Disable' : 'Enable'}
+              {perfMode ? "Disable" : "Enable"}
             </Button>
           </motion.div>
         </div>
 
         {/* ── Safety note ── */}
         <motion.div
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.18 }}
-          className="flex items-start gap-2.5 px-1"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.18 }}
+          className="memory-note flex items-start gap-2.5 px-1"
         >
           <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
           <p className="text-xs text-text-muted leading-relaxed">
-            All optimizations are <span className="text-emerald-400">non-destructive</span>. No processes are terminated.
-            Working sets are trimmed using the standard Windows <code className="text-xs bg-white/5 px-1 rounded">EmptyWorkingSet</code> API —
-            the same technique used by Process Hacker and Windows internals tools.
+            All optimizations are{" "}
+            <span className="text-emerald-400">non-destructive</span>. No
+            processes are terminated. Working sets are trimmed using the
+            standard Windows{" "}
+            <code className="text-xs bg-white/5 px-1 rounded">
+              EmptyWorkingSet
+            </code>{" "}
+            API — the same technique used by Process Hacker and Windows
+            internals tools.
           </p>
         </motion.div>
       </div>
     </div>
-  )
-}
+  );
+};

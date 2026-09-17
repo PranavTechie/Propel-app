@@ -307,3 +307,114 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Purpose-driven page composition */
+.memory-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(310px, 0.72fr);
+  gap: 16px;
+  align-items: start;
+}
+.memory-summary,
+.memory-processes {
+  grid-column: 1;
+}
+.memory-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.memory-note {
+  grid-column: 1 / -1;
+}
+.maintenance-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(290px, 0.65fr);
+  gap: 20px;
+  align-items: start;
+}
+.maintenance-workspace > :first-child {
+  grid-column: 1 / -1;
+}
+.maintenance-controls {
+  grid-column: 1;
+}
+.maintenance-status {
+  grid-column: 2;
+  grid-row: 2;
+}
+.maintenance-scope {
+  grid-column: 1 / -1;
+}
+.about-layout > * {
+  grid-column: span 6;
+}
+.about-layout > :first-child {
+  grid-column: 1 / -1;
+}
+.about-layout > :last-child {
+  grid-column: 1 / -1;
+}
+@media (max-width: 1050px) {
+  .memory-workspace,
+  .maintenance-workspace {
+    grid-template-columns: 1fr;
+  }
+  .memory-summary,
+  .memory-processes,
+  .memory-actions,
+  .memory-note,
+  .maintenance-workspace > * {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+  }
+  .about-layout > * {
+    grid-column: 1/-1;
+  }
+}
+.settings-workspace {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 24px;
+  row-gap: 18px;
+  align-items: start;
+}
+.settings-workspace > :first-child {
+  grid-column: 1 / -1;
+}
+.settings-index {
+  position: sticky;
+  top: 0;
+  grid-column: 1;
+  border-right: 1px solid rgb(var(--t-border) / 0.12);
+  padding-right: 16px;
+}
+.settings-content,
+.settings-diagnostics {
+  grid-column: 2;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .settings-workspace {
+    grid-template-columns: 1fr;
+  }
+  .settings-workspace > * {
+    grid-column: 1 !important;
+  }
+  .settings-index {
+    position: static;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid rgb(var(--t-border) / 0.12);
+    padding: 0 0 12px;
+  }
+  .settings-index .section-label {
+    display: none;
+  }
+  .settings-index button {
+    width: auto;
+    white-space: nowrap;
+  }
+}
