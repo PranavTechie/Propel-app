@@ -35,17 +35,9 @@ const __dirname = path.dirname(new URL(import.meta.url).pathname).replace(/^\/([
 
 nativeTheme.themeSource = 'dark'
 
-let mainWindow: BrowserWindow | null = null
+import { getAppIconPath } from './icon'
 
-// Resolve the app icon for the BrowserWindow.
-// Production: bundled via extraResources → process.resourcesPath/icon.ico
-// Dev:        source file at <project-root>/src/assets/app_icon.ico
-function getIconPath(): string | undefined {
-  const p = app.isPackaged
-    ? path.join(process.resourcesPath, 'icon.ico')
-    : path.resolve(__dirname, '../../src/assets/app_icon.ico')
-  return fs.existsSync(p) ? p : undefined
-}
+let mainWindow: BrowserWindow | null = null
 
 function createWindow(): void { // Create the main window
   mainWindow = new BrowserWindow({ 
@@ -56,7 +48,7 @@ function createWindow(): void { // Create the main window
     frame: false,
     transparent: false,
     backgroundColor: '#07070f',
-    icon: getIconPath(),
+    icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       nodeIntegration: false,

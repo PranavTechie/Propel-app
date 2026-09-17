@@ -239,7 +239,7 @@ export const Dashboard = memo(function Dashboard() {
             percent={stats?.disk.percent}
           />
           <StatCard
-            title="Network"
+            title="Current Network Activity"
             value={stats ? formatMbps(stats.network.download) : "—"}
             subtitle={
               stats ? `Upload ${formatMbps(stats.network.upload)}` : undefined

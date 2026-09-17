@@ -1,6 +1,7 @@
 import { Notification } from 'electron'
 import si from 'systeminformation'
 import { loadSettings } from './automationStore'
+import { getAppIconPath } from '../../main/icon'
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const POLL_MS      = 15_000          // check RAM every 15 seconds
@@ -32,6 +33,7 @@ async function checkRam(): Promise<void> {
         title: 'Propel — High Memory Usage',
         body:  `RAM usage is at ${Math.round(usedPct)}% — optimization recommended.`,
         urgency: 'normal',
+        icon: getAppIconPath(),
       }).show()
     }
   } catch { /* systeminformation / notification failure — non-fatal */ }

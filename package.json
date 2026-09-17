@@ -72,7 +72,7 @@
     ],
     "extraResources": [
       {
-        "from": "src/assets/app_icon.ico",
+        "from": "src/assets/icons/propel.ico",
         "to": "icon.ico"
       }
     ],
@@ -85,7 +85,7 @@
           ]
         }
       ],
-      "icon": "src/assets/app_icon.ico",
+      "icon": "src/assets/icons/propel.ico",
       "executableName": "Propel",
       "publisherName": "Propel",
       "legalTrademarks": "Propel",
@@ -95,9 +95,9 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "installerIcon": "src/assets/app_icon.ico",
-      "uninstallerIcon": "src/assets/app_icon.ico",
-      "installerHeaderIcon": "src/assets/app_icon.ico",
+      "installerIcon": "src/assets/icons/propel.ico",
+      "uninstallerIcon": "src/assets/icons/propel.ico",
+      "installerHeaderIcon": "src/assets/icons/propel.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Propel",

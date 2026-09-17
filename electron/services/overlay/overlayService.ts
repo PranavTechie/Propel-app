@@ -2,6 +2,7 @@ import { BrowserWindow } from 'electron'
 import path from 'path'
 import si from 'systeminformation'
 import { captureServiceError, captureServiceWarning } from '../telemetry/serviceCapture'
+import { getAppIconPath } from '../../main/icon'
 
 
 let overlayWin:    BrowserWindow | null               = null
@@ -68,6 +69,7 @@ export function openOverlay(preloadPath: string): void {
       skipTaskbar: true,
       resizable:   false,
       movable:     true,
+      icon:        getAppIconPath(),
       webPreferences: {
         preload:          preloadPath,
         nodeIntegration:  false,

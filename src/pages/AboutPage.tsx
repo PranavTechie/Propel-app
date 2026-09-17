@@ -22,7 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { staggerContainer, staggerItem } from "@/animations/variants";
-import appIconUrl from "@/assets/app_icon.ico";
+import appIconUrl from "@/assets/icons/propel.ico";
 
 const FEATURES = [
   "Advanced junk file scanner",
