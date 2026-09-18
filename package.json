@@ -18,6 +18,9 @@
     "generate:manifest": "node scripts/generate-integrity-manifest.mjs",
     "verify:integrity": "node scripts/verify-integrity.mjs",
     "build:signature": "node scripts/get-build-signature.mjs",
+    "release:prepare": "node scripts/release-prepare.mjs",
+    "release:verify": "node scripts/verify-release-version.mjs",
+    "release:register": "node scripts/register-backend-build.mjs",
     "build:release": "electron-vite build && node scripts/generate-integrity-manifest.mjs && node scripts/upload-sourcemaps.mjs && electron-builder --win"
   },
   "dependencies": {
