@@ -4,6 +4,7 @@ import { TitleBar } from "./TitleBar";
 import { Sidebar } from "./Sidebar";
 import { ToastProvider } from "@/components/common/ToastProvider";
 import { UpdateModal } from "@/components/ui/UpdateModal";
+import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import { useAppStore, selectActivePage } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { applyTheme } from "@/theme/themes";
@@ -75,7 +76,16 @@ export const AppLayout: React.FC = () => {
   const overlayEnabled = useSettingsStore((s) => s.overlayEnabled);
   const themeId = useSettingsStore((s) => s.themeId);
   useSystemStats(true);
-  const { updateState, showModal, handleSkip, handleUpdate } = useUpdateCheck();
+  const {
+    updateState,
+    showModal,
+    bannerVisible,
+    handleDismissBanner,
+    handleOpenModal,
+    handleCloseModal,
+    handleRestartAndInstall,
+    handleRetry,
+  } = useUpdateCheck();
   const perfProfile = usePerformanceProfile();
   React.useEffect(() => applyTheme(themeId), [themeId]);
   React.useEffect(() => {
@@ -113,11 +123,20 @@ export const AppLayout: React.FC = () => {
         </div>
         <ToastProvider />
       </div>
+      {updateState && (
+        <UpdateBanner
+          state={updateState}
+          visible={bannerVisible}
+          onDismiss={handleDismissBanner}
+          onOpenModal={handleOpenModal}
+        />
+      )}
       {showModal && updateState && (
         <UpdateModal
           state={updateState}
-          onSkip={handleSkip}
-          onUpdate={handleUpdate}
+          onClose={handleCloseModal}
+          onRestartAndInstall={handleRestartAndInstall}
+          onRetry={handleRetry}
         />
       )}
     </>

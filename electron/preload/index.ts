@@ -50,11 +50,6 @@ const api = {
     },
   },
 
-  // ── Updates ─────────────────────────────────────────────
-  updates: {
-    check: (): Promise<UpdateCheckResult> => ipcRenderer.invoke('update:check'),
-  },
-
   // ── Telemetry opt-out ────────────────────────────────────
   telemetry: {
     setEnabled: (enabled: boolean): Promise<{ ok: boolean }> =>
@@ -70,16 +65,6 @@ const api = {
     },
     exchangeAuthCode: (code: string) => ipcRenderer.invoke('propel:auth:exchange', code),
   },
-}
-
-
-
-export interface UpdateCheckResult {
-  hasUpdate: boolean
-  latest_version?: string
-  current_version?: string
-  download_url?: string | null
-  release_notes?: string | null
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

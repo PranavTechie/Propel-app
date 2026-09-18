@@ -1,114 +1,145 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAppStore } from '@/store/appStore'
 import type { UpdateState } from '@/types'
 
-export type ManualCheckResult = 'upToDate' | 'error' | null
+export type ManualCheckResult = 'checking' | 'upToDate' | 'downloading' | 'ready' | 'error' | null
 
 export interface UseUpdateCheckReturn {
-  updateState:        UpdateState | null
-  showModal:          boolean
-  manualChecking:     boolean
-  manualCheckResult:  ManualCheckResult
-  handleSkip:         () => Promise<void>
-  handleUpdate:       () => void
-  triggerManualCheck: () => Promise<void>
-  clearManualResult:  () => void
+  updateState:            UpdateState | null
+  showModal:              boolean
+  bannerVisible:          boolean
+  handleDismissBanner:    () => void
+  handleOpenModal:        () => void
+  handleCloseModal:       () => void
+  handleRestartAndInstall: () => void
+  handleRetry:            () => void
+  triggerManualCheck:     () => Promise<void>
 }
 
 /**
  * Full hook — used in AppLayout.
- * Runs the silent startup check AND exposes manual-trigger helpers.
+ * Listens to electron-updater state events and manages startup & banner flow.
  */
 export function useUpdateCheck(): UseUpdateCheckReturn {
-  const updateState        = useAppStore(s => s.updateState)
-  const updateModalVisible = useAppStore(s => s.updateModalVisible)
-  const setUpdateState     = useAppStore(s => s.setUpdateState)
-  const showUpdateModal    = useAppStore(s => s.showUpdateModal)
-  const hideUpdateModal    = useAppStore(s => s.hideUpdateModal)
+  const updateState           = useAppStore(s => s.updateState)
+  const updateModalVisible    = useAppStore(s => s.updateModalVisible)
+  const updateBannerVisible   = useAppStore(s => s.updateBannerVisible)
+  const setUpdateState        = useAppStore(s => s.setUpdateState)
+  const showUpdateModal       = useAppStore(s => s.showUpdateModal)
+  const hideUpdateModal       = useAppStore(s => s.hideUpdateModal)
+  const setUpdateBannerVisible = useAppStore(s => s.setUpdateBannerVisible)
+  const dismissUpdateBanner   = useAppStore(s => s.dismissUpdateBanner)
 
-  const [manualChecking,    setManualChecking]    = useState(false)
-  const [manualCheckResult, setManualCheckResult] = useState<ManualCheckResult>(null)
+  const bannerDismissedRef = useRef(false)
 
-  // ── Startup silent check (runs once when AppLayout mounts) ───────────
+  // ── Listen to updater push events from Electron Main ─────────────────────
   useEffect(() => {
-    let active = true
-    window.propel.updater
-      .check()
-      .then(state => {
-        if (active && state && state.available) {
-          setUpdateState(state as UpdateState)
-          showUpdateModal()
+    // Subscribe to IPC state change notifications
+    const unsubscribe = window.propel.updater.onStateChanged((state) => {
+      setUpdateState(state)
+
+      if (state.status === 'downloading') {
+        if (!bannerDismissedRef.current) {
+          setUpdateBannerVisible(true)
         }
+      } else if (state.status === 'downloaded') {
+        setUpdateBannerVisible(false)
+        showUpdateModal()
+      }
+    })
+
+    // Run non-blocking startup check
+    window.propel.updater
+      .check({ isManual: false })
+      .catch(() => {
+        // Silently ignore offline or network errors on startup
       })
-      .catch(() => { /* silent on startup */ })
-    return () => { active = false }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => {
+      unsubscribe()
+    }
+  }, [setUpdateState, setUpdateBannerVisible, showUpdateModal])
+
+  const handleDismissBanner = useCallback(() => {
+    bannerDismissedRef.current = true
+    dismissUpdateBanner()
+  }, [dismissUpdateBanner])
+
+  const handleOpenModal = useCallback(() => {
+    showUpdateModal()
+  }, [showUpdateModal])
+
+  const handleCloseModal = useCallback(() => {
+    hideUpdateModal()
+  }, [hideUpdateModal])
+
+  const handleRestartAndInstall = useCallback(() => {
+    window.propel.updater.install()
+  }, [])
+
+  const handleRetry = useCallback(() => {
+    window.propel.updater.check({ isManual: true }).catch(() => {})
+  }, [])
 
   const triggerManualCheck = useCallback(async () => {
-    setManualChecking(true)
-    setManualCheckResult(null)
     try {
-      const state = await window.propel.updater.check()
-      if (state && state.available) {
-        setUpdateState(state as UpdateState)
-        showUpdateModal()
-      } else {
-        setManualCheckResult('upToDate')
+      const state = await window.propel.updater.check({ isManual: true })
+      if (state) {
+        setUpdateState(state)
+        if (state.status === 'downloaded' || state.available) {
+          showUpdateModal()
+        }
       }
     } catch {
-      setManualCheckResult('error')
-    } finally {
-      setManualChecking(false)
+      // Ignored
     }
   }, [setUpdateState, showUpdateModal])
-
-  const clearManualResult = useCallback(() => setManualCheckResult(null), [])
-
-  const handleSkip = useCallback(async () => {
-    if (!updateState) return
-    await window.propel.updater.skip(updateState.latestVersion)
-    hideUpdateModal()
-  }, [updateState, hideUpdateModal])
-
-  const handleUpdate = useCallback(() => {
-    if (!updateState) return
-    window.electronAPI.shell.openExternal(updateState.websiteUrl)
-  }, [updateState])
 
   return {
     updateState,
     showModal: updateModalVisible,
-    manualChecking,
-    manualCheckResult,
-    handleSkip,
-    handleUpdate,
+    bannerVisible: updateBannerVisible,
+    handleDismissBanner,
+    handleOpenModal,
+    handleCloseModal,
+    handleRestartAndInstall,
+    handleRetry,
     triggerManualCheck,
-    clearManualResult,
   }
 }
 
 /**
- * Lightweight hook — used in pages (e.g. AboutPage).
- * NO startup check. Only exposes the manual trigger and shared modal state.
+ * Lightweight hook — used in AboutPage for manual checking.
  */
 export function useManualUpdateCheck() {
-  const updateState        = useAppStore(s => s.updateState)
-  const updateModalVisible = useAppStore(s => s.updateModalVisible)
-  const setUpdateState     = useAppStore(s => s.setUpdateState)
-  const showUpdateModal    = useAppStore(s => s.showUpdateModal)
-  const hideUpdateModal    = useAppStore(s => s.hideUpdateModal)
-
-  const [manualChecking,    setManualChecking]    = useState(false)
+  const updateState           = useAppStore(s => s.updateState)
+  const setUpdateState        = useAppStore(s => s.setUpdateState)
+  const showUpdateModal       = useAppStore(s => s.showUpdateModal)
+  const [manualChecking, setManualChecking] = useState(false)
   const [manualCheckResult, setManualCheckResult] = useState<ManualCheckResult>(null)
 
   const triggerManualCheck = useCallback(async () => {
     setManualChecking(true)
-    setManualCheckResult(null)
+    setManualCheckResult('checking')
+
     try {
-      const state = await window.propel.updater.check()
-      if (state && state.available) {
-        setUpdateState(state as UpdateState)
-        showUpdateModal()
+      const state = await window.propel.updater.check({ isManual: true })
+      if (state) {
+        setUpdateState(state)
+        if (state.status === 'downloaded') {
+          setManualCheckResult('ready')
+          showUpdateModal()
+        } else if (state.status === 'downloading') {
+          setManualCheckResult('downloading')
+          showUpdateModal()
+        } else if (state.available) {
+          setManualCheckResult('downloading')
+          showUpdateModal()
+        } else if (state.status === 'not-available' || !state.available) {
+          setManualCheckResult('upToDate')
+        } else if (state.status === 'error') {
+          setManualCheckResult('error')
+        }
       } else {
         setManualCheckResult('upToDate')
       }
@@ -119,28 +150,15 @@ export function useManualUpdateCheck() {
     }
   }, [setUpdateState, showUpdateModal])
 
-  const clearManualResult = useCallback(() => setManualCheckResult(null), [])
-
-  const handleSkip = useCallback(async () => {
-    if (!updateState) return
-    await window.propel.updater.skip(updateState.latestVersion)
-    hideUpdateModal()
-  }, [updateState, hideUpdateModal])
-
-  const handleUpdate = useCallback(() => {
-    if (!updateState) return
-    window.electronAPI.shell.openExternal(updateState.websiteUrl)
-  }, [updateState])
+  const clearManualResult = useCallback(() => {
+    setManualCheckResult(null)
+  }, [])
 
   return {
     manualChecking,
     manualCheckResult,
     triggerManualCheck,
     clearManualResult,
-    // expose these so AboutPage can consume the modal from its side too if needed
-    handleSkip,
-    handleUpdate,
-    showModal: updateModalVisible,
     updateState,
   }
 }

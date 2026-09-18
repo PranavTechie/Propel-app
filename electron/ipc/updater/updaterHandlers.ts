@@ -1,16 +1,55 @@
-import { ipcMain } from 'electron'
-import { checkForUpdate, recordSkip } from '../../services/updater/updaterService'
+import { ipcMain, BrowserWindow } from 'electron'
+import {
+  initUpdater,
+  checkForUpdate,
+  downloadUpdate,
+  quitAndInstall,
+  getUpdateState,
+  onUpdaterEvent,
+  type UpdateState,
+} from '../../services/updater/updaterService'
 import { loadSettings } from '../../services/maintenance/automationStore'
 
 export function setupUpdaterIPC(): void {
-  ipcMain.handle('propel:updater:check', async () => {
-    // Respect user preference — if notifications are disabled, return null silently
-    const { updateNotificationsEnabled } = loadSettings()
-    if (!updateNotificationsEnabled) return null
-    return checkForUpdate()
+  // Initialize autoUpdater and its periodic timers
+  initUpdater()
+
+  // Broadcast state changes to all renderer windows
+  onUpdaterEvent((state: UpdateState) => {
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('propel:updater:state-changed', state)
+      }
+    })
   })
 
-  ipcMain.handle('propel:updater:skip', (_event, latestVersion: string) => {
-    recordSkip(latestVersion)
+  // Handle explicit or automated check
+  ipcMain.handle('propel:updater:check', async (_event, options?: { isManual?: boolean }) => {
+    const isManual = options?.isManual ?? false
+
+    // If automatic check and notifications are disabled, skip silently
+    if (!isManual) {
+      const { updateNotificationsEnabled } = await loadSettings()
+      if (!updateNotificationsEnabled) {
+        return null
+      }
+    }
+
+    return await checkForUpdate(isManual)
+  })
+
+  // Handle manual download trigger (if user requests)
+  ipcMain.handle('propel:updater:download', async () => {
+    return await downloadUpdate()
+  })
+
+  // Handle install & relaunch
+  ipcMain.handle('propel:updater:install', () => {
+    quitAndInstall()
+  })
+
+  // Handle get current state query
+  ipcMain.handle('propel:updater:get-state', () => {
+    return getUpdateState()
   })
 }

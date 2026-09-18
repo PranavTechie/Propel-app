@@ -61,11 +61,14 @@ interface AppStore {
   setAppLoading: (v: boolean) => void
 
   // ── Update system ────────────────────────────────
-  updateState:        UpdateState | null
-  updateModalVisible: boolean
-  setUpdateState:     (state: UpdateState | null) => void
-  showUpdateModal:    () => void
-  hideUpdateModal:    () => void
+  updateState:          UpdateState | null
+  updateModalVisible:   boolean
+  updateBannerVisible:  boolean
+  setUpdateState:       (state: UpdateState | null) => void
+  showUpdateModal:      () => void
+  hideUpdateModal:      () => void
+  setUpdateBannerVisible: (v: boolean) => void
+  dismissUpdateBanner:  () => void
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -129,9 +132,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   updateState: null,
   updateModalVisible: false,
+  updateBannerVisible: false,
   setUpdateState: updateState => set({ updateState }),
   showUpdateModal: () => set({ updateModalVisible: true }),
   hideUpdateModal: () => set({ updateModalVisible: false }),
+  setUpdateBannerVisible: updateBannerVisible => set({ updateBannerVisible }),
+  dismissUpdateBanner: () => set({ updateBannerVisible: false }),
 }))
 
 // ── Stable derived selectors (use these instead of inline computations) ──

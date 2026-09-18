@@ -294,7 +294,7 @@ export async function runSmartBoostOptimize(
   // Step 1: Clean temp files
   onProgress('Removing temporary junk files…', 20)
   try {
-    const settings = loadSettings()
+    const settings = await loadSettings()
     const safeMode = settings.safeCleaningMode
     const tempDirs = getTempDirs()
     for (const d of tempDirs) {

@@ -71,10 +71,11 @@ export const RestoreInfoModal: React.FC<RestoreInfoModalProps> = ({ open, report
   const hasUnrecoverable = report.categories.includes('recycle-bin')
 
   const openRestorePoint = () => {
-    window.electronAPI?.shell?.openExternal('ms-settings:recovery')
-      .catch(() => {
-        // Fallback — open via systempropertiesprotection.exe path guidance
-      })
+    try {
+      window.electronAPI?.shell?.openExternal('ms-settings:recovery')
+    } catch {
+      // Fallback — open via systempropertiesprotection.exe path guidance
+    }
   }
 
   return (

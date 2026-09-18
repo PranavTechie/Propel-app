@@ -164,7 +164,7 @@ export function setupCleanerIPC(): void {
 
       // Clean regular files
       if (allFiles.length > 0) {
-        const settings = loadSettings()
+        const settings = await loadSettings()
         const stats = await cleanFiles(allFiles, info => {
           emit({
             type: 'file-cleaned',

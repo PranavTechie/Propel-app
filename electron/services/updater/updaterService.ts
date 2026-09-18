@@ -1,147 +1,302 @@
-import axios from 'axios'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
-import { captureServiceError, captureServiceWarning } from '../telemetry/serviceCapture'
+import { app } from 'electron'
+import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-updater'
+import { captureServiceWarning } from '../telemetry/serviceCapture'
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const VERSION_URL =
-  'https://raw.githubusercontent.com/pranavop45/Propel/refs/heads/main/version.json'
 export const APP_VERSION = '1.2'
+const PERIODIC_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
+const INITIAL_CHECK_DELAY_MS = 10_000 // 10 seconds after app launch
 
-// ── Remote version.json shape ──────────────────────────────────────────────
-interface RemoteVersionInfo {
-  version: string
-  mandatory_after_days?: number
-  website_url?: string
-  title?: string
-  changelog?: string[]
+// ── Types ──────────────────────────────────────────────────────────────────
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+export interface UpdateProgress {
+  percent: number
+  bytesPerSecond: number
+  transferred: number
+  total: number
 }
 
-// ── Local skip-storage shape ───────────────────────────────────────────────
-interface SkipStorage {
-  skippedVersion: string
-  firstDetectedAt: number   // epoch ms when user first clicked "Skip" for this version
-}
-
-// ── Exported result type (matches updaterBridge.ts) ───────────────────────
 export interface UpdateState {
   available: boolean
+  status: UpdateStatus
   currentVersion: string
   latestVersion: string
-  title: string
-  changelog: string[]
-  websiteUrl: string
-  mandatory: boolean          // true = skip period expired, user must update
-  mandatoryAfterDays: number
-  firstDetectedAt?: number
+  releaseNotes?: string | string[]
+  progress?: UpdateProgress
+  error?: string
 }
 
-// ── Skip-storage helpers ───────────────────────────────────────────────────
-function getSkipPath(): string {
-  const base = process.env.APPDATA ?? os.homedir()
-  return path.join(base, 'cm_update_skip.json')
+export type UpdaterEventListener = (state: UpdateState) => void
+
+// ── State ──────────────────────────────────────────────────────────────────
+let currentState: UpdateState = {
+  available: false,
+  status: 'idle',
+  currentVersion: APP_VERSION,
+  latestVersion: APP_VERSION,
 }
 
-function loadSkipStorage(): SkipStorage | null {
+let isDownloading = false
+let periodicTimer: NodeJS.Timeout | null = null
+let initialTimer: NodeJS.Timeout | null = null
+let isInitialized = false
+const eventListeners: Set<UpdaterEventListener> = new Set()
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function formatDisplayVersion(v: string): string {
+  const clean = v.replace(/^v/, '').trim()
+  const parts = clean.split('.')
+  if (parts.length === 3 && parts[2] === '0') {
+    return `${parts[0]}.${parts[1]}`
+  }
+  return clean
+}
+
+function notifyListeners(): void {
+  const snapshot: UpdateState = { ...currentState }
+  eventListeners.forEach(listener => {
+    try {
+      listener(snapshot)
+    } catch {
+      // Listener error must never crash main process
+    }
+  })
+}
+
+// ── AutoUpdater Initialization ─────────────────────────────────────────────
+export function initUpdater(): void {
+  if (isInitialized) return
+  isInitialized = true
+
+  // Configure autoUpdater
+  autoUpdater.autoDownload = false
+  autoUpdater.autoInstallOnAppQuit = false
+  autoUpdater.allowPrerelease = false
+  autoUpdater.allowDowngrade = false
+
   try {
-    const raw = fs.readFileSync(getSkipPath(), 'utf8')
-    return JSON.parse(raw) as SkipStorage
+    autoUpdater.setFeedURL({
+      provider: 'github',
+      owner: 'pranavop45',
+      repo: 'propel-releases',
+    })
   } catch {
-    return null
+    // Non-critical fallback if app-update.yml is used
+  }
+
+  // Attach event listeners
+  autoUpdater.on('checking-for-update', () => {
+    currentState.status = 'checking'
+    currentState.error = undefined
+    notifyListeners()
+  })
+
+  autoUpdater.on('update-available', (info: UpdateInfo) => {
+    currentState.available = true
+    currentState.status = 'available'
+    currentState.latestVersion = formatDisplayVersion(info.version)
+    currentState.releaseNotes = typeof info.releaseNotes === 'string'
+      ? info.releaseNotes
+      : Array.isArray(info.releaseNotes)
+        ? info.releaseNotes.map(n => typeof n === 'string' ? n : (n as { note?: string })?.note ?? '')
+        : undefined
+    notifyListeners()
+
+    // Automatically start background download immediately
+    if (!isDownloading) {
+      startDownloadInternal()
+    }
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    currentState.available = false
+    currentState.status = 'not-available'
+    notifyListeners()
+  })
+
+  autoUpdater.on('download-progress', (progressObj: ProgressInfo) => {
+    isDownloading = true
+    currentState.status = 'downloading'
+    currentState.progress = {
+      percent: Math.round(progressObj.percent * 10) / 10,
+      bytesPerSecond: Math.round(progressObj.bytesPerSecond),
+      transferred: Math.round(progressObj.transferred),
+      total: Math.round(progressObj.total),
+    }
+    notifyListeners()
+  })
+
+  autoUpdater.on('update-downloaded', () => {
+    isDownloading = false
+    currentState.status = 'downloaded'
+    currentState.progress = {
+      percent: 100,
+      bytesPerSecond: 0,
+      transferred: currentState.progress?.total ?? 0,
+      total: currentState.progress?.total ?? 0,
+    }
+    notifyListeners()
+  })
+
+  autoUpdater.on('error', (err: Error) => {
+    isDownloading = false
+    currentState.status = 'error'
+    currentState.error = err?.message || 'Update check failed'
+    captureServiceWarning('Auto-updater error', {
+      service: 'updater',
+      operation: 'autoUpdater',
+      phase: 'event',
+      extra: { message: err?.message ?? 'unknown' },
+    })
+    notifyListeners()
+  })
+
+  // Start background timers (startup + periodic 4-hour check)
+  startPeriodicTimer()
+
+  // Clean up timers when app quits
+  app.on('before-quit', () => {
+    stopPeriodicTimer()
+  })
+}
+
+// ── Public API ─────────────────────────────────────────────────────────────
+export function onUpdaterEvent(listener: UpdaterEventListener): () => void {
+  eventListeners.add(listener)
+  return () => {
+    eventListeners.delete(listener)
   }
 }
 
-function saveSkipStorage(data: SkipStorage): void {
-  try {
-    fs.writeFileSync(getSkipPath(), JSON.stringify(data, null, 2), 'utf8')
-  } catch { /* read-only fs edge case — non-fatal */ }
+export function getUpdateState(): UpdateState {
+  return { ...currentState }
 }
 
-// ── Semantic version comparison ────────────────────────────────────────────
-// Returns >0 if a > b, 0 if equal, <0 if a < b
-function compareVersions(a: string, b: string): number {
-  const pa = a.split('.').map(Number)
-  const pb = b.split('.').map(Number)
-  for (let i = 0; i < 3; i++) {
-    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
-    if (diff !== 0) return diff
+export async function checkForUpdate(isManual = false): Promise<UpdateState> {
+  // If not packaged (dev mode), avoid autoUpdater failure due to missing dev-app-update.yml
+  if (!app.isPackaged) {
+    currentState.status = 'not-available'
+    currentState.available = false
+    notifyListeners()
+    return { ...currentState }
   }
-  return 0
-}
 
-// ── Check for update (called from IPC handler) ────────────────────────────
-// Returns null on any failure — NEVER blocks the app on updater errors.
-export async function checkForUpdate(): Promise<UpdateState | null> {
+  // If already downloaded, return downloaded state
+  if (currentState.status === 'downloaded') {
+    return { ...currentState }
+  }
+
+  // If already downloading, return downloading state
+  if (isDownloading || currentState.status === 'downloading') {
+    return { ...currentState }
+  }
+
   try {
-    const res = await axios.get<RemoteVersionInfo>(VERSION_URL, { timeout: 8000 })
-    const remote = res.data
-
-    // Validate shape
-    if (!remote?.version || typeof remote.version !== 'string') {
-      captureServiceWarning('Update check returned malformed version.json', {
-        service:   'updater',
-        operation: 'checkForUpdate',
-        phase:     'parse',
-        extra: { hasVersion: String(!!remote?.version) },
-      })
-      return null
-    }
-
-    // No update if remote is not newer
-    if (compareVersions(remote.version, APP_VERSION) <= 0) return null
-
-    const latestVersion       = remote.version
-    const mandatoryAfterDays  = typeof remote.mandatory_after_days === 'number'
-      ? remote.mandatory_after_days : 3
-
-    const skip = loadSkipStorage()
-
-    let mandatory        = false
-    let firstDetectedAt: number | undefined
-
-    if (skip?.skippedVersion === latestVersion) {
-      firstDetectedAt = skip.firstDetectedAt
-      const elapsed   = Date.now() - skip.firstDetectedAt
-      mandatory       = elapsed >= mandatoryAfterDays * 86_400_000
-    }
-
-    return {
-      available:         true,
-      currentVersion:    APP_VERSION,
-      latestVersion,
-      title:             remote.title ?? `Update Available — v${latestVersion}`,
-      changelog:         Array.isArray(remote.changelog) ? remote.changelog : [],
-      websiteUrl:        remote.website_url ?? 'https://cleanmasterpro.in',
-      mandatory,
-      mandatoryAfterDays,
-      firstDetectedAt,
-    }
+    currentState.status = 'checking'
+    currentState.error = undefined
+    notifyListeners()
+    await autoUpdater.checkForUpdates()
+    return { ...currentState }
   } catch (err) {
-    // Network failure / invalid JSON / timeout / GitHub unavailable
-    // Capture as warning — never block the app on updater failure
-    const isNetwork = axios.isAxiosError(err) &&
-      (!err.response || err.code === 'ECONNABORTED' || err.code === 'ENOTFOUND')
-    captureServiceWarning(
-      isNetwork ? 'Update check: network unavailable' : 'Update check failed unexpectedly',
-      {
-        service:   'updater',
-        operation: 'checkForUpdate',
-        phase:     'fetch',
-        extra: {
-          isNetwork:   String(isNetwork),
-          axiosCode:   axios.isAxiosError(err) ? (err.code ?? 'unknown') : 'non-axios',
-        },
-      },
-    )
-    return null
+    const errorMsg = err instanceof Error ? err.message : String(err)
+    currentState.status = 'error'
+    currentState.error = errorMsg
+
+    // Log as warning — NEVER block or crash the application on network failure
+    captureServiceWarning('Check for updates failed', {
+      service: 'updater',
+      operation: 'checkForUpdate',
+      phase: 'network',
+      extra: { isManual: String(isManual), error: errorMsg },
+    })
+
+    notifyListeners()
+    return { ...currentState }
   }
 }
 
-// ── Record that user clicked Skip for this version ────────────────────────
-// Saves firstDetectedAt only once per version (preserves original timestamp).
-export function recordSkip(latestVersion: string): void {
-  const existing = loadSkipStorage()
-  if (existing?.skippedVersion === latestVersion) return // timestamp already recorded
-  saveSkipStorage({ skippedVersion: latestVersion, firstDetectedAt: Date.now() })
+async function startDownloadInternal(): Promise<void> {
+  if (isDownloading || currentState.status === 'downloaded') return
+  isDownloading = true
+  currentState.status = 'downloading'
+  notifyListeners()
+
+  try {
+    await autoUpdater.downloadUpdate()
+  } catch (err) {
+    isDownloading = false
+    currentState.status = 'error'
+    currentState.error = err instanceof Error ? err.message : String(err)
+    captureServiceWarning('Download update failed', {
+      service: 'updater',
+      operation: 'downloadUpdate',
+      phase: 'download',
+      extra: { error: currentState.error },
+    })
+    notifyListeners()
+  }
+}
+
+export async function downloadUpdate(): Promise<UpdateState> {
+  if (!app.isPackaged) {
+    return { ...currentState }
+  }
+  await startDownloadInternal()
+  return { ...currentState }
+}
+
+export function quitAndInstall(): void {
+  if (!app.isPackaged) {
+    console.log('[updater] Dev mode: quitAndInstall skipped')
+    return
+  }
+  try {
+    // isSilent = false, isForceRunAfter = true
+    autoUpdater.quitAndInstall(false, true)
+  } catch (err) {
+    captureServiceWarning('quitAndInstall failed', {
+      service: 'updater',
+      operation: 'quitAndInstall',
+      phase: 'install',
+      extra: { error: err instanceof Error ? err.message : String(err) },
+    })
+  }
+}
+
+// ── Periodic Timer ─────────────────────────────────────────────────────────
+function startPeriodicTimer(): void {
+  stopPeriodicTimer()
+
+  // Initial silent check 10 seconds after launch
+  initialTimer = setTimeout(() => {
+    if (app.isPackaged && currentState.status !== 'downloading' && currentState.status !== 'downloaded') {
+      checkForUpdate(false).catch(() => { /* silent */ })
+    }
+  }, INITIAL_CHECK_DELAY_MS)
+
+  // Recurring 4-hour check
+  periodicTimer = setInterval(() => {
+    if (app.isPackaged && currentState.status !== 'downloading' && currentState.status !== 'downloaded') {
+      checkForUpdate(false).catch(() => { /* silent */ })
+    }
+  }, PERIODIC_CHECK_INTERVAL_MS)
+}
+
+function stopPeriodicTimer(): void {
+  if (initialTimer) {
+    clearTimeout(initialTimer)
+    initialTimer = null
+  }
+  if (periodicTimer) {
+    clearInterval(periodicTimer)
+    periodicTimer = null
+  }
 }

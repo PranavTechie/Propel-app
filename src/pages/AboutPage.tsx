@@ -41,6 +41,7 @@ export const AboutPage: React.FC = () => {
     manualCheckResult,
     triggerManualCheck,
     clearManualResult,
+    updateState,
   } = useManualUpdateCheck();
 
   return (
@@ -265,6 +266,46 @@ export const AboutPage: React.FC = () => {
                       </p>
                       <p className="text-[10px] text-text-muted mt-0.5">
                         Propel 1.2 is the latest version.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+                {manualCheckResult === "downloading" && (
+                  <motion.div
+                    key="downloading"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-brand-primary/10 border border-brand-primary/25"
+                  >
+                    <RefreshCw className="w-4 h-4 text-brand-primary animate-spin shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-brand-primary">
+                        Downloading update v{updateState?.latestVersion ?? ""}...
+                      </p>
+                      <p className="text-[10px] text-text-muted mt-0.5 font-mono">
+                        {updateState?.progress?.percent ? `${updateState.progress.percent}% complete` : "Downloading in background"}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+                {manualCheckResult === "ready" && (
+                  <motion.div
+                    key="ready"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-400">
+                        Update Ready — v{updateState?.latestVersion ?? ""}
+                      </p>
+                      <p className="text-[10px] text-text-muted mt-0.5">
+                        Download verified. Restart Propel to apply.
                       </p>
                     </div>
                   </motion.div>

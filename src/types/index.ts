@@ -133,16 +133,30 @@ export interface MaintenanceStatus {
   browserProtectionCount: number
 }
 
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'not-available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+export interface UpdateProgress {
+  percent: number
+  bytesPerSecond: number
+  transferred: number
+  total: number
+}
+
 export interface UpdateState {
   available: boolean
+  status: UpdateStatus
   currentVersion: string
   latestVersion: string
-  title: string
-  changelog: string[]
-  websiteUrl: string
-  mandatory: boolean          // true after mandatory_after_days have elapsed since first Skip
-  mandatoryAfterDays: number
-  firstDetectedAt?: number
+  releaseNotes?: string | string[]
+  progress?: UpdateProgress
+  error?: string
 }
 
 export interface MemoryDetails {

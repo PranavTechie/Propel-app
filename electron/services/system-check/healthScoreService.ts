@@ -67,7 +67,7 @@ export async function computeHealthScore(): Promise<{ breakdown: HealthScoreBrea
   // ── CPU score ──────────────────────────────────────────────────────────
   let cpuScore = 90
   if (hwData) {
-    const loadPct = hwData.cpu.currentLoadPercent
+    const loadPct = hwData.cpu.load
     if (loadPct > 80) { cpuScore = 40; criticalIssues.push('CPU under heavy sustained load') }
     else if (loadPct > 50) cpuScore = 65
   }
@@ -75,7 +75,7 @@ export async function computeHealthScore(): Promise<{ breakdown: HealthScoreBrea
   // ── Memory score ──────────────────────────────────────────────────────
   let memScore = 90
   if (hwData) {
-    const used = hwData.ram.usedPercent
+    const used = hwData.ram.pressurePercent
     if (used > 85) { memScore = 35; criticalIssues.push(`RAM usage critically high (${used}%)`) }
     else if (used > 70) memScore = 60
     else if (used > 55) memScore = 75
@@ -108,8 +108,7 @@ export async function computeHealthScore(): Promise<{ breakdown: HealthScoreBrea
   // ── GPU score ─────────────────────────────────────────────────────────
   let gpuScore = 80
   if (gpuData) {
-    const outdatedCount = gpuData.controllers.filter(c => c.driverStatus === 'outdated').length
-    if (outdatedCount > 0) { gpuScore = 60 }
+    if (gpuData.driverStatus === 'outdated') { gpuScore = 60 }
   }
 
   // ── Network score ─────────────────────────────────────────────────────
