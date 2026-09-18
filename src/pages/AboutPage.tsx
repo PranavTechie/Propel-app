@@ -80,7 +80,7 @@ export const AboutPage: React.FC = () => {
                   </p>
                   <div className="flex items-center gap-3 mt-2">
                     <span className="text-xs bg-white/5 border border-border rounded-full px-2.5 py-0.5 text-text-muted">
-                      1.2
+                      1.3
                     </span>
                     <span className="text-xs bg-brand-primary/10 border border-brand-primary/20 rounded-full px-2.5 py-0.5 text-brand-primary">
                       Software
@@ -265,7 +265,7 @@ export const AboutPage: React.FC = () => {
                         You're up to date
                       </p>
                       <p className="text-[10px] text-text-muted mt-0.5">
-                        Propel 1.2 is the latest version.
+                        Propel 1.3 is the latest version.
                       </p>
                     </div>
                   </motion.div>

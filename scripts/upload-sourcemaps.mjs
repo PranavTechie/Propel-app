@@ -10,7 +10,7 @@
  *   SENTRY_ORG          — GlitchTip organization slug
  *   SENTRY_PROJECT      — GlitchTip project slug
  *   SENTRY_URL          — Your GlitchTip instance URL (e.g. https://app.glitchtip.com)
- *   VITE_APP_VERSION    — App version (defaults to 1.2)
+ *   VITE_APP_VERSION    — App version (defaults to 1.3)
  *
  * Usage:
  *   node scripts/upload-sourcemaps.mjs
@@ -33,7 +33,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const ROOT = resolve(__dirname, '..')
 
 // ── Config ────────────────────────────────────────────────────────────────
-const APP_VERSION   = process.env.VITE_APP_VERSION ?? '1.2'
+const APP_VERSION   = process.env.VITE_APP_VERSION ?? '1.3'
 const RELEASE       = `propel@${APP_VERSION}`
 const SENTRY_URL    = process.env.SENTRY_URL    ?? 'https://app.glitchtip.com'
 const SENTRY_ORG    = process.env.SENTRY_ORG    ?? ''

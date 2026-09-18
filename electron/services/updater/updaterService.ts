@@ -3,7 +3,7 @@ import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-update
 import { captureServiceWarning } from '../telemetry/serviceCapture'
 
 // ── Constants ──────────────────────────────────────────────────────────────
-export const APP_VERSION = '1.2'
+export const APP_VERSION = '1.3'
 const PERIODIC_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000 // 4 hours
 const INITIAL_CHECK_DELAY_MS = 10_000 // 10 seconds after app launch
 
