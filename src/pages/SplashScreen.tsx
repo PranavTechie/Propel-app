@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Leaf, CheckCircle2 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
@@ -14,17 +14,28 @@ export const SplashScreen: React.FC = () => {
   const setEntitlementStatus = useAppStore((s) => s.setEntitlementStatus);
   const themeId = useSettingsStore((s) => s.themeId);
   const reduceMotion = useReducedMotion();
-  const [stepIndex, setStepIndex] = useState(0);
+  const [progress, setProgress] = useState(25);
+  const progressRef = useRef(25);
   const [done, setDone] = useState(false);
 
   // Visual-only theme sync. Startup and authentication behavior remain unchanged.
   useEffect(() => applyTheme(themeId), [themeId]);
 
   useEffect(() => {
-    // Cycle through steps every 550ms up to step 2 while we wait for the API
-    const intervals: ReturnType<typeof setTimeout>[] = [];
-    intervals.push(setTimeout(() => setStepIndex(1), 550));
-    intervals.push(setTimeout(() => setStepIndex(2), 1100));
+    let cancelled = false;
+    const timerIds: ReturnType<typeof setTimeout>[] = [];
+
+    const advanceProgress = (next: number) => {
+      if (cancelled || next <= progressRef.current) return;
+      progressRef.current = Math.min(100, next);
+      setProgress(progressRef.current);
+    };
+
+    const wait = (ms: number) =>
+      new Promise<void>((resolve) => {
+        const id = setTimeout(resolve, ms);
+        timerIds.push(id);
+      });
 
     const MIN_DISPLAY_MS = 1500; // prevents flicker on fast connections
 
@@ -46,19 +57,19 @@ export const SplashScreen: React.FC = () => {
           data: { session },
           error,
         } = await supabase.auth.getSession();
+        if (cancelled) return;
 
-        setStepIndex(3);
-
+        // The session check is complete; hold here only until the existing minimum splash duration.
+        advanceProgress(80);
         const elapsed = Date.now() - startedAt;
-        const remaining = Math.max(0, MIN_DISPLAY_MS - elapsed);
-        await new Promise((r) => setTimeout(r, remaining));
-        setDone(true);
-        await new Promise((r) => setTimeout(r, 300));
+        await wait(Math.max(0, MIN_DISPLAY_MS - elapsed));
+        if (cancelled) return;
 
         if (error || !session) {
-          // This covers TEST F: expired/revoked refresh token — getSession returns null.
-          // Show login cleanly; no loop because LoginPage does not call getSession.
-          setPhase("login");
+          advanceProgress(100);
+          setDone(true);
+          await wait(300);
+          if (!cancelled) setPhase("login");
           return;
         }
 
@@ -66,6 +77,7 @@ export const SplashScreen: React.FC = () => {
         const result = await (window as any).propel.entitlements.fetch(
           session.access_token,
         );
+        if (cancelled) return;
 
         if (result.ok) {
           setEntitlementStatus({
@@ -76,23 +88,31 @@ export const SplashScreen: React.FC = () => {
             trial_expires_at: result.data.trial_expires_at,
             subscription_status: result.data.subscription_status,
           });
-          setPhase("main");
+          advanceProgress(100);
+          setDone(true);
+          await wait(300);
+          if (!cancelled) setPhase("main");
+        } else if (result.networkError) {
+          advanceProgress(100);
+          setDone(true);
+          await wait(300);
+          if (!cancelled) setPhase("no_internet");
         } else {
-          if (result.networkError) {
-            setPhase("no_internet");
-          } else {
-            setEntitlementStatus({
-              status: "error",
-              plan: "FREE",
-              source: "plan",
-              trial_active: false,
-              trial_expires_at: null,
-              subscription_status: "",
-            });
-            setPhase("login");
-          }
+          setEntitlementStatus({
+            status: "error",
+            plan: "FREE",
+            source: "plan",
+            trial_active: false,
+            trial_expires_at: null,
+            subscription_status: "",
+          });
+          advanceProgress(100);
+          setDone(true);
+          await wait(300);
+          if (!cancelled) setPhase("login");
         }
       } catch {
+        if (cancelled) return;
         setEntitlementStatus({
           status: "error",
           plan: "FREE",
@@ -101,20 +121,24 @@ export const SplashScreen: React.FC = () => {
           trial_expires_at: null,
           subscription_status: "",
         });
+        advanceProgress(100);
+        setDone(true);
         const elapsed = Date.now() - startedAt;
-        await new Promise((r) =>
-          setTimeout(r, Math.max(0, MIN_DISPLAY_MS - elapsed)),
-        );
-        setPhase("login");
+        await wait(Math.max(0, MIN_DISPLAY_MS - elapsed));
+        await wait(300);
+        if (!cancelled) setPhase("login");
       }
     };
 
     const timer = setTimeout(bootstrap, 700);
-    intervals.push(timer);
-    return () => intervals.forEach(clearTimeout);
+    timerIds.push(timer);
+    return () => {
+      cancelled = true;
+      timerIds.forEach(clearTimeout);
+    };
   }, [setPhase, setEntitlementStatus, setSession]);
 
-  const progress = Math.min(100, ((stepIndex + 1) / BOOT_STEPS.length) * 100);
+  const activeStep = Math.min(BOOT_STEPS.length - 1, Math.floor(progress / 25));
 
   return (
     <div
@@ -223,14 +247,14 @@ export const SplashScreen: React.FC = () => {
           <div className="mb-3 flex h-4 items-center justify-center overflow-hidden">
             <AnimatePresence mode="wait" initial={false}>
               <motion.p
-                key={stepIndex}
+                key={activeStep}
                 initial={{ opacity: 0, y: 7 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -7 }}
                 transition={{ duration: reduceMotion ? 0 : 0.22 }}
                 className="text-xs text-text-muted"
               >
-                {BOOT_STEPS[stepIndex]}
+                {BOOT_STEPS[activeStep]}
               </motion.p>
             </AnimatePresence>
           </div>
@@ -252,7 +276,7 @@ export const SplashScreen: React.FC = () => {
             {BOOT_STEPS.map((_, index) => (
               <span
                 key={index}
-                className={`h-1.5 rounded-full transition-all duration-300 ${index <= stepIndex ? "w-5 bg-brand-primary" : "w-1.5 bg-border/70"}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${index <= activeStep ? "w-5 bg-brand-primary" : "w-1.5 bg-border/70"}`}
               />
             ))}
           </div>
