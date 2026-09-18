@@ -204,17 +204,56 @@ export const SplashScreen: React.FC = () => {
           className="mt-9 flex w-full items-center justify-center"
           aria-label="Loading"
         >
-          <motion.div
-            className="relative h-7 w-7 rounded-full border-[3px] border-brand-primary/15 border-t-brand-primary"
-            animate={reduceMotion ? undefined : { rotate: 360 }}
-            transition={{ duration: 1.05, repeat: Infinity, ease: "linear" }}
-            style={{
-              willChange: "transform",
-              boxShadow: "0 0 14px rgb(var(--t-accent) / .16)",
-            }}
+          <style>{`
+            .propel-square-loader {
+              display: inline-block;
+              width: 30px;
+              height: 30px;
+              position: relative;
+              border: 4px solid rgb(var(--t-accent));
+              animation: propel-loader 2s infinite ease;
+              box-shadow: 0 0 14px rgb(var(--t-accent) / .14);
+            }
+
+            .propel-square-loader-inner {
+              vertical-align: top;
+              display: inline-block;
+              width: 100%;
+              background-color: rgb(var(--t-accent));
+              animation: propel-loader-inner 2s infinite ease-in;
+            }
+
+            @keyframes propel-loader {
+              0% { transform: rotate(0deg); }
+              25% { transform: rotate(180deg); }
+              50% { transform: rotate(180deg); }
+              75% { transform: rotate(360deg); }
+              100% { transform: rotate(360deg); }
+            }
+
+            @keyframes propel-loader-inner {
+              0% { height: 0%; }
+              25% { height: 0%; }
+              50% { height: 100%; }
+              75% { height: 100%; }
+              100% { height: 0%; }
+            }
+
+            .propel-square-loader--reduced,
+            .propel-square-loader--reduced .propel-square-loader-inner {
+              animation: none;
+            }
+
+            .propel-square-loader--reduced .propel-square-loader-inner {
+              height: 100%;
+            }
+          `}</style>
+          <span
+            className={`propel-square-loader${reduceMotion ? " propel-square-loader--reduced" : ""}`}
+            aria-hidden="true"
           >
-            <span className="absolute inset-[4px] rounded-full border border-brand-primary/10" />
-          </motion.div>
+            <span className="propel-square-loader-inner" />
+          </span>
         </motion.div>
 
         <motion.p
