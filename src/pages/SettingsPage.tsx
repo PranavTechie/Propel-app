@@ -25,8 +25,6 @@ import {
 import { useAppStore } from "@/store/appStore";
 import {
   useSettingsStore,
-  ACCENT_DEFS,
-  type AccentColor,
   type ToastPosition,
 } from "@/store/settingsStore";
 import { THEMES, THEME_ORDER, type ThemeId } from "@/theme/themes";
@@ -126,8 +124,6 @@ export const SettingsPage: React.FC = () => {
 
   // ── Settings store ──────────────────────────────────────────────────────
   const {
-    accentColor,
-    setAccentColor, // accent color state
     soundEnabled,
     setSoundEnabled, // sound enabled state
     toastPosition,
@@ -331,58 +327,7 @@ export const SettingsPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
-              {/* Accent Color */}
-              <div>
-                <SectionTitle
-                  icon={<Palette className="w-3.5 h-3.5" />}
-                  label="Accent Color"
-                />
-                <div className="grid grid-cols-5 gap-2">
-                  {(
-                    Object.entries(ACCENT_DEFS) as [
-                      AccentColor,
-                      (typeof ACCENT_DEFS)[AccentColor],
-                    ][]
-                  ).map(([key, def]) => (
-                    <button
-                      key={key}
-                      onClick={() => setAccentColor(key)}
-                      title={def.label}
-                      className={cn(
-                        "group relative flex flex-col items-center gap-2 p-3 rounded-xl border transition-all duration-200",
-                        accentColor === key
-                          ? "border-white/20 bg-white/[0.06]"
-                          : "border-border/40 bg-transparent hover:bg-white/[0.04] hover:border-white/10",
-                      )}
-                    >
-                      <div
-                        className="w-7 h-7 rounded-full flex items-center justify-center transition-transform group-hover:scale-110"
-                        style={{
-                          background: def.hex,
-                          boxShadow:
-                            accentColor === key
-                              ? `0 0 14px ${def.hex}66`
-                              : "none",
-                        }}
-                      >
-                        {accentColor === key && (
-                          <Check className="w-3.5 h-3.5 text-white" />
-                        )}
-                      </div>
-                      <span
-                        className={cn(
-                          "text-2xs font-medium transition-colors",
-                          accentColor === key
-                            ? "text-text-primary"
-                            : "text-text-muted",
-                        )}
-                      >
-                        {def.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+
 
               {/* Sound Effects */}
               <div>

@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { staggerContainer, staggerItem } from "@/animations/variants";
-import { useSettingsStore, ACCENT_TW } from "@/store/settingsStore";
+import { useSettingsStore } from "@/store/settingsStore";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface FullScanData {
@@ -82,7 +82,6 @@ function SectionCard({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const accent = useSettingsStore((s) => ACCENT_TW[s.accentColor]);
   const scoreColor =
     score == null
       ? ""
@@ -102,7 +101,7 @@ function SectionCard({
         onClick={() => setOpen((v) => !v)}
       >
         <div className="flex items-center gap-3">
-          <div className={cn("p-2 rounded-lg bg-white/[0.05]", accent.icon)}>
+          <div className={cn("p-2 rounded-lg bg-white/[0.05]", "text-brand-primary")}>
             {icon}
           </div>
           <span className="font-semibold text-text-primary text-sm">
@@ -663,8 +662,6 @@ export function SystemCheckPage() {
   const [data, setData] = useState<FullScanData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
-  const accent = useSettingsStore((s) => ACCENT_TW[s.accentColor]);
-
   const runScan = useCallback(async () => {
     setScanning(true);
     setError(null);
