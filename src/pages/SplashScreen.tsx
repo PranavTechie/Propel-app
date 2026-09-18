@@ -114,7 +114,7 @@ export const SplashScreen: React.FC = () => {
     return () => intervals.forEach(clearTimeout);
   }, [setPhase, setEntitlementStatus, setSession]);
 
-  const progress = done ? 100 : ((stepIndex + 1) / BOOT_STEPS.length) * 100;
+  const progress = Math.min(100, ((stepIndex + 1) / BOOT_STEPS.length) * 100);
 
   return (
     <div
@@ -252,7 +252,7 @@ export const SplashScreen: React.FC = () => {
             {BOOT_STEPS.map((_, index) => (
               <span
                 key={index}
-                className={`h-1.5 rounded-full transition-all duration-300 ${index <= stepIndex || done ? "w-5 bg-brand-primary" : "w-1.5 bg-border/70"}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${index <= stepIndex ? "w-5 bg-brand-primary" : "w-1.5 bg-border/70"}`}
               />
             ))}
           </div>
