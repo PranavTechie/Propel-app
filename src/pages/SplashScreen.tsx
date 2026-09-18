@@ -205,7 +205,7 @@ export const SplashScreen: React.FC = () => {
           aria-label="Loading"
         >
           <motion.div
-            className="relative h-7 w-7 rounded-full border-[1.5px] border-brand-primary/15 border-t-brand-primary"
+            className="relative h-7 w-7 rounded-full border-[3px] border-brand-primary/15 border-t-brand-primary"
             animate={reduceMotion ? undefined : { rotate: 360 }}
             transition={{ duration: 1.05, repeat: Infinity, ease: "linear" }}
             style={{
