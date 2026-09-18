@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Leaf, CheckCircle2 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
@@ -6,16 +6,12 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { applyTheme } from "@/theme/themes";
 import { supabase } from "@/lib/supabase";
 
-const BOOT_STEPS = ["", "", "", ""];
-
 export const SplashScreen: React.FC = () => {
   const setPhase = useAppStore((s) => s.setPhase);
   const setSession = useAppStore((s) => s.setSession);
   const setEntitlementStatus = useAppStore((s) => s.setEntitlementStatus);
   const themeId = useSettingsStore((s) => s.themeId);
   const reduceMotion = useReducedMotion();
-  const [progress, setProgress] = useState(0);
-  const progressRef = useRef(0);
   const [done, setDone] = useState(false);
 
   // Visual-only theme sync. Startup and authentication behavior remain unchanged.
@@ -24,16 +20,8 @@ export const SplashScreen: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
 
-    const advanceProgress = (next: number) => {
-      if (cancelled || next <= progressRef.current) return;
-      progressRef.current = Math.min(100, next);
-      setProgress(progressRef.current);
-    };
-
     const bootstrap = async () => {
       try {
-        // The first milestone is the actual start of the bootstrap work.
-        advanceProgress(12);
         setEntitlementStatus({
           status: "checking",
           plan: "FREE",
@@ -50,10 +38,8 @@ export const SplashScreen: React.FC = () => {
           error,
         } = await supabase.auth.getSession();
         if (cancelled) return;
-        advanceProgress(70);
 
         if (error || !session) {
-          advanceProgress(100);
           setDone(true);
           setPhase("login");
           return;
@@ -74,11 +60,9 @@ export const SplashScreen: React.FC = () => {
             trial_expires_at: result.data.trial_expires_at,
             subscription_status: result.data.subscription_status,
           });
-          advanceProgress(100);
           setDone(true);
           setPhase("main");
         } else if (result.networkError) {
-          advanceProgress(100);
           setDone(true);
           setPhase("no_internet");
         } else {
@@ -90,7 +74,6 @@ export const SplashScreen: React.FC = () => {
             trial_expires_at: null,
             subscription_status: "",
           });
-          advanceProgress(100);
           setDone(true);
           setPhase("login");
         }
@@ -104,7 +87,6 @@ export const SplashScreen: React.FC = () => {
           trial_expires_at: null,
           subscription_status: "",
         });
-        advanceProgress(100);
         setDone(true);
         setPhase("login");
       }
@@ -116,8 +98,6 @@ export const SplashScreen: React.FC = () => {
       clearTimeout(timer);
     };
   }, [setPhase, setEntitlementStatus, setSession]);
-
-  const activeStep = Math.min(BOOT_STEPS.length - 1, Math.floor(progress / 25));
 
   return (
     <div
@@ -221,44 +201,20 @@ export const SplashScreen: React.FC = () => {
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: reduceMotion ? 0 : 0.4, delay: 0.58 }}
-          className="mt-9 w-full"
+          className="mt-9 flex w-full items-center justify-center"
+          aria-label="Loading"
         >
-          <div className="mb-3 flex h-4 items-center justify-center overflow-hidden">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.p
-                key={activeStep}
-                initial={{ opacity: 0, y: 7 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -7 }}
-                transition={{ duration: reduceMotion ? 0 : 0.22 }}
-                className="text-xs text-text-muted"
-              >
-                {BOOT_STEPS[activeStep]}
-              </motion.p>
-            </AnimatePresence>
-          </div>
-          <div className="relative h-1 overflow-hidden rounded-full bg-brand-primary/10">
-            <motion.div
-              className="absolute inset-y-0 left-0 rounded-full bg-brand-primary"
-              animate={{ width: `${progress}%` }}
-              transition={{
-                duration: reduceMotion ? 0 : 0.5,
-                ease: [0.2, 0.8, 0.2, 1],
-              }}
-            >
-              {!done && !reduceMotion && (
-                <span className="absolute right-0 top-1/2 h-3 w-3 -translate-y-1/2 rounded-full bg-brand-primary/40 blur-[5px]" />
-              )}
-            </motion.div>
-          </div>
-          <div className="mt-3 flex justify-center gap-1.5">
-            {BOOT_STEPS.map((_, index) => (
-              <span
-                key={index}
-                className={`h-1.5 rounded-full transition-all duration-300 ${index <= activeStep ? "w-5 bg-brand-primary" : "w-1.5 bg-border/70"}`}
-              />
-            ))}
-          </div>
+          <motion.div
+            className="relative h-7 w-7 rounded-full border-[1.5px] border-brand-primary/15 border-t-brand-primary"
+            animate={reduceMotion ? undefined : { rotate: 360 }}
+            transition={{ duration: 1.05, repeat: Infinity, ease: "linear" }}
+            style={{
+              willChange: "transform",
+              boxShadow: "0 0 14px rgb(var(--t-accent) / .16)",
+            }}
+          >
+            <span className="absolute inset-[4px] rounded-full border border-brand-primary/10" />
+          </motion.div>
         </motion.div>
 
         <motion.p
