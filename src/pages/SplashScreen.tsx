@@ -14,8 +14,8 @@ export const SplashScreen: React.FC = () => {
   const setEntitlementStatus = useAppStore((s) => s.setEntitlementStatus);
   const themeId = useSettingsStore((s) => s.themeId);
   const reduceMotion = useReducedMotion();
-  const [progress, setProgress] = useState(25);
-  const progressRef = useRef(25);
+  const [progress, setProgress] = useState(0);
+  const progressRef = useRef(0);
   const [done, setDone] = useState(false);
 
   // Visual-only theme sync. Startup and authentication behavior remain unchanged.
@@ -23,7 +23,6 @@ export const SplashScreen: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    const timerIds: ReturnType<typeof setTimeout>[] = [];
 
     const advanceProgress = (next: number) => {
       if (cancelled || next <= progressRef.current) return;
@@ -31,17 +30,10 @@ export const SplashScreen: React.FC = () => {
       setProgress(progressRef.current);
     };
 
-    const wait = (ms: number) =>
-      new Promise<void>((resolve) => {
-        const id = setTimeout(resolve, ms);
-        timerIds.push(id);
-      });
-
-    const MIN_DISPLAY_MS = 1500; // prevents flicker on fast connections
-
     const bootstrap = async () => {
-      const startedAt = Date.now();
       try {
+        // The first milestone is the actual start of the bootstrap work.
+        advanceProgress(12);
         setEntitlementStatus({
           status: "checking",
           plan: "FREE",
@@ -58,18 +50,12 @@ export const SplashScreen: React.FC = () => {
           error,
         } = await supabase.auth.getSession();
         if (cancelled) return;
-
-        // The session check is complete; hold here only until the existing minimum splash duration.
-        advanceProgress(80);
-        const elapsed = Date.now() - startedAt;
-        await wait(Math.max(0, MIN_DISPLAY_MS - elapsed));
-        if (cancelled) return;
+        advanceProgress(70);
 
         if (error || !session) {
           advanceProgress(100);
           setDone(true);
-          await wait(300);
-          if (!cancelled) setPhase("login");
+          setPhase("login");
           return;
         }
 
@@ -90,13 +76,11 @@ export const SplashScreen: React.FC = () => {
           });
           advanceProgress(100);
           setDone(true);
-          await wait(300);
-          if (!cancelled) setPhase("main");
+          setPhase("main");
         } else if (result.networkError) {
           advanceProgress(100);
           setDone(true);
-          await wait(300);
-          if (!cancelled) setPhase("no_internet");
+          setPhase("no_internet");
         } else {
           setEntitlementStatus({
             status: "error",
@@ -108,8 +92,7 @@ export const SplashScreen: React.FC = () => {
           });
           advanceProgress(100);
           setDone(true);
-          await wait(300);
-          if (!cancelled) setPhase("login");
+          setPhase("login");
         }
       } catch {
         if (cancelled) return;
@@ -123,18 +106,14 @@ export const SplashScreen: React.FC = () => {
         });
         advanceProgress(100);
         setDone(true);
-        const elapsed = Date.now() - startedAt;
-        await wait(Math.max(0, MIN_DISPLAY_MS - elapsed));
-        await wait(300);
-        if (!cancelled) setPhase("login");
+        setPhase("login");
       }
     };
 
     const timer = setTimeout(bootstrap, 700);
-    timerIds.push(timer);
     return () => {
       cancelled = true;
-      timerIds.forEach(clearTimeout);
+      clearTimeout(timer);
     };
   }, [setPhase, setEntitlementStatus, setSession]);
 
