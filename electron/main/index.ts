@@ -47,7 +47,7 @@ function createWindow(): void { // Create the main window
     minHeight: 700,
     frame: false,
     transparent: false,
-    backgroundColor: '#07070f',
+    backgroundColor: '#F5F6F1',
     icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -61,8 +61,11 @@ function createWindow(): void { // Create the main window
     autoHideMenuBar: true,
   })
 
+  // Size the native window before the first paint so the compositor never
+  // presents an unthemed intermediate frame during startup.
+  mainWindow.maximize()
+
   mainWindow.once('ready-to-show', () => {
-    mainWindow?.maximize()   // maximize before show — no small→large jump
     mainWindow?.show() // Show the window after it's ready
     mainWindow?.focus() // Focus the window after it's shown
   })
