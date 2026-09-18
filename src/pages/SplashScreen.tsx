@@ -6,12 +6,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { applyTheme } from "@/theme/themes";
 import { supabase } from "@/lib/supabase";
 
-const BOOT_STEPS = [
-  "Initializing Propel…",
-  "Loading system modules…",
-  "Verifying license…",
-  "Configuring workspace…",
-];
+const BOOT_STEPS = ["", "", "", ""];
 
 export const SplashScreen: React.FC = () => {
   const setPhase = useAppStore((s) => s.setPhase);
@@ -127,7 +122,7 @@ export const SplashScreen: React.FC = () => {
       style={{ background: "var(--t-app-bg)" }}
       role="status"
       aria-live="polite"
-      aria-label={done ? "Propel is ready" : BOOT_STEPS[stepIndex]}
+      aria-label={done ? "Propel is ready" : "Propel is loading"}
     >
       <div
         className="pointer-events-none absolute inset-0 opacity-70"
