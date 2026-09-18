@@ -16,6 +16,9 @@ export const SplashScreen: React.FC = () => {
 
   // Visual-only theme sync. Startup and authentication behavior remain unchanged.
   useEffect(() => applyTheme(themeId), [themeId]);
+  useEffect(() => {
+    window.electronAPI?.splash.ready();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
