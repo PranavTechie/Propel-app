@@ -118,6 +118,7 @@ export const SettingsPage: React.FC = () => {
   const entitlement = useAppStore((s) => s.entitlementStatus);
   const session = useAppStore((s) => s.session);
   const setSession = useAppStore((s) => s.setSession);
+  const resetUserSession = useAppStore((s) => s.resetUserSession);
   const setPhase = useAppStore((s) => s.setPhase);
   const addToast = useAppStore((s) => s.addToast);
   const [signingOut, setSigningOut] = useState(false);
@@ -165,9 +166,9 @@ export const SettingsPage: React.FC = () => {
     }
     setSigningOut(true);
     try {
-      // Clear local state immediately to ensure no stale token remains,
+      // Clear local state immediately to ensure no stale token or user state remains,
       // even if the network request to Supabase fails.
-      setSession(null);
+      resetUserSession();
       await supabase.auth.signOut({ scope: "local" });
       addToast({
         type: "info",
@@ -178,6 +179,7 @@ export const SettingsPage: React.FC = () => {
     } catch {
       // Even if network fails, we've cleared local state.
       // Force redirect to login anyway.
+      resetUserSession();
       addToast({
         type: "info",
         title: "Signed Out (Local)",

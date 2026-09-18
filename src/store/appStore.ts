@@ -69,6 +69,8 @@ interface AppStore {
   hideUpdateModal:      () => void
   setUpdateBannerVisible: (v: boolean) => void
   dismissUpdateBanner:  () => void
+  // ── Session Reset ────────────────────────────────
+  resetUserSession: () => void
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -138,6 +140,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
   hideUpdateModal: () => set({ updateModalVisible: false }),
   setUpdateBannerVisible: updateBannerVisible => set({ updateBannerVisible }),
   dismissUpdateBanner: () => set({ updateBannerVisible: false }),
+  resetUserSession: () =>
+    set({
+      session: null,
+      entitlementStatus: {
+        status: 'checking',
+        plan: 'FREE',
+        source: 'plan',
+        trial_active: false,
+        trial_expires_at: null,
+        subscription_status: '',
+      },
+      scanResults: [],
+      isScanning: false,
+      isCleaning: false,
+      scanProgress: 0,
+      cleanProgress: 0,
+      lastCleanResult: null,
+      cleanupHistory: [],
+      stats: null,
+      chartData: [],
+    }),
 }))
 
 // ── Stable derived selectors (use these instead of inline computations) ──
