@@ -144,7 +144,7 @@ export const LoginPage: React.FC = () => {
           </div>
         </div>
         <p className="relative text-[10px] text-white/35">
-          Propel 1.3 · Built for Windows
+          Propel 1.4 · Built for Windows
         </p>
       </section>
       <section className="relative flex items-center justify-center p-8">

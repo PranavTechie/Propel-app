@@ -262,7 +262,7 @@ export const SplashScreen: React.FC = () => {
           transition={{ delay: reduceMotion ? 0 : 0.72 }}
           className="mt-8 text-[10px] text-text-muted"
         >
-          Version 3.2.0
+          Version 1.4
         </motion.p>
       </motion.div>
     </div>

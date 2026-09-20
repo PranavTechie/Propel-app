@@ -152,11 +152,18 @@ const targetFiles = [
     name: 'SplashScreen.tsx (UI Version Label)',
     path: join(ROOT_APP, 'src', 'pages', 'SplashScreen.tsx'),
     transform: (content) => {
-      const pattern = /<span>Version [^<]+<\/span>/
-      if (!pattern.test(content)) throw new Error('Pattern "<span>Version ...</span>" not found')
-      return content.replace(pattern, `<span>Version ${displayVersion}</span>`)
+      // The redesigned splash uses a bare text node inside <motion.p>:
+      //   Version 1.3
+      // Match: optional whitespace + "Version " + semver digits/dots + optional whitespace
+      const pattern = /(>[\s\r\n]*)(Version [0-9]+\.[0-9]+(?:\.[0-9]+)?)(\s*<\/motion\.p>)/
+      if (!pattern.test(content)) throw new Error('Pattern "Version X.Y[.Z] text node in <motion.p>" not found in SplashScreen.tsx')
+      return content.replace(pattern, `$1Version ${displayVersion}$3`)
     },
-    verify: (content) => content.includes(`<span>Version ${displayVersion}</span>`),
+    verify: (content) => {
+      const pattern = /(>[\s\r\n]*)(Version [0-9]+\.[0-9]+(?:\.[0-9]+)?)(\s*<\/motion\.p>)/
+      const m = pattern.exec(content)
+      return m !== null && m[2] === `Version ${displayVersion}`
+    },
   },
   {
     name: 'LoginPage.tsx (UI Sidebar Label)',

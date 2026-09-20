@@ -113,11 +113,14 @@ try {
 }
 
 // ── 7. SplashScreen.tsx ───────────────────────────────────────────────────
+// The redesigned splash uses a bare text node "Version X.Y" inside <motion.p>.
 const splashPath = join(ROOT_APP, 'src', 'pages', 'SplashScreen.tsx')
 try {
   const content = readFileSync(splashPath, 'utf8')
-  const pass = content.includes(`<span>Version ${displayVersion}</span>`)
-  addCheck('SplashScreen.tsx', `Splash screen displays "Version ${displayVersion}"`, pass)
+  const splashPattern = /(>[\s\r\n]*)(Version [0-9]+\.[0-9]+(?:\.[0-9]+)?)(\s*<\/motion\.p>)/
+  const m = splashPattern.exec(content)
+  const pass = m !== null && m[2] === `Version ${displayVersion}`
+  addCheck('SplashScreen.tsx', `Splash screen displays "Version ${displayVersion}"`, pass, m ? `Found: ${m[2].trim()}` : 'Pattern not found')
 } catch (err) {
   addCheck('SplashScreen.tsx', 'File read error', false, err.message)
 }

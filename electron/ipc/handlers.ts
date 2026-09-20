@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { getSystemStats, getHWID, getFingerprint, isAdmin, optimizeDrive } from '../native/system'
 
-const APP_VERSION = '1.3'
+const APP_VERSION = '1.4'
 
 export function setupIPC(): void {
   ipcMain.handle('system:get-stats', async () => {

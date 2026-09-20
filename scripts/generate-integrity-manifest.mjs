@@ -30,7 +30,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 const ROOT      = resolve(__dirname, '..')
 
 // ── Config ────────────────────────────────────────────────────────────────
-const APP_VERSION = process.env.VITE_APP_VERSION ?? '1.3'
+const APP_VERSION = process.env.VITE_APP_VERSION ?? '1.4'
 
 // HMAC key for manifest signature (not secret — provides integrity only,
 // not authenticity). A real code-signing cert handles authenticity.
