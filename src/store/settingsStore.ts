@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ThemeId } from '@/theme/themes'
+import { applyTheme, type ThemeId } from '@/theme/themes'
 
 export type ToastPosition = 'bottom-right' | 'top-right' | 'system-default'
 
@@ -31,7 +31,10 @@ export const useSettingsStore = create<SettingsState>()(
       setSoundEnabled:   (v) => set({ soundEnabled: v }),
       setToastPosition:  (p) => set({ toastPosition: p }),
       setOverlayEnabled: (v) => set({ overlayEnabled: v }),
-      setThemeId:        (t) => set({ themeId: t }),
+      setThemeId:        (t) => {
+        set({ themeId: t })
+        applyTheme(t)
+      },
       setCrashReporting: (v) => {
         set({ crashReporting: v })
         // Propagate to renderer telemetry immediately
@@ -44,6 +47,17 @@ export const useSettingsStore = create<SettingsState>()(
         } catch { /* non-fatal */ }
       },
     }),
-    { name: 'cm-settings' },
+    { 
+      name: 'cm-settings',
+      version: 2, // bump to migrate away from removed 'pure-black' theme
+      migrate: (persisted: unknown, version: number) => {
+        const state = (persisted ?? {}) as Record<string, unknown>
+        // Any prior version may have stored themeId: 'pure-black' — force light
+        if (version < 2) {
+          state.themeId = 'light'
+        }
+        return state
+      },
+    },
   ),
 )

@@ -6,7 +6,6 @@ import { applyTheme } from './theme/themes'
 import { installCrashHandlers } from './services/crashLogger'
 import { initRendererTelemetry } from './services/telemetry'
 import { TelemetryErrorBoundary } from './components/common/TelemetryErrorBoundary'
-import type { ThemeId } from './theme/themes'
 
 // ── Telemetry: init BEFORE rendering, non-blocking ───────────────────────
 initRendererTelemetry()
@@ -34,15 +33,8 @@ if (import.meta.env.DEV) {
 }
 
 
-// Apply stored theme before first render to avoid flash of wrong theme
-try {
-  const raw = localStorage.getItem('cm-settings')
-  const stored = raw ? (JSON.parse(raw) as { state?: { themeId?: ThemeId } }) : null
-  const id = stored?.state?.themeId
-  applyTheme(id === 'light' || id === 'pure-black' ? id : 'light')
-} catch {
-  applyTheme('light')
-}
+// Always apply Light theme — Dark theme has been removed.
+applyTheme('light')
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

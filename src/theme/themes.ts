@@ -1,4 +1,4 @@
-export type ThemeId = "light" | "pure-black";
+export type ThemeId = "light";
 
 export interface ThemeVars {
   bgBase: string;
@@ -141,79 +141,9 @@ export const THEMES: Record<ThemeId, Theme> = {
       danger: "#C94C43",
     },
   },
-  "pure-black": {
-    id: "pure-black",
-    name: "Dark",
-    description: "Deep charcoal with quiet green accents",
-    preview: {
-      bg: "#171A16",
-      card: "#20251F",
-      accent: "#72BC58",
-      text: "#F3F5F0",
-    },
-    vars: {
-      bgBase: "23 26 22",
-      bgSurface: "29 33 28",
-      bgElevated: "35 40 34",
-      border: "189 202 183",
-      textPrimary: "243 245 240",
-      textSecondary: "177 186 172",
-      textMuted: "126 136 121",
-      textAccent: "126 190 101",
-      accent: "114 188 88",
-      accent2: "86 155 60",
-      accent3: "167 176 127",
-      appBg: "linear-gradient(145deg,#1b1f1a 0%,#171a16 58%,#1c211a 100%)",
-      appBloom1: "rgba(114,188,88,.06)",
-      appBloom2: "rgba(86,155,60,.04)",
-      appBloom3: "rgba(167,176,127,.03)",
-      cardBg: "rgba(31,36,30,.94)",
-      cardBorder: "1px solid rgba(211,224,205,.09)",
-      cardShadow: "0 1px 2px rgba(0,0,0,.24), 0 10px 28px rgba(0,0,0,.16)",
-      cardBlur: "10px",
-      cardHighlight: "rgba(255,255,255,.035)",
-      cardHoverBg: "#252b24",
-      cardHoverBorder: "1px solid rgba(114,188,88,.30)",
-      cardHoverShadow: "0 12px 34px rgba(0,0,0,.25)",
-      cardElevatedBg: "#252b24",
-      cardElevatedBorder: "1px solid rgba(211,224,205,.12)",
-      cardElevatedShadow: "0 20px 55px rgba(0,0,0,.36)",
-      glassShadow: "0 1px 2px rgba(0,0,0,.24), 0 10px 28px rgba(0,0,0,.16)",
-      glassElevatedShadow: "0 20px 55px rgba(0,0,0,.36)",
-      sidebarBg: "rgba(25,29,24,.97)",
-      sidebarBorderRight: "1px solid rgba(211,224,205,.08)",
-      sidebarActiveBg: "rgba(114,188,88,.12)",
-      sidebarActiveBorder: "1px solid rgba(114,188,88,.22)",
-      sidebarActiveShadow: "inset 3px 0 #72BC58",
-      sidebarHoverBg: "rgba(255,255,255,.035)",
-      btnPrimaryBg: "#66ad4b",
-      btnPrimaryShadow:
-        "0 1px 2px rgba(0,0,0,.25), 0 7px 16px rgba(70,130,48,.18)",
-      progressTrack: "rgba(114,188,88,.12)",
-      progressGradient: "linear-gradient(90deg,#72BC58,#569B3C)",
-      glowPrimary: "0 0 0 4px rgba(114,188,88,.13)",
-      graph1: "#72BC58",
-      graph2: "#D0AD6D",
-      graph3: "#A7B07F",
-      chartGrid: "rgba(211,224,205,.08)",
-      scrollThumb: "rgba(211,224,205,.16)",
-      scrollThumbHover: "rgba(114,188,88,.38)",
-      modalBg: "rgba(30,35,29,.99)",
-      modalBorder: "1px solid rgba(211,224,205,.11)",
-      modalShadow: "0 30px 90px rgba(0,0,0,.5)",
-      overlayBg: "rgba(23,26,22,.98)",
-      selectionBg: "rgba(114,188,88,.30)",
-      selectionText: "#F3F5F0",
-      skeletonFrom: "rgba(255,255,255,.035)",
-      skeletonTo: "rgba(114,188,88,.10)",
-      success: "#72BC58",
-      warning: "#D7A84C",
-      danger: "#E06A60",
-    },
-  },
 };
 
-export const THEME_ORDER: ThemeId[] = ["light", "pure-black"];
+export const THEME_ORDER: ThemeId[] = ["light"];
 
 export function applyTheme(id: ThemeId): void {
   const v = THEMES[id]?.vars;

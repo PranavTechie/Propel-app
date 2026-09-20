@@ -3,19 +3,16 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Leaf, CheckCircle2 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { applyTheme } from "@/theme/themes";
+
 import { supabase } from "@/lib/supabase";
 
 export const SplashScreen: React.FC = () => {
   const setPhase = useAppStore((s) => s.setPhase);
   const setSession = useAppStore((s) => s.setSession);
   const setEntitlementStatus = useAppStore((s) => s.setEntitlementStatus);
-  const themeId = useSettingsStore((s) => s.themeId);
   const reduceMotion = useReducedMotion();
   const [done, setDone] = useState(false);
 
-  // Visual-only theme sync. Startup and authentication behavior remain unchanged.
-  useEffect(() => applyTheme(themeId), [themeId]);
   useEffect(() => {
     window.electronAPI?.splash.ready();
   }, []);

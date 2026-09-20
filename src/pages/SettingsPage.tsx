@@ -27,7 +27,7 @@ import {
   useSettingsStore,
   type ToastPosition,
 } from "@/store/settingsStore";
-import { THEMES, THEME_ORDER, type ThemeId } from "@/theme/themes";
+import { THEMES, type ThemeId } from "@/theme/themes";
 import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabase";
 import { DiagnosticsPanel } from "@/components/settings/DiagnosticsPanel";
@@ -130,8 +130,6 @@ export const SettingsPage: React.FC = () => {
     setToastPosition, // toast position state
     overlayEnabled,
     setOverlayEnabled, // overlay enabled state
-    themeId,
-    setThemeId, // theme id state
     crashReporting,
     setCrashReporting, // crash reporting state
   } = useSettingsStore();
@@ -203,7 +201,6 @@ export const SettingsPage: React.FC = () => {
         {[
           ["account", "Account"],
           ["appearance", "Appearance"],
-          ["themes", "Themes"],
           ["notifications", "Notifications"],
           ["privacy", "Privacy"],
           ["diagnostics", "Diagnostics"],
@@ -358,213 +355,7 @@ export const SettingsPage: React.FC = () => {
           </MotionCard>
         </motion.div>
 
-        {/* ── UI Themes ── */}
-        <motion.div
-          id="settings-themes"
-          variants={staggerItem}
-          className="scroll-mt-5"
-        >
-          <MotionCard>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[rgb(var(--c-accent))]" />
-                UI Themes
-              </CardTitle>
-              <p className="text-xs text-text-muted">
-                Complete visual system — backgrounds, cards, borders, charts
-              </p>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-3">
-                {THEME_ORDER.map((id: ThemeId) => {
-                  const t = THEMES[id];
-                  const active = themeId === id;
-                  return (
-                    <motion.button
-                      key={id}
-                      onClick={() => setThemeId(id)}
-                      whileHover={{ scale: 1.012 }}
-                      whileTap={{ scale: 0.99 }}
-                      transition={{
-                        type: "spring",
-                        stiffness: 500,
-                        damping: 32,
-                      }}
-                      className={cn(
-                        "relative w-full text-left rounded-2xl border overflow-hidden transition-all duration-200",
-                        active
-                          ? "border-[rgb(var(--c-accent)/0.5)] shadow-[0_0_18px_rgb(var(--c-accent)/0.18)]"
-                          : "border-border/40 hover:border-white/12",
-                      )}
-                      style={{
-                        background: active
-                          ? `${t.preview.bg}ee`
-                          : `${t.preview.bg}99`,
-                      }}
-                    >
-                      {/* Selected glow ring */}
-                      {active && (
-                        <motion.div
-                          layoutId="theme-ring"
-                          className="absolute inset-0 rounded-2xl pointer-events-none"
-                          style={{
-                            boxShadow: `inset 0 0 0 1.5px ${t.preview.accent}55`,
-                          }}
-                        />
-                      )}
-
-                      <div className="flex items-center gap-4 p-4">
-                        {/* Mini visual preview */}
-                        <div
-                          className="shrink-0 w-24 h-16 rounded-xl overflow-hidden relative"
-                          style={{
-                            background: t.preview.bg,
-                            border: `1px solid ${t.preview.accent}33`,
-                          }}
-                        >
-                          {/* Fake sidebar */}
-                          <div
-                            className="absolute left-0 top-0 bottom-0 w-6"
-                            style={{
-                              background: `${t.preview.card}cc`,
-                              borderRight: `1px solid ${t.preview.accent}22`,
-                            }}
-                          >
-                            {[0, 1, 2, 3].map((i) => (
-                              <div
-                                key={i}
-                                className="mx-1 my-1 h-1.5 rounded-sm"
-                                style={{
-                                  background:
-                                    i === 1
-                                      ? t.preview.accent
-                                      : `${t.preview.text}22`,
-                                  width: i === 1 ? "80%" : "60%",
-                                }}
-                              />
-                            ))}
-                          </div>
-                          {/* Fake main content */}
-                          <div className="absolute left-7 right-1 top-1 bottom-1 flex flex-col gap-1">
-                            <div
-                              className="h-2 rounded-sm"
-                              style={{
-                                background: t.preview.accent,
-                                opacity: 0.8,
-                                width: "60%",
-                              }}
-                            />
-                            <div className="flex gap-1">
-                              {[1, 0.6, 0.4].map((o, i) => (
-                                <div
-                                  key={i}
-                                  className="flex-1 h-5 rounded"
-                                  style={{
-                                    background: `${t.preview.card}dd`,
-                                    border: `1px solid ${t.preview.accent}${Math.round(
-                                      o * 64,
-                                    )
-                                      .toString(16)
-                                      .padStart(2, "0")}`,
-                                  }}
-                                />
-                              ))}
-                            </div>
-                            <div
-                              className="h-1 rounded-sm"
-                              style={{
-                                background: `${t.preview.text}30`,
-                                width: "80%",
-                              }}
-                            />
-                            <div
-                              className="h-1 rounded-sm"
-                              style={{
-                                background: `${t.preview.text}18`,
-                                width: "55%",
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        {/* Theme info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <span
-                              className="text-sm font-semibold"
-                              style={{
-                                color: active
-                                  ? t.preview.accent
-                                  : t.preview.text,
-                              }}
-                            >
-                              {t.name}
-                            </span>
-                            {active && (
-                              <span
-                                className="text-2xs font-semibold px-1.5 py-0.5 rounded-full"
-                                style={{
-                                  background: `${t.preview.accent}22`,
-                                  color: t.preview.accent,
-                                }}
-                              >
-                                ACTIVE
-                              </span>
-                            )}
-                          </div>
-                          <p
-                            className="text-xs leading-relaxed"
-                            style={{ color: `${t.preview.text}80` }}
-                          >
-                            {t.description}
-                          </p>
-                          {/* Colour palette dots */}
-                          <div className="flex items-center gap-1.5 mt-2">
-                            {[
-                              t.preview.bg,
-                              t.preview.card,
-                              t.preview.accent,
-                              t.preview.text,
-                            ].map((c, i) => (
-                              <div
-                                key={i}
-                                className="w-3 h-3 rounded-full border border-white/10"
-                                style={{ background: c }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Active check */}
-                        <div
-                          className={cn(
-                            "shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-all",
-                            active
-                              ? "border-[var(--check-col)]"
-                              : "border-white/10",
-                          )}
-                          style={{
-                            ["--check-col" as string]: t.preview.accent,
-                            background: active
-                              ? `${t.preview.accent}22`
-                              : "transparent",
-                          }}
-                        >
-                          {active && (
-                            <Check
-                              className="w-3 h-3"
-                              style={{ color: t.preview.accent }}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </MotionCard>
-        </motion.div>
+        {/* ── Notifications ── */}
 
         {/* ── Notifications ── */}
         <motion.div

@@ -1,8 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import '../../styles/globals.css'
-import { useSettingsStore } from '@/store/settingsStore'
-import { applyTheme } from '@/theme/themes'
-
 export interface OverlayMetrics {
   cpu:     number
   ram:     number
@@ -47,10 +44,6 @@ const Row: React.FC<{ label: string; value: string; sub?: string; bar?: number; 
 // ── Overlay App ─────────────────────────────────────────────────────────────
 export const OverlayApp: React.FC = () => {
   const [m, setM]     = useState<OverlayMetrics | null>(null)
-  const themeId       = useSettingsStore(s => s.themeId)
-
-  // Apply theme CSS vars into the overlay window's document
-  useEffect(() => { applyTheme(themeId) }, [themeId])
 
   useEffect(() => {
     const cleanup = window.propel.overlay.onMetrics(setM)

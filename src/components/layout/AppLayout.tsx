@@ -7,7 +7,6 @@ import { UpdateModal } from "@/components/ui/UpdateModal";
 import { UpdateBanner } from "@/components/ui/UpdateBanner";
 import { useAppStore, selectActivePage } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { applyTheme } from "@/theme/themes";
 import { useSystemStats } from "@/hooks/useSystemStats";
 import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import { usePerformanceProfile } from "@/hooks/usePerformanceProfile";
@@ -73,8 +72,6 @@ const PageFallback = () => (
 );
 export const AppLayout: React.FC = () => {
   const activePage = useAppStore(selectActivePage);
-  const overlayEnabled = useSettingsStore((s) => s.overlayEnabled);
-  const themeId = useSettingsStore((s) => s.themeId);
   useSystemStats(true);
   const {
     updateState,
@@ -87,9 +84,10 @@ export const AppLayout: React.FC = () => {
     handleRetry,
   } = useUpdateCheck();
   const perfProfile = usePerformanceProfile();
-  React.useEffect(() => applyTheme(themeId), [themeId]);
   React.useEffect(() => {
-    if (overlayEnabled) window.propel.overlay.open().catch(() => {});
+    if (useSettingsStore.getState().overlayEnabled) {
+      window.propel.overlay.open().catch(() => {});
+    }
   }, []);
   const ActivePage = PAGE_MAP[activePage];
   return (
