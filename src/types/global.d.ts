@@ -12,8 +12,10 @@ import type { exclusionsBridge }    from '../../electron/preload/exclusionsBridg
 
 declare global {
   interface Window {
+    api: ElectronAPI
     electronAPI: ElectronAPI
     propel: {
+      system:       ElectronAPI['system']
       cleaner:      typeof cleanerBridge
       memory:       typeof memoryBridge
       entitlements:      typeof entitlementsBridge

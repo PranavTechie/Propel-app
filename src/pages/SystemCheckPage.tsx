@@ -222,14 +222,14 @@ function HardwareSection({ data }: { data: any }) {
       <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
         CPU
       </p>
-      <Row label="Model" value={data.cpu?.brand} />
+      <Row label="Model" value={data.cpu?.model} />
       <Row
         label="Cores / Threads"
-        value={`${data.cpu?.physicalCores ?? "?"} / ${data.cpu?.cores ?? "?"}`}
+        value={`${data.cpu?.cores ?? "?"} / ${data.cpu?.threads ?? data.cpu?.cores ?? "?"}`}
       />
       <Row
         label="Current Load"
-        value={`${data.cpu?.currentLoadPercent ?? 0}%`}
+        value={`${data.cpu?.load ?? 0}%`}
       />
       <Row
         label="Base Speed"
@@ -242,11 +242,11 @@ function HardwareSection({ data }: { data: any }) {
       <Row label="Total RAM" value={formatBytes(data.ram?.total)} />
       <Row
         label="Used"
-        value={`${formatBytes(data.ram?.used)} (${data.ram?.usedPercent}%)`}
+        value={`${formatBytes(data.ram?.used)} (${data.ram?.pressurePercent ?? 0}%)`}
       />
       <Row
         label="Slots Used"
-        value={`${data.ram?.slotsUsed ?? "?"} / ${data.ram?.totalSlots ?? "?"}`}
+        value={`${data.ram?.slots ? `${data.ram.slots.filter((s: any) => s.size > 0).length} / ${data.ram.slots.length}` : (data.ram?.slotsUsed != null ? `${data.ram.slotsUsed} / ${data.ram.totalSlots}` : "?")}`}
       />
 
       <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mt-4 mb-2">
@@ -285,8 +285,8 @@ function GpuSection({ data }: { data: any }) {
             label="Driver Status"
             badge={
               <StatusBadge
-                ok={c.driverStatus === "ok"}
-                label={c.driverStatus ?? "unknown"}
+                ok={data.driverStatus === "ok"}
+                label={data.driverStatus ?? "unknown"}
               />
             }
           />

@@ -182,27 +182,43 @@ export async function analyzeStartup(): Promise<StartupAnalysis> {
 export async function setStartupEntryEnabled(entry: StartupEntry, enabled: boolean): Promise<boolean> {
   const DISABLED_HIVE = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run'
   const DISABLED_HIVE_32 = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32'
+  const DISABLED_FOLDER_HIVE = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder'
 
   if (entry.location === 'HKCU_Run' || entry.location === 'HKLM_Run') {
     const hivePrefix = entry.location === 'HKCU_Run' ? 'HKCU' : 'HKLM'
     const regKey = `${hivePrefix}:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`
+    const hiveApproved = entry.location === 'HKCU_Run' ? DISABLED_HIVE : DISABLED_HIVE_32
 
     if (enabled) {
-      // Re-add entry (we need the command — only possible if we stored it)
-      const script = `Set-ItemProperty -Path '${regKey}' -Name '${entry.name}' -Value '${entry.command.replace(/'/g, "''")}' -ErrorAction Stop`
+      // 1. Restore CurrentVersion\Run entry
+      // 2. Restore StartupApproved state to Windows enabled state (0x02)
+      const enableScript = `
+Set-ItemProperty -Path '${regKey}' -Name '${entry.name}' -Value '${entry.command.replace(/'/g, "''")}' -ErrorAction Stop;
+$hives = @('${hiveApproved}', '${DISABLED_HIVE}');
+foreach ($h in $hives) {
+  if (Test-Path $h) {
+    $prop = (Get-ItemProperty -Path $h -Name '${entry.name}' -ErrorAction SilentlyContinue).'${entry.name}';
+    if ($null -ne $prop -and $prop.Length -ge 1) {
+      $prop[0] = 2;
+      Set-ItemProperty -Path $h -Name '${entry.name}' -Value $prop -Type Binary -ErrorAction SilentlyContinue;
+    }
+  }
+};
+`.trim()
       try {
-        await execAsync(`powershell -NoProfile -NonInteractive -Command "${script}"`, { timeout: 8000 })
+        await execAsync(
+          `powershell -NoProfile -NonInteractive -Command "${enableScript.replace(/\r?\n/g, ' ')}"`,
+          { timeout: 8000 },
+        )
         return true
       } catch { return false }
     } else {
-      // Disable via StartupApproved (keeps the entry but disables it — same as Task Manager)
-      // The disable bytes: first byte 03 = disabled, 02 = enabled
-      const hiveApproved = entry.location === 'HKCU_Run' ? DISABLED_HIVE : DISABLED_HIVE_32
+      // Disable via StartupApproved (sets first byte to 03 = disabled, matching Task Manager)
       const disableScript = `
-if (-not (Test-Path '${hiveApproved}')) { New-Item -Path '${hiveApproved}' -Force | Out-Null }
-$val = New-Object byte[] 12
-$val[0] = 3  # disabled flag
-Set-ItemProperty -Path '${hiveApproved}' -Name '${entry.name}' -Value $val -Type Binary -ErrorAction Stop
+if (-not (Test-Path '${hiveApproved}')) { New-Item -Path '${hiveApproved}' -Force | Out-Null };
+$val = [byte[]]::new(12);
+$val[0] = 3;
+Set-ItemProperty -Path '${hiveApproved}' -Name '${entry.name}' -Value $val -Type Binary -ErrorAction Stop;
 `.trim()
       try {
         await execAsync(
@@ -214,20 +230,56 @@ Set-ItemProperty -Path '${hiveApproved}' -Name '${entry.name}' -Value $val -Type
     }
   }
 
-  // For startup folder entries — rename .lnk to .lnk.disabled
+  // For startup folder entries — rename .lnk to .lnk.disabled and synchronize StartupApproved\StartupFolder
   if (entry.location === 'StartupFolder_User' || entry.location === 'StartupFolder_All') {
+    const baseName = path.basename(entry.command).replace(/\.disabled$/i, '')
     try {
       if (enabled) {
-        const disabled = entry.command + '.disabled'
+        const disabled = entry.command.endsWith('.disabled') ? entry.command : entry.command + '.disabled'
+        const normal = entry.command.endsWith('.disabled') ? entry.command.slice(0, -9) : entry.command
         if (fs.existsSync(disabled)) {
-          fs.renameSync(disabled, entry.command)
-          return true
+          fs.renameSync(disabled, normal)
         }
+
+        // Restore StartupApproved\StartupFolder state to enabled (0x02)
+        const enableFolderScript = `
+if (Test-Path '${DISABLED_FOLDER_HIVE}') {
+  $names = @('${entry.name}', '${baseName}', '${baseName}.lnk');
+  foreach ($n in $names) {
+    $prop = (Get-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name $n -ErrorAction SilentlyContinue).$n;
+    if ($null -ne $prop -and $prop.Length -ge 1) {
+      $prop[0] = 2;
+      Set-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name $n -Value $prop -Type Binary -ErrorAction SilentlyContinue;
+    }
+  }
+};
+`.trim()
+        await execAsync(
+          `powershell -NoProfile -NonInteractive -Command "${enableFolderScript.replace(/\r?\n/g, ' ')}"`,
+          { timeout: 8000 },
+        ).catch(() => {})
+
+        return true
       } else {
-        if (fs.existsSync(entry.command)) {
-          fs.renameSync(entry.command, entry.command + '.disabled')
-          return true
+        const normal = entry.command.endsWith('.disabled') ? entry.command.slice(0, -9) : entry.command
+        const disabled = normal + '.disabled'
+        if (fs.existsSync(normal)) {
+          fs.renameSync(normal, disabled)
         }
+
+        // Mark disabled in StartupApproved\StartupFolder
+        const disableFolderScript = `
+if (-not (Test-Path '${DISABLED_FOLDER_HIVE}')) { New-Item -Path '${DISABLED_FOLDER_HIVE}' -Force | Out-Null };
+$val = [byte[]]::new(12);
+$val[0] = 3;
+Set-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name '${baseName}' -Value $val -Type Binary -ErrorAction SilentlyContinue;
+`.trim()
+        await execAsync(
+          `powershell -NoProfile -NonInteractive -Command "${disableFolderScript.replace(/\r?\n/g, ' ')}"`,
+          { timeout: 8000 },
+        ).catch(() => {})
+
+        return true
       }
     } catch { /* permission denied */ }
   }

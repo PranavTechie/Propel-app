@@ -77,6 +77,39 @@ const Summary = ({
 export const PerformancePage: React.FC = () => {
   const stats = useAppStore((s) => s.stats);
   const chartData = useAppStore((s) => s.chartData);
+  const addToast = useAppStore((s) => s.addToast);
+  const [isOptimizingDrive, setIsOptimizingDrive] = React.useState(false);
+
+  const handleOptimizeDrive = React.useCallback(async () => {
+    setIsOptimizingDrive(true);
+    try {
+      const systemApi = window.api?.system ?? window.electronAPI?.system ?? window.propel?.system;
+      const res = await systemApi?.optimizeDrive("C");
+      if (res?.success) {
+        addToast({
+          type: "success",
+          title: "Drive Optimized",
+          description: res.message || "Drive optimization completed successfully.",
+        });
+      } else {
+        addToast({
+          type: "error",
+          title: "Optimization Failed",
+          description:
+            res?.error ||
+            "This action requires Administrator privileges. Please restart Propel as Administrator.",
+        });
+      }
+    } catch (e: any) {
+      addToast({
+        type: "error",
+        title: "Optimization Failed",
+        description: e?.message || "Drive optimization failed.",
+      });
+    } finally {
+      setIsOptimizingDrive(false);
+    }
+  }, [addToast]);
   return (
     <div className="page-shell space-y-5">
       <header>
@@ -214,9 +247,19 @@ export const PerformancePage: React.FC = () => {
             </div>
           </div>
           <div className="rounded-xl border border-border/70 bg-bg-surface/55 p-5">
-            <h3 className="mb-4 text-sm font-semibold text-text-primary">
-              Storage capacity
-            </h3>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text-primary">
+                Storage capacity
+              </h3>
+              <button
+                id="optimize-storage-drive-btn"
+                onClick={handleOptimizeDrive}
+                disabled={isOptimizingDrive}
+                className="rounded-lg border border-border/70 px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:border-brand-primary/30 hover:text-text-primary disabled:opacity-50 transition-all cursor-pointer"
+              >
+                {isOptimizingDrive ? "Optimizing…" : "Optimize Storage Drive"}
+              </button>
+            </div>
             <Meter
               label="Disk usage"
               value={stats.disk.percent}

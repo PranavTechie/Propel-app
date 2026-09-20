@@ -32,6 +32,9 @@ const api = {
     getHWID: (): Promise<string> => ipcRenderer.invoke("system:get-hwid"),
     getFingerprint: (): Promise<string> =>
       ipcRenderer.invoke("system:get-fingerprint"),
+    isAdmin: (): Promise<boolean> => ipcRenderer.invoke("system:is-admin"),
+    optimizeDrive: (driveLetter?: string): Promise<{ success: boolean; message?: string; error?: string }> =>
+      ipcRenderer.invoke("system:optimize-drive", driveLetter),
     getVersion: (): Promise<string> => ipcRenderer.invoke("system:get-version"),
   },
 
@@ -73,7 +76,9 @@ const api = {
 };
 
 contextBridge.exposeInMainWorld("electronAPI", api);
+contextBridge.exposeInMainWorld("api", api);
 contextBridge.exposeInMainWorld("propel", {
+  system: api.system,
   cleaner: cleanerBridge,
   memory: memoryBridge,
   entitlements: entitlementsBridge,

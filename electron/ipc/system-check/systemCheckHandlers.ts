@@ -84,7 +84,7 @@ export function setupSystemCheckIPC(): void {
 
   ipcMain.handle('systemcheck:run-full', async () => {
     try {
-      const [hw, gpu, disk, thermal, network, security, battery, opt, health] = await Promise.allSettled([
+      const [hw, gpu, disk, thermal, network, security, battery, opt] = await Promise.allSettled([
         getHardwareInfo(),
         getGpuReport(),
         getDiskHealth(),
@@ -93,20 +93,40 @@ export function setupSystemCheckIPC(): void {
         getSecurityStatus(),
         getBatteryInfo(),
         getOptimizationReport(),
-        computeHealthScore(),
       ])
+
+      const hardware = hw.status === 'fulfilled' ? hw.value : null
+      const gpuData = gpu.status === 'fulfilled' ? gpu.value : null
+      const diskData = disk.status === 'fulfilled' ? disk.value : null
+      const thermalData = thermal.status === 'fulfilled' ? thermal.value : null
+      const networkData = network.status === 'fulfilled' ? network.value : null
+      const securityData = security.status === 'fulfilled' ? security.value : null
+      const batteryData = battery.status === 'fulfilled' ? battery.value : null
+      const optimizationData = opt.status === 'fulfilled' ? opt.value : null
+
+      const healthScore = await computeHealthScore({
+        hardware,
+        gpu: gpuData,
+        disk: diskData,
+        thermal: thermalData,
+        network: networkData,
+        security: securityData,
+        battery: batteryData,
+        optimization: optimizationData,
+      })
+
       return {
         ok: true,
         data: {
-          hardware: hw.status === 'fulfilled' ? hw.value : null,
-          gpu: gpu.status === 'fulfilled' ? gpu.value : null,
-          disk: disk.status === 'fulfilled' ? disk.value : null,
-          thermal: thermal.status === 'fulfilled' ? thermal.value : null,
-          network: network.status === 'fulfilled' ? network.value : null,
-          security: security.status === 'fulfilled' ? security.value : null,
-          battery: battery.status === 'fulfilled' ? battery.value : null,
-          optimization: opt.status === 'fulfilled' ? opt.value : null,
-          healthScore: health.status === 'fulfilled' ? health.value : null,
+          hardware,
+          gpu: gpuData,
+          disk: diskData,
+          thermal: thermalData,
+          network: networkData,
+          security: securityData,
+          battery: batteryData,
+          optimization: optimizationData,
+          healthScore,
         },
       }
     } catch (e: any) {

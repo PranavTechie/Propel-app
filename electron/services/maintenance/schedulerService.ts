@@ -1,9 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { execSync } from 'child_process'
-import { shell } from 'electron'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { loadSettings, loadSettingsSync, updateSettings } from './automationStore'
+
+const execFileAsync = promisify(execFile)
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const HOUR_MS = 60 * 60 * 1000
@@ -36,23 +38,25 @@ async function cleanDir(dirPath: string, safeMode: boolean): Promise<number> {
   let cleaned = 0
   try {
     if (!fs.existsSync(dirPath)) return 0
-    for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
+    const entries = await fs.promises.readdir(dirPath, { withFileTypes: true })
+    for (const entry of entries) {
       const full = path.join(dirPath, entry.name)
       try {
         if (entry.isDirectory()) {
           if (safeMode) {
-            await cleanDir(full, safeMode)
+            cleaned += await cleanDir(full, safeMode)
           } else {
-            fs.rmSync(full, { recursive: true, force: true })
+            await fs.promises.rm(full, { recursive: true, force: true })
+            cleaned++
           }
         } else {
           if (safeMode) {
             await shell.trashItem(full)
           } else {
-            fs.unlinkSync(full)
+            await fs.promises.unlink(full)
           }
+          cleaned++
         }
-        cleaned++
       } catch { /* locked / permission denied — skip */ }
     }
   } catch { /* unreadable dir — skip */ }
@@ -60,34 +64,37 @@ async function cleanDir(dirPath: string, safeMode: boolean): Promise<number> {
 }
 
 // ── Browser cache paths ────────────────────────────────────────────────────
-function getBrowserCachePaths(): string[] {
+async function getBrowserCachePaths(): Promise<string[]> {
   const localAppData = process.env.LOCALAPPDATA ?? ''
   const appData      = process.env.APPDATA      ?? ''
-  const settings     = loadSettingsSync()
+  const settings     = await loadSettings()
   const paths: string[] = []
 
-  const chromiumProfiles = (base: string) => {
+  const chromiumProfiles = async (base: string): Promise<string[]> => {
     if (!fs.existsSync(base)) return []
     try {
-      return fs.readdirSync(base).filter(d => d === 'Default' || d.startsWith('Profile'))
+      const entries = await fs.promises.readdir(base, { withFileTypes: true })
+      return entries
+        .filter(d => d.isDirectory() && (d.name === 'Default' || d.name.startsWith('Profile')))
+        .map(d => d.name)
     } catch { return [] }
   }
 
   if (settings.browserChrome) {
     const base = path.join(localAppData, 'Google', 'Chrome', 'User Data')
-    for (const p of chromiumProfiles(base)) {
+    for (const p of await chromiumProfiles(base)) {
       paths.push(path.join(base, p, 'Cache'), path.join(base, p, 'Code Cache'))
     }
   }
   if (settings.browserEdge) {
     const base = path.join(localAppData, 'Microsoft', 'Edge', 'User Data')
-    for (const p of chromiumProfiles(base)) {
+    for (const p of await chromiumProfiles(base)) {
       paths.push(path.join(base, p, 'Cache'), path.join(base, p, 'Code Cache'))
     }
   }
   if (settings.browserBrave) {
     const base = path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data')
-    for (const p of chromiumProfiles(base)) {
+    for (const p of await chromiumProfiles(base)) {
       paths.push(path.join(base, p, 'Cache'), path.join(base, p, 'Code Cache'))
     }
   }
@@ -95,7 +102,8 @@ function getBrowserCachePaths(): string[] {
     const base = path.join(appData, 'Mozilla', 'Firefox', 'Profiles')
     if (fs.existsSync(base)) {
       try {
-        for (const profile of fs.readdirSync(base)) {
+        const entries = await fs.promises.readdir(base)
+        for (const profile of entries) {
           paths.push(
             path.join(base, profile, 'cache2'),
             path.join(base, profile, 'startupCache'),
@@ -108,10 +116,11 @@ function getBrowserCachePaths(): string[] {
 }
 
 // ── Recycle bin ────────────────────────────────────────────────────────────
-function emptyRecycleBin(): boolean {
+async function emptyRecycleBin(): Promise<boolean> {
   try {
-    execSync(
-      'powershell -NoProfile -NonInteractive -Command "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"',
+    await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', 'Clear-RecycleBin -Force -ErrorAction SilentlyContinue'],
       { timeout: 15_000, windowsHide: true },
     )
     return true
@@ -128,10 +137,14 @@ export async function runAutoClean(): Promise<{
   const settings = await loadSettings()
   const safeMode = settings.safeCleaningMode
 
-  for (const dir of getTempDirs())           tempCleaned    += await cleanDir(dir, safeMode)
-  for (const dir of getBrowserCachePaths())  browserCleaned += await cleanDir(dir, safeMode)
+  for (const dir of getTempDirs()) {
+    tempCleaned += await cleanDir(dir, safeMode)
+  }
+  for (const dir of await getBrowserCachePaths()) {
+    browserCleaned += await cleanDir(dir, safeMode)
+  }
   if (settings.recycleBinEnabled) {
-    recycleBinCleared = emptyRecycleBin()
+    recycleBinCleared = await emptyRecycleBin()
   }
 
   await updateSettings({ lastCleanupAt: Date.now() })

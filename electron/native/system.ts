@@ -79,11 +79,79 @@ function wmicQuery(args: string[]): string {
       timeout: 5000,
       windowsHide: true,
       encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
     })
     const lines = result.split('\n').map(l => l.trim()).filter(Boolean)
-    return lines[1] ?? ''
+    const val = lines[1] ?? ''
+    if (val && !val.toLowerCase().includes('deprecated')) return val
   } catch {
-    return ''
+    // WMIC failed or is deprecated/removed on Windows 11 24H2
+  }
+
+  // Fallback to Get-CimInstance for exact same WMI property without stderr noise
+  try {
+    let psCmd = ''
+    if (args[0] === 'baseboard') {
+      psCmd = '(Get-CimInstance Win32_BaseBoard -ErrorAction SilentlyContinue).SerialNumber'
+    } else if (args[0] === 'diskdrive') {
+      psCmd = '(Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue | Select-Object -First 1).SerialNumber'
+    } else if (args[0] === 'cpu') {
+      psCmd = '(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).ProcessorId'
+    }
+    if (psCmd) {
+      const psResult = execSync(`powershell -NoProfile -NonInteractive -Command "${psCmd}"`, {
+        timeout: 5000,
+        windowsHide: true,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+      return psResult.trim()
+    }
+  } catch {
+    // Return empty string to allow getHWID fallback to take effect
+  }
+
+  return ''
+}
+
+export async function isAdmin(): Promise<boolean> {
+  try {
+    const result = execSync(
+      'powershell -NoProfile -NonInteractive -Command "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)"',
+      { encoding: 'utf8', timeout: 5000, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+    )
+    return result.trim().toLowerCase() === 'true'
+  } catch {
+    return false
+  }
+}
+
+export async function optimizeDrive(
+  driveLetter: string = 'C',
+): Promise<{ success: boolean; message?: string; error?: string }> {
+  const elevated = await isAdmin()
+  if (!elevated) {
+    return {
+      success: false,
+      error: 'This action requires Administrator privileges. Please restart Propel as Administrator.',
+    }
+  }
+
+  const cleanLetter = driveLetter.replace(/[^a-zA-Z]/g, '') || 'C'
+  try {
+    execSync(
+      `powershell -NoProfile -NonInteractive -Command "Optimize-Volume -DriveLetter ${cleanLetter} -Defrag"`,
+      { timeout: 30000, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+    )
+    return {
+      success: true,
+      message: `Drive ${cleanLetter}: optimization completed successfully.`,
+    }
+  } catch (e: any) {
+    return {
+      success: false,
+      error: e?.message ?? 'Drive optimization failed.',
+    }
   }
 }
 

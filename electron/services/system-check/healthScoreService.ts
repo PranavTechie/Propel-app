@@ -1,11 +1,22 @@
-import { getHardwareInfo } from './hardwareService'
-import { getGpuReport } from './gpuService'
-import { getDiskHealth } from './diskHealthService'
-import { getThermalInfo } from './thermalService'
-import { getNetworkInfo } from './networkService'
-import { getSecurityStatus } from './securityService'
-import { getBatteryInfo } from './batteryService'
-import { getOptimizationReport } from './optimizationService'
+import { getHardwareInfo, type HardwareInfo } from './hardwareService'
+import { getGpuReport, type GpuReport } from './gpuService'
+import { getDiskHealth, type DiskHealthReport } from './diskHealthService'
+import { getThermalInfo, type ThermalInfo } from './thermalService'
+import { getNetworkInfo, type NetworkInfo } from './networkService'
+import { getSecurityStatus, type SecurityStatus } from './securityService'
+import { getBatteryInfo, type BatteryInfo } from './batteryService'
+import { getOptimizationReport, type OptimizationReport } from './optimizationService'
+
+export interface SubsystemHealthData {
+  hardware?: HardwareInfo | null
+  gpu?: GpuReport | null
+  disk?: DiskHealthReport | null
+  thermal?: ThermalInfo | null
+  network?: NetworkInfo | null
+  security?: SecurityStatus | null
+  battery?: BatteryInfo | null
+  optimization?: OptimizationReport | null
+}
 
 export interface HealthScoreBreakdown {
   overall: number
@@ -41,26 +52,48 @@ function gradeLabel(score: number): string {
   return 'Critical'
 }
 
-export async function computeHealthScore(): Promise<{ breakdown: HealthScoreBreakdown }> {
-  const [hw, gpu, disk, thermal, network, security, battery, opt] = await Promise.allSettled([
-    getHardwareInfo(),
-    getGpuReport(),
-    getDiskHealth(),
-    getThermalInfo(),
-    getNetworkInfo(),
-    getSecurityStatus(),
-    getBatteryInfo(),
-    getOptimizationReport(),
-  ])
+export async function computeHealthScore(
+  preloadedData?: SubsystemHealthData,
+): Promise<{ breakdown: HealthScoreBreakdown }> {
+  let hwData: HardwareInfo | null
+  let gpuData: GpuReport | null
+  let diskData: DiskHealthReport | null
+  let thermalData: ThermalInfo | null
+  let networkData: NetworkInfo | null
+  let secData: SecurityStatus | null
+  let batData: BatteryInfo | null
+  let optData: OptimizationReport | null
 
-  const hwData = hw.status === 'fulfilled' ? hw.value : null
-  const gpuData = gpu.status === 'fulfilled' ? gpu.value : null
-  const diskData = disk.status === 'fulfilled' ? disk.value : null
-  const thermalData = thermal.status === 'fulfilled' ? thermal.value : null
-  const networkData = network.status === 'fulfilled' ? network.value : null
-  const secData = security.status === 'fulfilled' ? security.value : null
-  const batData = battery.status === 'fulfilled' ? battery.value : null
-  const optData = opt.status === 'fulfilled' ? opt.value : null
+  if (preloadedData) {
+    hwData = preloadedData.hardware ?? null
+    gpuData = preloadedData.gpu ?? null
+    diskData = preloadedData.disk ?? null
+    thermalData = preloadedData.thermal ?? null
+    networkData = preloadedData.network ?? null
+    secData = preloadedData.security ?? null
+    batData = preloadedData.battery ?? null
+    optData = preloadedData.optimization ?? null
+  } else {
+    const [hw, gpu, disk, thermal, network, security, battery, opt] = await Promise.allSettled([
+      getHardwareInfo(),
+      getGpuReport(),
+      getDiskHealth(),
+      getThermalInfo(),
+      getNetworkInfo(),
+      getSecurityStatus(),
+      getBatteryInfo(),
+      getOptimizationReport(),
+    ])
+
+    hwData = hw.status === 'fulfilled' ? hw.value : null
+    gpuData = gpu.status === 'fulfilled' ? gpu.value : null
+    diskData = disk.status === 'fulfilled' ? disk.value : null
+    thermalData = thermal.status === 'fulfilled' ? thermal.value : null
+    networkData = network.status === 'fulfilled' ? network.value : null
+    secData = security.status === 'fulfilled' ? security.value : null
+    batData = battery.status === 'fulfilled' ? battery.value : null
+    optData = opt.status === 'fulfilled' ? opt.value : null
+  }
 
   const criticalIssues: string[] = []
 

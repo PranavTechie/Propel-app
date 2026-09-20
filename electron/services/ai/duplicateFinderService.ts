@@ -2,6 +2,18 @@ import fs from 'fs'
 import path from 'path'
 import crypto from 'crypto'
 import os from 'os'
+import { shell } from 'electron'
+
+// ── State for verified scan results ─────────────────────────────────────────
+let lastScanResult: DuplicateScanResult | null = null
+
+export function getLastScanResult(): DuplicateScanResult | null {
+  return lastScanResult
+}
+
+export function setLastScanResultForTesting(result: DuplicateScanResult | null): void {
+  lastScanResult = result
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export interface DuplicateFile {
@@ -270,7 +282,7 @@ export async function scanForDuplicates(
 
   onProgress({ phase: 'done', scannedFiles: totalFiles, hashedFiles: hashedCount, totalFiles, currentPath: '', duplicatesFound: totalDuplicates })
 
-  return {
+  const scanResult: DuplicateScanResult = {
     groups: duplicateGroups,
     totalFiles,
     totalDuplicates,
@@ -280,6 +292,9 @@ export async function scanForDuplicates(
     durationMs: Date.now() - startTime,
     scannedAt: Date.now(),
   }
+
+  lastScanResult = scanResult
+  return scanResult
 }
 
 // ── Delete selected duplicate files ───────────────────────────────────────
@@ -296,18 +311,95 @@ export async function deleteSelectedDuplicates(
   let freedBytes = 0
   let errors = 0
 
-  // Safety: never delete files that are protected
-  const safeToDelete = filePaths.filter(p => !isProtected(p))
+  if (!Array.isArray(filePaths) || filePaths.length === 0) {
+    return { deletedCount: 0, freedBytes: 0, errors: 0 }
+  }
 
-  for (const filePath of safeToDelete) {
+  // Ensure there is a verified prior duplicate scan result
+  if (!lastScanResult || !lastScanResult.groups || lastScanResult.groups.length === 0) {
+    return { deletedCount: 0, freedBytes: 0, errors: filePaths.length }
+  }
+
+  const requestedNormSet = new Set(
+    filePaths.map(p => path.normalize(p).toLowerCase())
+  )
+
+  const approvedToDelete: string[] = []
+  const processedInScan = new Set<string>()
+
+  // Validate per group and enforce GROUP PRESERVATION
+  for (const group of lastScanResult.groups) {
+    const requestedInGroup: DuplicateFile[] = []
+    const notRequestedInGroup: DuplicateFile[] = []
+
+    for (const file of group.files) {
+      const norm = path.normalize(file.path).toLowerCase()
+      if (requestedNormSet.has(norm)) {
+        requestedInGroup.push(file)
+        processedInScan.add(norm)
+      } else {
+        notRequestedInGroup.push(file)
+      }
+    }
+
+    if (requestedInGroup.length === 0) continue
+
+    // If the caller requested all files in this group (no files left unrequested),
+    // we MUST preserve at least one copy in the group.
+    if (notRequestedInGroup.length === 0) {
+      // Prioritize preserving the original file, or the first one in the list
+      const originalIdx = requestedInGroup.findIndex(f => f.isOriginal)
+      const preserveIdx = originalIdx >= 0 ? originalIdx : 0
+      requestedInGroup.splice(preserveIdx, 1)
+      errors++ // user attempted to delete all copies; preserved copy is rejected
+    }
+
+    for (const f of requestedInGroup) {
+      approvedToDelete.push(f.path)
+    }
+  }
+
+  // Any requested path that was NOT part of any duplicate group in the last scan is rejected
+  for (const p of filePaths) {
+    const norm = path.normalize(p).toLowerCase()
+    if (!processedInScan.has(norm)) {
+      errors++
+    }
+  }
+
+  const successfullyTrashed = new Set<string>()
+
+  for (const filePath of approvedToDelete) {
+    // Safety: never delete protected system paths
+    if (isProtected(filePath)) {
+      errors++
+      continue
+    }
+
     try {
+      if (!fs.existsSync(filePath)) {
+        errors++
+        continue
+      }
       const stat = fs.statSync(filePath)
-      fs.unlinkSync(filePath)
+      // Send to Windows Recycle Bin via Electron shell.trashItem (do NOT permanently unlink)
+      await shell.trashItem(filePath)
       freedBytes += stat.size
       deletedCount++
+      successfullyTrashed.add(path.normalize(filePath).toLowerCase())
     } catch {
       errors++
     }
+  }
+
+  // Update in-memory lastScanResult so deleted files are removed from active groups
+  if (successfullyTrashed.size > 0 && lastScanResult) {
+    for (const group of lastScanResult.groups) {
+      group.files = group.files.filter(
+        f => !successfullyTrashed.has(path.normalize(f.path).toLowerCase())
+      )
+    }
+    lastScanResult.groups = lastScanResult.groups.filter(g => g.files.length > 1)
   }
 
   return { deletedCount, freedBytes, errors }
