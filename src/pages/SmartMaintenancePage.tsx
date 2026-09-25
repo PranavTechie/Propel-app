@@ -58,7 +58,7 @@ const SectionCard: React.FC<{
   <motion.div
     initial={{ opacity: 0, y: 12 }}
     animate={{ opacity: 1, y: 0 }}
-    className="glass rounded-2xl p-5 border border-border/50 hover:border-brand-primary/20 transition-colors duration-300"
+    className="glass rounded-2xl p-5 border border-border/50 hover:border-brand-primary/20 transition-colors duration-300 flex flex-col h-full"
   >
     <div className="flex items-start gap-3 mb-4">
       <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-brand-primary/10 border border-brand-primary/20">
@@ -69,7 +69,7 @@ const SectionCard: React.FC<{
         <p className="text-2xs text-text-muted mt-0.5">{subtitle}</p>
       </div>
     </div>
-    <div className="space-y-3">{children}</div>
+    <div className="space-y-3 flex-1 flex flex-col justify-center">{children}</div>
   </motion.div>
 );
 
@@ -138,16 +138,24 @@ function fmtNext(ts: number | null): string {
 
 // ── Default settings ───────────────────────────────────────────────────────
 const DEFAULT_SETTINGS: MaintenanceSettings = {
-  scheduleEnabled: false,
+  scheduleEnabled: true,
   scheduleFrequency: "weekly",
   recycleBinEnabled: false,
   ignoreDownloads: true,
+  browserMasterEnabled: true,
   browserChrome: false,
   browserEdge: false,
   browserBrave: false,
   browserFirefox: false,
   startupEnabled: false,
   ramAlertsEnabled: false,
+  ramAlertThreshold: 85,
+  diskAlertsEnabled: false,
+  diskAlertThreshold: 90,
+  junkAlertsEnabled: false,
+  junkAlertThreshold: 2,
+  startupAlertsEnabled: false,
+  permissionAlertsEnabled: false,
   updateNotificationsEnabled: true,
   safeCleaningMode: true,
   lastCleanupAt: null,
@@ -165,6 +173,8 @@ export const SmartMaintenancePage: React.FC = () => {
     msg: string;
   } | null>(null);
   const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  const [isTechnicalDetailsOpen, setIsTechnicalDetailsOpen] = useState(false);
 
   // ── Load settings + status on mount ─────────────────────────────────────
   useEffect(() => {
@@ -244,7 +254,7 @@ export const SmartMaintenancePage: React.FC = () => {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="maintenance-workspace page-shell">
+      <div className="page-shell flex flex-col gap-5">
         {/* ── Header ── */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -261,54 +271,10 @@ export const SmartMaintenancePage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <AnimatePresence mode="wait">
-              {runResult && (
-                <motion.div
-                  key="result"
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 8 }}
-                  className={cn(
-                    "flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border",
-                    runResult.ok
-                      ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
-                      : "bg-red-500/10 border-red-500/25 text-red-400",
-                  )}
-                >
-                  {runResult.ok ? (
-                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  ) : (
-                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                  )}
-                  {runResult.msg}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <button
-              onClick={handleRunNow}
-              disabled={running}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150",
-                "bg-brand-primary/15 border border-brand-primary/30 text-text-accent",
-                "hover:bg-brand-primary/25 hover:shadow-glow-sm",
-                running && "opacity-60 cursor-not-allowed",
-              )}
-            >
-              <motion.div
-                animate={running ? { rotate: 360 } : {}}
-                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-              >
-                <Zap className="w-4 h-4" />
-              </motion.div>
-              {running ? "Cleaning…" : "Clean Now"}
-            </button>
-          </div>
         </div>
 
         {/* ── Grid ── */}
-        <div className="maintenance-controls grid grid-cols-2 gap-4 max-[980px]:grid-cols-1">
+        <div className="maintenance-controls grid grid-cols-2 items-stretch gap-4 max-[980px]:grid-cols-1">
           {/* 1. Automatic Cleaning */}
           <SectionCard
             icon={<Clock className="w-4 h-4" />}
@@ -377,49 +343,61 @@ export const SmartMaintenancePage: React.FC = () => {
             </ControlRow>
           </SectionCard>
 
-          {/* 2. Browser Maintenance */}
+          {/* 2. Alerts & Notifications */}
           <SectionCard
-            icon={<Globe className="w-4 h-4" />}
-            title="Browser Maintenance"
-            subtitle="Auto-clean browser cache only (no passwords or bookmarks)"
+            icon={<Bell className="w-4 h-4" />}
+            title="Alerts &amp; Notifications"
+            subtitle="Native desktop notifications"
           >
             <ControlRow
-              label={
-                (
-                  <span className="flex items-center gap-1.5">
-                    <Chrome className="w-3 h-3" />
-                    Google Chrome
-                  </span>
-                ) as unknown as string
-              }
+              label="High RAM Usage Alerts"
+              sublabel={`Alert when RAM exceeds ${settings.ramAlertThreshold ?? 85}% (5 min cooldown)`}
             >
               <Toggle
-                checked={settings.browserChrome}
-                onChange={(v) => toggle("browserChrome", v)}
+                checked={settings.ramAlertsEnabled}
+                onChange={(v) => toggle("ramAlertsEnabled", v)}
               />
             </ControlRow>
-            <ControlRow label="Microsoft Edge">
+            
+            <ControlRow
+              label="High Disk Usage Alerts"
+              sublabel={`Alert when disk exceeds ${settings.diskAlertThreshold}% (5 min cooldown)`}
+            >
               <Toggle
-                checked={settings.browserEdge}
-                onChange={(v) => toggle("browserEdge", v)}
+                checked={settings.diskAlertsEnabled}
+                onChange={(v) => toggle("diskAlertsEnabled", v)}
               />
             </ControlRow>
-            <ControlRow label="Brave Browser">
+
+            <ControlRow
+              label="Junk File Alerts"
+              sublabel={`Alert when junk files exceed ${settings.junkAlertThreshold} GB`}
+            >
               <Toggle
-                checked={settings.browserBrave}
-                onChange={(v) => toggle("browserBrave", v)}
+                checked={settings.junkAlertsEnabled}
+                onChange={(v) => toggle("junkAlertsEnabled", v)}
               />
             </ControlRow>
-            <ControlRow label="Mozilla Firefox">
+
+            <ControlRow
+              label="Startup App Alerts"
+              sublabel="Notify when a new app adds itself to Windows startup"
+            >
               <Toggle
-                checked={settings.browserFirefox}
-                onChange={(v) => toggle("browserFirefox", v)}
+                checked={settings.startupAlertsEnabled}
+                onChange={(v) => toggle("startupAlertsEnabled", v)}
               />
             </ControlRow>
-            <p className="text-2xs text-text-muted pt-1 border-t border-border/30">
-              Only cache is removed. Profiles, passwords, and bookmarks are
-              never touched.
-            </p>
+
+            <ControlRow
+              label="Permission Change Alerts"
+              sublabel="Notify when an app requests new sensitive permissions (camera, mic, location)"
+            >
+              <Toggle
+                checked={settings.permissionAlertsEnabled}
+                onChange={(v) => toggle("permissionAlertsEnabled", v)}
+              />
+            </ControlRow>
           </SectionCard>
 
           {/* 3. Startup & Background */}
@@ -439,115 +417,82 @@ export const SmartMaintenancePage: React.FC = () => {
             </ControlRow>
           </SectionCard>
 
-          {/* 4. Alerts & Notifications */}
+          {/* 4. Browser Maintenance */}
           <SectionCard
-            icon={<Bell className="w-4 h-4" />}
-            title="Alerts &amp; Notifications"
-            subtitle="Native desktop notifications"
+            icon={<Globe className="w-4 h-4" />}
+            title="Browser Maintenance"
+            subtitle="Auto-clean browser cache only (no passwords or bookmarks)"
           >
             <ControlRow
-              label="High RAM Usage Alerts"
-              sublabel="Alert when RAM exceeds 85% (5 min cooldown)"
+              label="Auto-clean browser cache"
+              sublabel="Automatically clean supported browser caches"
             >
               <Toggle
-                checked={settings.ramAlertsEnabled}
-                onChange={(v) => toggle("ramAlertsEnabled", v)}
+                checked={settings.browserMasterEnabled}
+                onChange={(v) => toggle("browserMasterEnabled", v)}
               />
             </ControlRow>
-            <ControlRow
-              label="Update Notifications"
-              sublabel="Show update modal when a new version is available"
-            >
-              <Toggle
-                checked={settings.updateNotificationsEnabled}
-                onChange={(v) => toggle("updateNotificationsEnabled", v)}
-              />
-            </ControlRow>
+            
+            <p className="text-2xs text-text-muted pt-2 border-t border-border/30 mt-1">
+              Only cache is removed. Profiles, passwords, and bookmarks are
+              never touched.
+            </p>
           </SectionCard>
-        </div>
-
-        {/* ── Status Section ── */}
-        <div className="maintenance-status">
-          <p className="text-2xs font-semibold text-text-muted uppercase tracking-widest mb-3 px-0.5">
-            Maintenance Status
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <StatusCard
-              icon={<Calendar className="w-4 h-4 text-brand-primary" />}
-              label="Next Auto Cleanup"
-              value={fmtNext(status?.nextCleanupAt ?? null)}
-              active={settings.scheduleEnabled}
-            />
-            <StatusCard
-              icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-              label="Last Cleanup"
-              value={fmtTime(status?.lastCleanupAt ?? null)}
-              active={!!status?.lastCleanupAt}
-            />
-            <StatusCard
-              icon={<Globe className="w-4 h-4 text-brand-accent" />}
-              label="Browser Protection"
-              value={`${status?.browserProtectionCount ?? 0} browser${(status?.browserProtectionCount ?? 0) !== 1 ? "s" : ""}`}
-              active={(status?.browserProtectionCount ?? 0) > 0}
-            />
-            <StatusCard
-              icon={<Rocket className="w-4 h-4 text-brand-secondary" />}
-              label="Startup Launch"
-              value={settings.startupEnabled ? "Enabled" : "Disabled"}
-              active={settings.startupEnabled}
-            />
-            <StatusCard
-              icon={<Activity className="w-4 h-4 text-amber-400" />}
-              label="RAM Alerts"
-              value={settings.ramAlertsEnabled ? "Active (>85%)" : "Inactive"}
-              active={settings.ramAlertsEnabled}
-            />
-            <StatusCard
-              icon={<Layers className="w-4 h-4 text-text-muted" />}
-              label="Schedule"
-              value={
-                settings.scheduleEnabled
-                  ? settings.scheduleFrequency.charAt(0).toUpperCase() +
-                    settings.scheduleFrequency.slice(1)
-                  : "Off"
-              }
-              active={settings.scheduleEnabled}
-            />
-          </div>
         </div>
 
         {/* ── What gets cleaned ── */}
         <div className="maintenance-scope glass rounded-2xl p-5 border border-border/50">
-          <p className="text-xs font-semibold text-text-primary mb-3 flex items-center gap-2">
-            <Trash2 className="w-3.5 h-3.5 text-brand-primary" />
-            Directories Cleaned Automatically
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5">
-            {[
-              "%TEMP%",
-              "%LOCALAPPDATA%\\Temp",
-              "%WINDIR%\\Temp",
-              "Windows INetCache",
-              "Thumbnail Cache (pending)",
-              "App Crash Dumps",
-              "Chrome Cache (if enabled)",
-              "Edge Cache (if enabled)",
-              "Brave Cache (if enabled)",
-              "Firefox Cache (if enabled)",
-            ].map((d) => (
-              <div key={d} className="flex items-center gap-2">
-                <FolderX className="w-3 h-3 text-brand-primary/60 shrink-0" />
-                <span className="text-2xs text-text-muted font-mono">{d}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-border/30 flex items-start gap-2">
-            <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-            <p className="text-2xs text-text-muted">
-              Downloads folder is always excluded. Locked or permission-denied
-              files are silently skipped.
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-text-primary flex items-center gap-2">
+              <Trash2 className="w-3.5 h-3.5 text-brand-primary" />
+              Directories Cleaned Automatically
             </p>
           </div>
+          
+          <button
+            onClick={() => setIsTechnicalDetailsOpen(!isTechnicalDetailsOpen)}
+            className="text-xs font-semibold text-text-muted hover:text-text-primary flex items-center gap-1 transition-colors"
+          >
+            Technical Details {isTechnicalDetailsOpen ? '▴' : '▾'}
+          </button>
+
+          <AnimatePresence initial={false}>
+            {isTechnicalDetailsOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 pt-4">
+                  {[
+                    "%TEMP%",
+                    "%LOCALAPPDATA%\\Temp",
+                    "%WINDIR%\\Temp",
+                    "Windows INetCache",
+                    "Thumbnail Cache (pending)",
+                    "App Crash Dumps",
+                    "Chrome Cache (if enabled)",
+                    "Edge Cache (if enabled)",
+                    "Brave Cache (if enabled)",
+                    "Firefox Cache (if enabled)",
+                  ].map((d) => (
+                    <div key={d} className="flex items-center gap-2">
+                      <FolderX className="w-3 h-3 text-brand-primary/60 shrink-0" />
+                      <span className="text-2xs text-text-muted font-mono">{d}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 pt-3 border-t border-border/30 flex items-start gap-2">
+                  <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-2xs text-text-muted">
+                    Downloads folder is always excluded. Locked or permission-denied
+                    files are silently skipped.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

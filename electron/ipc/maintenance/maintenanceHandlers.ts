@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { loadSettings, updateSettings } from '../../services/maintenance/automationStore'
 import type { MaintenanceSettings } from '../../services/maintenance/automationStore'
-import { runAutoClean, getNextCleanupTime, startScheduler, stopScheduler } from '../../services/maintenance/schedulerService'
+import { runAutoClean, getNextCleanupTime, startScheduler, stopScheduler, getInstalledBrowserCount } from '../../services/maintenance/schedulerService'
 import { setStartupEnabled, getStartupEnabled } from '../../services/maintenance/startupService'
 
 export function setupMaintenanceIPC(): void {
@@ -46,12 +46,7 @@ export function setupMaintenanceIPC(): void {
       scheduleEnabled:        settings.scheduleEnabled,
       scheduleFrequency:      settings.scheduleFrequency,
       ramAlertsEnabled:       settings.ramAlertsEnabled,
-      browserProtectionCount: [
-        settings.browserChrome,
-        settings.browserEdge,
-        settings.browserBrave,
-        settings.browserFirefox,
-      ].filter(Boolean).length,
+      browserProtectionCount: settings.browserMasterEnabled ? await getInstalledBrowserCount() : 0,
     }
   })
 }

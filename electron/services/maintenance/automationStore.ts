@@ -12,6 +12,7 @@ export interface MaintenanceSettings {
   ignoreDownloads:            boolean
 
   // Browser cache
+  browserMasterEnabled:       boolean
   browserChrome:              boolean
   browserEdge:                boolean
   browserBrave:               boolean
@@ -22,6 +23,13 @@ export interface MaintenanceSettings {
 
   // Alerts
   ramAlertsEnabled:           boolean
+  ramAlertThreshold:          number
+  diskAlertsEnabled:          boolean
+  diskAlertThreshold:         number
+  junkAlertsEnabled:          boolean
+  junkAlertThreshold:         number
+  startupAlertsEnabled:       boolean
+  permissionAlertsEnabled:    boolean
   updateNotificationsEnabled: boolean
 
   // Safe cleaning
@@ -32,16 +40,24 @@ export interface MaintenanceSettings {
 }
 
 const DEFAULTS: MaintenanceSettings = {
-  scheduleEnabled:            false,
+  scheduleEnabled:            true,
   scheduleFrequency:          'weekly',
   recycleBinEnabled:          false,
   ignoreDownloads:            true,
+  browserMasterEnabled:       true,
   browserChrome:              false,
   browserEdge:                false,
   browserBrave:               false,
   browserFirefox:             false,
   startupEnabled:             false,
   ramAlertsEnabled:           false,
+  ramAlertThreshold:          85,
+  diskAlertsEnabled:          false,
+  diskAlertThreshold:         90,
+  junkAlertsEnabled:          false,
+  junkAlertThreshold:         2,
+  startupAlertsEnabled:       false,
+  permissionAlertsEnabled:    false,
   updateNotificationsEnabled: true,
   safeCleaningMode:           true,
   lastCleanupAt:              null,

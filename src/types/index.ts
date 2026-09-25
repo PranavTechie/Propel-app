@@ -112,12 +112,20 @@ export interface MaintenanceSettings {
   scheduleFrequency:          'daily' | 'weekly' | 'monthly'
   recycleBinEnabled:          boolean
   ignoreDownloads:            boolean
+  browserMasterEnabled:       boolean
   browserChrome:              boolean
   browserEdge:                boolean
   browserBrave:               boolean
   browserFirefox:             boolean
   startupEnabled:             boolean
   ramAlertsEnabled:           boolean
+  ramAlertThreshold:          number
+  diskAlertsEnabled:          boolean
+  diskAlertThreshold:         number
+  junkAlertsEnabled:          boolean
+  junkAlertThreshold:         number
+  startupAlertsEnabled:       boolean
+  permissionAlertsEnabled:    boolean
   updateNotificationsEnabled: boolean
   safeCleaningMode:           boolean
   lastCleanupAt:              number | null

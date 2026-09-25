@@ -1,3 +1,4 @@
+import { shell } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
@@ -70,6 +71,8 @@ async function getBrowserCachePaths(): Promise<string[]> {
   const settings     = await loadSettings()
   const paths: string[] = []
 
+  if (settings.browserMasterEnabled === false) return paths
+
   const chromiumProfiles = async (base: string): Promise<string[]> => {
     if (!fs.existsSync(base)) return []
     try {
@@ -80,39 +83,53 @@ async function getBrowserCachePaths(): Promise<string[]> {
     } catch { return [] }
   }
 
-  if (settings.browserChrome) {
-    const base = path.join(localAppData, 'Google', 'Chrome', 'User Data')
-    for (const p of await chromiumProfiles(base)) {
-      paths.push(path.join(base, p, 'Cache'), path.join(base, p, 'Code Cache'))
-    }
+  const baseChrome = path.join(localAppData, 'Google', 'Chrome', 'User Data')
+  for (const p of await chromiumProfiles(baseChrome)) {
+    paths.push(path.join(baseChrome, p, 'Cache'), path.join(baseChrome, p, 'Code Cache'))
   }
-  if (settings.browserEdge) {
-    const base = path.join(localAppData, 'Microsoft', 'Edge', 'User Data')
-    for (const p of await chromiumProfiles(base)) {
-      paths.push(path.join(base, p, 'Cache'), path.join(base, p, 'Code Cache'))
-    }
+
+  const baseEdge = path.join(localAppData, 'Microsoft', 'Edge', 'User Data')
+  for (const p of await chromiumProfiles(baseEdge)) {
+    paths.push(path.join(baseEdge, p, 'Cache'), path.join(baseEdge, p, 'Code Cache'))
   }
-  if (settings.browserBrave) {
-    const base = path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data')
-    for (const p of await chromiumProfiles(base)) {
-      paths.push(path.join(base, p, 'Cache'), path.join(base, p, 'Code Cache'))
-    }
+
+  const baseBrave = path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data')
+  for (const p of await chromiumProfiles(baseBrave)) {
+    paths.push(path.join(baseBrave, p, 'Cache'), path.join(baseBrave, p, 'Code Cache'))
   }
-  if (settings.browserFirefox) {
-    const base = path.join(appData, 'Mozilla', 'Firefox', 'Profiles')
-    if (fs.existsSync(base)) {
-      try {
-        const entries = await fs.promises.readdir(base)
-        for (const profile of entries) {
-          paths.push(
-            path.join(base, profile, 'cache2'),
-            path.join(base, profile, 'startupCache'),
-          )
-        }
-      } catch { /* skip */ }
-    }
+
+  const baseFirefox = path.join(appData, 'Mozilla', 'Firefox', 'Profiles')
+  if (fs.existsSync(baseFirefox)) {
+    try {
+      const entries = await fs.promises.readdir(baseFirefox)
+      for (const profile of entries) {
+        paths.push(
+          path.join(baseFirefox, profile, 'cache2'),
+          path.join(baseFirefox, profile, 'startupCache'),
+        )
+      }
+    } catch { /* skip */ }
   }
+
   return paths
+}
+
+export async function getInstalledBrowserCount(): Promise<number> {
+  const localAppData = process.env.LOCALAPPDATA ?? ''
+  const appData      = process.env.APPDATA      ?? ''
+  
+  const bases = [
+    path.join(localAppData, 'Google', 'Chrome', 'User Data'),
+    path.join(localAppData, 'Microsoft', 'Edge', 'User Data'),
+    path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data'),
+    path.join(appData, 'Mozilla', 'Firefox', 'Profiles')
+  ]
+  
+  let count = 0
+  for (const b of bases) {
+    if (fs.existsSync(b)) count++
+  }
+  return count
 }
 
 // ── Recycle bin ────────────────────────────────────────────────────────────

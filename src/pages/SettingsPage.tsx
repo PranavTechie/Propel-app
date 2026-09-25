@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -150,6 +150,29 @@ export const SettingsPage: React.FC = () => {
       });
     } finally {
       setOverlayBusy(false);
+    }
+  };
+
+  const [maintenanceSettings, setMaintenanceSettings] = useState<any | null>(null);
+
+  useEffect(() => {
+    window.propel.maintenance.getSettings()
+      .then((s: any) => {
+        setMaintenanceSettings(s);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleMaintenanceToggle = async (key: string, v: boolean | number) => {
+    if (!maintenanceSettings) return;
+    const patch = { [key]: v };
+    setMaintenanceSettings((prev: any) => ({ ...prev, ...patch }));
+    try {
+      const updated = await window.propel.maintenance.updateSettings(patch);
+      setMaintenanceSettings(updated);
+    } catch {
+      // revert on error via a simple refetch for safety
+      window.propel.maintenance.getSettings().then(setMaintenanceSettings).catch(()=>{});
     }
   };
 
@@ -371,6 +394,76 @@ export const SettingsPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="flex items-center justify-between py-2.5 mb-4 border-b border-border/40 pb-4">
+                <div>
+                  <p className="text-sm text-text-primary">
+                    Update Notifications
+                  </p>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Show update modal when a new version is available
+                  </p>
+                </div>
+                <Toggle
+                  checked={maintenanceSettings?.updateNotificationsEnabled ?? true}
+                  onChange={(v) => handleMaintenanceToggle("updateNotificationsEnabled", v)}
+                />
+              </div>
+
+              {maintenanceSettings && (
+                <>
+                  <div className="py-2.5 mb-4 border-b border-border/40 pb-4">
+                    <p className="text-sm text-text-primary">High RAM Usage Threshold</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      Alert when RAM usage exceeds {maintenanceSettings.ramAlertThreshold ?? 85}% (5 min cooldown)
+                    </p>
+                    <div className="mt-3">
+                      <input 
+                        type="range" 
+                        min="70" 
+                        max="95" 
+                        value={maintenanceSettings.ramAlertThreshold ?? 85}
+                        onChange={(e) => handleMaintenanceToggle("ramAlertThreshold", parseInt(e.target.value, 10))}
+                        className="w-full h-1 bg-border/50 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--c-accent))]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="py-2.5 mb-4 border-b border-border/40 pb-4">
+                    <p className="text-sm text-text-primary">High Disk Usage Threshold</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      Alert when disk usage exceeds {maintenanceSettings.diskAlertThreshold}%
+                    </p>
+                    <div className="mt-3">
+                      <input 
+                        type="range" 
+                        min="70" 
+                        max="95" 
+                        value={maintenanceSettings.diskAlertThreshold}
+                        onChange={(e) => handleMaintenanceToggle("diskAlertThreshold", parseInt(e.target.value, 10))}
+                        className="w-full h-1 bg-border/50 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--c-accent))]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="py-2.5 mb-4 pb-4">
+                    <p className="text-sm text-text-primary">Junk File Threshold</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      Alert when junk files exceed {maintenanceSettings.junkAlertThreshold} GB
+                    </p>
+                    <div className="mt-3">
+                      <input 
+                        type="range" 
+                        min="1" 
+                        max="10" 
+                        value={maintenanceSettings.junkAlertThreshold}
+                        onChange={(e) => handleMaintenanceToggle("junkAlertThreshold", parseInt(e.target.value, 10))}
+                        className="w-full h-1 bg-border/50 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--c-accent))]"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
               <SectionTitle
                 icon={<Bell className="w-3.5 h-3.5" />}
                 label="Notification Position"
