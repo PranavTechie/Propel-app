@@ -246,278 +246,214 @@ const SmartBoostSection: React.FC = () => {
   }, [analysis]);
 
   return (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center shadow-lg shadow-glow-sm">
-            <Brain className="w-4 h-4 text-white" />
+    <div className="grid grid-cols-[1.2fr_1fr] max-[900px]:grid-cols-1 gap-6 items-start">
+      {/* ── Left Column: Main Feature Info ── */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center border border-brand-primary/20">
+            <Brain className="w-6 h-6 text-brand-primary" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-text-primary">
+            <h2 className="text-xl font-bold text-text-primary">
               AI Smart Boost
             </h2>
-            <p className="text-2xs text-text-muted">
+            <p className="text-sm text-text-muted mt-0.5">
               Real system analysis & safe optimization
             </p>
           </div>
         </div>
-        <button
-          onClick={runAnalysis}
-          disabled={analyzing || optimizing}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200",
-            analyzing
-              ? "bg-white/[0.06] text-text-muted cursor-not-allowed"
-              : "bg-brand-primary/20 hover:bg-brand-primary/30 text-text-accent border border-brand-primary/30",
-          )}
-        >
-          <RefreshCw
-            className={cn("w-3.5 h-3.5", analyzing && "animate-spin")}
-          />
-          {analyzing
-            ? "Analyzing…"
-            : analysis
-              ? "Re-analyze"
-              : "Analyze & Boost"}
-        </button>
-      </div>
 
-      {/* Initial state */}
-      {!analysis && !analyzing && (
-        <div className="flex flex-col items-center justify-center py-12 gap-4 rounded-2xl border border-dashed border-white/10">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-primary/20 to-brand-secondary/20 flex items-center justify-center">
-            <Brain className="w-8 h-8 text-brand-primary" />
-          </div>
-          <div className="text-center">
-            <p className="text-text-secondary font-medium">
-              Run a full system analysis
-            </p>
-            <p className="text-xs text-text-muted mt-1">
-              Scans RAM, CPU, temp files, startup load & processes
-            </p>
-          </div>
-          <button
-            onClick={runAnalysis}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-brand-primary to-brand-secondary text-white text-sm font-bold shadow-glow-sm hover:shadow-glow-md transition-all duration-200 hover:scale-105"
-          >
-            Start Analysis
-          </button>
+        <div className="text-sm text-text-secondary leading-relaxed space-y-4">
+          <p>
+            Analyze your system and identify safe performance improvements to
+            reclaim resources and maximize responsiveness.
+          </p>
+          <ul className="space-y-3 mt-4">
+            <li className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-brand-primary" /> Memory pressure
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-brand-primary" /> Background processes
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-brand-primary" /> Startup load
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-brand-primary" /> Temporary system data
+            </li>
+          </ul>
         </div>
-      )}
 
-      {/* Loading */}
-      {analyzing && (
-        <div className="flex flex-col items-center justify-center py-10 gap-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full border-2 border-brand-primary/20 animate-spin border-t-brand-primary" />
-            <Brain className="w-6 h-6 text-brand-primary absolute inset-0 m-auto" />
-          </div>
-          <div className="text-center">
-            <p className="text-text-secondary font-medium">Analyzing system…</p>
-            <p className="text-xs text-text-muted mt-1">
-              Scanning processes, RAM, disk, temp files
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Results */}
-      {analysis && !analyzing && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
-        >
-          {/* Main dashboard */}
-          <div className="grid grid-cols-[auto_1fr] gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-            <HealthRing score={analysis.health.overall} />
-            <div className="grid grid-cols-3 gap-2 content-center">
-              <MiniMetric
-                icon={<Cpu className="w-full h-full" />}
-                label="CPU Load"
-                value={`${analysis.systemData.cpuLoad}%`}
-                color="text-brand-accent"
-              />
-              <MiniMetric
-                icon={<MemoryStick className="w-full h-full" />}
-                label="RAM Pressure"
-                value={`${analysis.systemData.ramPressure}%`}
-                sub={formatBytes(analysis.systemData.freeRam) + " free"}
-                color="text-brand-secondary"
-              />
-              <MiniMetric
-                icon={<HardDrive className="w-full h-full" />}
-                label="Disk Usage"
-                value={`${analysis.systemData.diskUsage}%`}
-                sub={formatBytes(analysis.systemData.freeDisk) + " free"}
-                color="text-brand-primary"
-              />
-              <MiniMetric
-                icon={<Trash2 className="w-full h-full" />}
-                label="Temp Junk"
-                value={formatBytes(analysis.systemData.tempJunkBytes)}
-                color="text-orange-400"
-              />
-              <MiniMetric
-                icon={<Activity className="w-full h-full" />}
-                label="Background"
-                value={`${analysis.systemData.backgroundProcessCount}`}
-                sub="low-activity procs"
-                color="text-amber-400"
-              />
-              <MiniMetric
-                icon={<Clock className="w-full h-full" />}
-                label="Uptime"
-                value={`${Math.round(analysis.systemData.uptimeSeconds / 3600)}h`}
-                sub={`${Math.round((analysis.systemData.uptimeSeconds / 60) % 60)}m`}
-                color="text-teal-400"
-              />
-            </div>
-          </div>
-
-          {/* Reclaimable summary */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3 rounded-xl bg-brand-secondary/10 border border-brand-secondary/20">
-              <div className="flex items-center gap-2 mb-1">
-                <MemoryStick className="w-4 h-4 text-brand-secondary" />
-                <span className="text-xs font-semibold text-brand-secondary">
-                  Reclaimable RAM
-                </span>
-              </div>
-              <div className="text-xl font-black text-brand-secondary">
-                {formatBytes(analysis.reclaimableRam)}
-              </div>
-            </div>
-            <div className="p-3 rounded-xl bg-brand-primary/10 border border-brand-primary/20">
-              <div className="flex items-center gap-2 mb-1">
-                <HardDrive className="w-4 h-4 text-brand-primary" />
-                <span className="text-xs font-semibold text-brand-primary">
-                  Reclaimable Storage
-                </span>
-              </div>
-              <div className="text-xl font-black text-brand-primary">
-                {formatBytes(analysis.reclaimableStorage)}
-              </div>
-            </div>
-          </div>
-
-          {/* Recommendations */}
-          {analysis.recommendations.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-xs font-semibold text-text-muted uppercase tracking-widest">
-                Recommendations
-              </p>
-              {analysis.recommendations.map((rec) => (
-                <motion.div
-                  key={rec.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className={cn(
-                    "flex items-start gap-3 p-3 rounded-xl border",
-                    priorityColor(rec.priority),
-                  )}
-                >
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold leading-tight">
-                      {rec.title}
-                    </div>
-                    <div className="text-xs opacity-80 mt-0.5">
-                      {rec.detail}
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-
-          {/* Optimize button & progress */}
-          <AnimatePresence mode="wait">
-            {progress && (
-              <motion.div
-                key="progress"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] space-y-3"
-              >
-                <ProgressStep step={progress.step} pct={progress.pct} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Result banner */}
-          {result && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 space-y-3"
-            >
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-emerald-400" />
-                <span className="font-bold text-emerald-300">
-                  Optimization Complete
-                </span>
-                <span className="text-xs text-text-muted ml-auto">
-                  {(result.durationMs / 1000).toFixed(1)}s
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <span className="text-text-muted">RAM Freed: </span>
-                  <span className="font-bold text-emerald-300">
-                    {formatBytes(result.ramFreedBytes)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-text-muted">Storage Freed: </span>
-                  <span className="font-bold text-emerald-300">
-                    {formatBytes(result.storageFreedBytes)}
-                  </span>
-                </div>
-              </div>
-              {result.actionsApplied.map((action, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-2 text-xs text-emerald-400/80"
-                >
-                  <CheckCircle className="w-3 h-3 shrink-0" />
-                  {action}
-                </div>
-              ))}
-            </motion.div>
-          )}
-
+        {/* Action Button */}
+        <div className="pt-2">
           <button
-            onClick={runOptimize}
-            disabled={optimizing}
+            onClick={analysis ? runOptimize : runAnalysis}
+            disabled={analyzing || optimizing}
             className={cn(
-              "w-full py-3 rounded-2xl text-sm font-bold transition-all duration-200",
-              optimizing
-                ? "bg-white/[0.06] text-text-muted cursor-not-allowed"
-                : "bg-gradient-to-r from-brand-primary to-brand-secondary text-white shadow-glow-sm hover:shadow-glow-md hover:scale-[1.01]",
+              "w-full sm:w-auto px-6 py-3 rounded-xl text-sm font-bold transition-all duration-200",
+              analyzing || optimizing
+                ? "bg-white/[0.06] text-text-muted cursor-not-allowed border border-white/10"
+                : "bg-brand-primary text-white shadow-glow-sm hover:shadow-glow-md hover:scale-[1.02]"
             )}
           >
-            {optimizing ? (
+            {analyzing ? (
               <span className="flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin" /> Optimizing
-                System…
+                <RefreshCw className="w-4 h-4 animate-spin" /> Analyzing...
               </span>
-            ) : (
+            ) : optimizing ? (
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin" /> Optimizing...
+              </span>
+            ) : analysis ? (
               <span className="flex items-center justify-center gap-2">
                 <Zap className="w-4 h-4" /> Apply AI Optimizations
               </span>
+            ) : (
+              <span className="flex items-center justify-center gap-2">
+                <Scan className="w-4 h-4" /> Analyze & Boost
+              </span>
             )}
           </button>
-        </motion.div>
-      )}
 
-      {error && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+          {error && (
+            <div className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+              <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* ── Right Column: Status Panel ── */}
+      <div className="glass rounded-2xl p-5 border border-white/5 space-y-4 flex flex-col min-h-[300px]">
+        <h3 className="text-sm font-semibold text-text-primary border-b border-white/5 pb-3">
+          System Optimization
+        </h3>
+
+        {!analysis && !analyzing && (
+          <div className="flex flex-col items-center justify-center flex-1 py-8 text-center">
+            <Brain className="w-10 h-10 text-brand-primary/40 mb-3" />
+            <p className="text-sm font-semibold text-text-primary">
+              Ready to analyze
+            </p>
+            <p className="text-xs text-text-muted mt-1 max-w-[200px]">
+              Run an analysis to see system health and actionable recommendations.
+            </p>
+          </div>
+        )}
+
+        {analyzing && (
+          <div className="flex flex-col items-center justify-center flex-1 py-8 text-center">
+            <div className="relative w-12 h-12 mb-3">
+              <div className="absolute inset-0 rounded-full border-2 border-brand-primary/20 animate-spin border-t-brand-primary" />
+              <Brain className="w-5 h-5 text-brand-primary absolute inset-0 m-auto" />
+            </div>
+            <p className="text-sm font-semibold text-text-primary">
+              Analyzing system...
+            </p>
+            <p className="text-xs text-text-muted mt-1 max-w-[200px]">
+              Scanning processes, RAM, disk, temp files
+            </p>
+          </div>
+        )}
+
+        {analysis && !analyzing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col h-full"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <div className="shrink-0 scale-75 origin-left -my-4">
+                <HealthRing score={analysis.health.overall} />
+              </div>
+              <div className="flex-1 grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-2xs text-text-muted uppercase tracking-wider">RAM</span>
+                  <span className="text-sm font-bold text-text-primary">{analysis.systemData.ramPressure}%</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-2xs text-text-muted uppercase tracking-wider">CPU</span>
+                  <span className="text-sm font-bold text-text-primary">{analysis.systemData.cpuLoad}%</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-2xs text-text-muted uppercase tracking-wider">Bkgnd</span>
+                  <span className="text-sm font-bold text-text-primary">{analysis.systemData.backgroundProcessCount}</span>
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-2xs text-text-muted uppercase tracking-wider">Junk</span>
+                  <span className="text-sm font-bold text-text-primary">{formatBytes(analysis.systemData.tempJunkBytes)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Reclaimable summary */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                <div className="text-2xs text-text-muted mb-1 flex items-center gap-1.5">
+                  <MemoryStick className="w-3 h-3 text-brand-primary" />
+                  Reclaimable RAM
+                </div>
+                <div className="text-lg font-black text-brand-primary">
+                  {formatBytes(analysis.reclaimableRam)}
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                <div className="text-2xs text-text-muted mb-1 flex items-center gap-1.5">
+                  <HardDrive className="w-3 h-3 text-brand-primary" />
+                  Reclaimable Disk
+                </div>
+                <div className="text-lg font-black text-brand-primary">
+                  {formatBytes(analysis.reclaimableStorage)}
+                </div>
+              </div>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {progress && (
+                <motion.div
+                  key="progress"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-2">
+                    <ProgressStep step={progress.step} pct={progress.pct} />
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {result && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-auto p-3 rounded-xl bg-brand-primary/10 border border-brand-primary/20 space-y-2"
+              >
+                <div className="flex items-center gap-2 text-brand-primary font-bold text-sm">
+                  <CheckCircle className="w-4 h-4" /> Optimization Complete
+                </div>
+                <div className="text-xs text-brand-primary/80">
+                  Freed {formatBytes(result.ramFreedBytes)} RAM and {formatBytes(result.storageFreedBytes)} storage.
+                </div>
+              </motion.div>
+            )}
+
+            {analysis.recommendations.length > 0 && !result && (
+              <div className="mt-auto space-y-2">
+                {analysis.recommendations.slice(0, 2).map((rec) => (
+                  <div key={rec.id} className="flex items-start gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                    <AlertTriangle className={cn("w-3.5 h-3.5 mt-0.5", priorityColor(rec.priority).split(' ')[0])} />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold">{rec.title}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </div>
     </div>
   );
 };
@@ -1414,117 +1350,98 @@ const TABS: {
   id: Tab;
   label: string;
   icon: React.ReactNode;
-  color: string;
   badge?: string;
 }[] = [
   {
     id: "boost",
     label: "Smart Boost",
-    icon: <Brain className="w-3.5 h-3.5" />,
-    color: "indigo",
+    icon: <Brain className="w-4 h-4" />,
     badge: "AI",
   },
   {
     id: "gamemode",
     label: "Game Mode",
-    icon: <Gamepad2 className="w-3.5 h-3.5" />,
-    color: "emerald",
+    icon: <Gamepad2 className="w-4 h-4" />,
   },
   {
     id: "startup",
     label: "Startup",
-    icon: <Rocket className="w-3.5 h-3.5" />,
-    color: "amber",
+    icon: <Rocket className="w-4 h-4" />,
   },
   {
     id: "duplicates",
-    label: "Duplicates",
-    icon: <Files className="w-3.5 h-3.5" />,
-    color: "rose",
+    label: "Duplicate Finder",
+    icon: <Files className="w-4 h-4" />,
   },
 ];
-
-const TAB_COLOR_MAP: Record<string, string> = {
-  indigo:
-    "data-[active=true]:bg-brand-primary/20 data-[active=true]:border-brand-primary/40 data-[active=true]:text-brand-primary",
-  emerald:
-    "data-[active=true]:bg-emerald-500/20 data-[active=true]:border-emerald-500/40 data-[active=true]:text-emerald-300",
-  amber:
-    "data-[active=true]:bg-amber-500/20 data-[active=true]:border-amber-500/40 data-[active=true]:text-amber-300",
-  rose: "data-[active=true]:bg-rose-500/20 data-[active=true]:border-rose-500/40 data-[active=true]:text-rose-300",
-};
 
 export const AIFeaturesPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>("boost");
 
   return (
-    <div className="page-shell grid h-full grid-cols-[210px_minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] gap-x-5 gap-y-4 max-[900px]:grid-cols-1">
-      {/* Page header */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="col-span-2 max-[900px]:col-span-1"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center shadow-glow-md">
-            <Brain className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-black text-text-primary">
-              AI Features
-            </h1>
-            <p className="text-sm text-text-secondary mt-0.5">
-              Real intelligent system analysis & optimization
-            </p>
-          </div>
-          <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-primary/15 border border-brand-primary/25">
-            <div className="w-1.5 h-1.5 rounded-full bg-brand-primary animate-pulse" />
-            <span className="text-xs font-bold text-brand-primary">
-              PREMIUM
-            </span>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Tab bar */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.1 }}
-        className="flex flex-col gap-1 rounded-xl border border-border/60 bg-bg-surface/55 p-2 self-start max-[900px]:flex-row max-[900px]:overflow-x-auto"
-      >
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            data-active={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2.5 rounded-lg text-xs font-semibold text-left",
-              "border border-transparent text-text-muted transition-all duration-200",
-              TAB_COLOR_MAP[tab.color],
-              activeTab !== tab.id &&
-                "hover:text-text-secondary hover:bg-white/[0.03]",
-            )}
-          >
-            {tab.icon}
-            <span className="hidden sm:inline">{tab.label}</span>
-            {tab.badge && (
-              <span className="text-2xs font-black px-1 rounded bg-brand-primary/30 text-brand-primary">
-                {tab.badge}
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* ── Header & Tabs ── */}
+      <div className="shrink-0 px-6 pt-6 pb-4">
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-5xl mx-auto w-full"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center shadow-glow-md">
+              <Brain className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black text-text-primary">
+                AI Features
+              </h1>
+              <p className="text-sm text-text-secondary mt-0.5">
+                Real intelligent system analysis & optimization
+              </p>
+            </div>
+            <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-primary/15 border border-brand-primary/25">
+              <div className="w-1.5 h-1.5 rounded-full bg-brand-primary animate-pulse" />
+              <span className="text-xs font-bold text-brand-primary tracking-wider">
+                PREMIUM
               </span>
-            )}
-          </button>
-        ))}
-      </motion.div>
+            </div>
+          </div>
 
-      {/* Content */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.15 }}
-        className="min-w-0 overflow-y-auto"
-      >
-        <div className="min-h-full">
+          {/* Horizontal Selector */}
+          <div className="mt-6 flex flex-wrap gap-2">
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border",
+                    isActive
+                      ? "bg-brand-primary/15 border-brand-primary/30 text-brand-primary shadow-glow-sm"
+                      : "bg-white/[0.02] border-white/[0.05] text-text-muted hover:text-text-secondary hover:bg-white/[0.05]"
+                  )}
+                >
+                  {tab.icon}
+                  {tab.label}
+                  {tab.badge && (
+                    <span className={cn(
+                      "text-2xs font-black px-1.5 py-0.5 rounded ml-1",
+                      isActive ? "bg-brand-primary/20 text-brand-primary" : "bg-white/10 text-text-muted"
+                    )}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* ── Content ── */}
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="max-w-5xl mx-auto w-full">
           <AnimatePresence mode="wait">
             {activeTab === "boost" && (
               <motion.div
@@ -1532,6 +1449,7 @@ export const AIFeaturesPage: React.FC = () => {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
               >
                 <SmartBoostSection />
               </motion.div>
@@ -1542,6 +1460,7 @@ export const AIFeaturesPage: React.FC = () => {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
               >
                 <GameModeSection />
               </motion.div>
@@ -1552,6 +1471,7 @@ export const AIFeaturesPage: React.FC = () => {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
               >
                 <StartupAnalyzerSection />
               </motion.div>
@@ -1562,13 +1482,14 @@ export const AIFeaturesPage: React.FC = () => {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
               >
                 <DuplicateFinderSection />
               </motion.div>
             )}
           </AnimatePresence>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 };

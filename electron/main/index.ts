@@ -8,7 +8,7 @@ import { setupEntitlementIPC } from "../ipc/auth/entitlementHandlers";
 import { setupAuthHandlersIPC } from "../ipc/auth/authHandlers";
 import { setupUpdaterIPC } from "../ipc/updater/updaterHandlers";
 import { setupMaintenanceIPC } from "../ipc/maintenance/maintenanceHandlers";
-import { setupOverlayIPC } from "../ipc/overlay/overlayHandlers";
+
 import { setupAIIPC } from "../ipc/ai/aiHandlers";
 import { setupSystemCheckIPC } from "../ipc/system-check/systemCheckHandlers";
 import { setupPermissionsIPC } from "../ipc/permissions/permissionsHandlers";
@@ -157,7 +157,7 @@ app.whenReady().then(async () => {
   setupAuthHandlersIPC();
   setupUpdaterIPC();
   setupMaintenanceIPC();
-  setupOverlayIPC(path.join(__dirname, "../preload/index.js"));
+
   setupAIIPC();
   setupSystemCheckIPC();
   setupPermissionsIPC();

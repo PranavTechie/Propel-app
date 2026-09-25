@@ -131,13 +131,16 @@ export const Dashboard = memo(function Dashboard() {
                     : "Propel is reading live CPU, memory and disk signals."}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex flex-col items-end group relative cursor-help">
                 <p className="text-[44px] font-semibold leading-none tracking-[-.06em] text-brand-secondary tabular-nums">
                   {stats ? score : "—"}
                 </p>
                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[.14em] text-text-muted">
-                  Health score
+                  Quick health score
                 </p>
+                <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all absolute top-full right-0 mt-3 w-56 bg-bg-elevated border border-border shadow-2xl rounded-lg p-3 text-xs text-text-secondary normal-case tracking-normal z-50 text-left pointer-events-none">
+                  This is a live estimate based on current CPU, memory, and disk utilization. Run a System Check to see your <b>Full Diagnostic Score</b>.
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-3">

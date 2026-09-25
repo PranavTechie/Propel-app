@@ -4,7 +4,7 @@ import { memoryBridge } from "./memoryBridge";
 import { entitlementsBridge } from "./entitlementsBridge";
 import { updaterBridge } from "./updaterBridge";
 import { maintenanceBridge } from "./maintenanceBridge";
-import { overlayBridge } from "./overlayBridge";
+
 import { aiBridge } from "./aiBridge";
 import systemCheckBridge from "./systemCheckBridge";
 import permissionsBridge from "./permissionsBridge";
@@ -84,7 +84,7 @@ contextBridge.exposeInMainWorld("propel", {
   entitlements: entitlementsBridge,
   updater: updaterBridge,
   maintenance: maintenanceBridge,
-  overlay: overlayBridge,
+
   ai: aiBridge,
   systemCheck: systemCheckBridge,
   permissions: permissionsBridge,

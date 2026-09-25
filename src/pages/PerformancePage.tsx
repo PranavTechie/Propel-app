@@ -75,6 +75,7 @@ const Summary = ({
   </motion.div>
 );
 export const PerformancePage: React.FC = () => {
+  const setActivePage = useAppStore((s) => s.setActivePage);
   const stats = useAppStore((s) => s.stats);
   const chartData = useAppStore((s) => s.chartData);
   const addToast = useAppStore((s) => s.addToast);
@@ -172,10 +173,22 @@ export const PerformancePage: React.FC = () => {
                 CPU and memory activity
               </h2>
             </div>
-            <span className="flex items-center gap-2 text-[11px] text-text-muted">
-              <span className="status-dot" />
-              Live
-            </span>
+            <div className="flex items-center gap-5">
+              <div className="flex items-center gap-4 text-[11px] text-text-muted">
+                <span className="flex items-center gap-1.5">
+                  <i className="h-2 w-2 rounded-sm bg-brand-primary" />
+                  CPU
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <i className="h-2 w-2 rounded-sm bg-[#9a7b45]" />
+                  Memory
+                </span>
+              </div>
+              <span className="flex items-center gap-2 text-[11px] text-text-muted">
+                <span className="status-dot" />
+                Live
+              </span>
+            </div>
           </div>
           <LiveChart data={chartData} height={300} />
         </section>
@@ -227,9 +240,17 @@ export const PerformancePage: React.FC = () => {
             </div>
           </div>
           <div className="rounded-xl border border-border/70 bg-bg-surface/55 p-5">
-            <h3 className="mb-4 text-sm font-semibold text-text-primary">
-              Memory allocation
-            </h3>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-text-primary">
+                Memory allocation
+              </h3>
+              <button
+                onClick={() => setActivePage('memory')}
+                className="rounded-lg border border-border/70 px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:border-brand-primary/30 hover:text-text-primary transition-all cursor-pointer"
+              >
+                Optimize Memory
+              </button>
+            </div>
             <Meter
               label="RAM usage"
               value={stats.ram.percent}

@@ -163,12 +163,8 @@ function Row({
 // ── Score Ring ────────────────────────────────────────────────────────────
 function HealthRing({
   score,
-  grade,
-  label,
 }: {
   score: number;
-  grade: string;
-  label: string;
 }) {
   const r = 56;
   const circ = 2 * Math.PI * r;
@@ -204,9 +200,6 @@ function HealthRing({
       <div className="absolute text-center">
         <div className="text-3xl font-black text-text-primary leading-none">
           {score}
-        </div>
-        <div className="text-xs text-text-muted mt-1">
-          {grade} · {label}
         </div>
       </div>
     </div>
@@ -732,8 +725,39 @@ export function SystemCheckPage() {
     },
   ];
 
+  const validSections = sections.filter(s => s.score !== undefined);
+  const lowest4 = [...validSections].sort((a, b) => (a.score as number) - (b.score as number)).slice(0, 4);
+
+  const ATTENTION_THRESHOLD = 60;
+  const attentionItems = [...(hs?.criticalIssues || [])];
+  
+  if (data) {
+    const getKeywords = (title: string) => {
+      if (title.includes("Hardware")) return ["cpu", "ram", "hardware", "memory"];
+      if (title.includes("GPU")) return ["gpu", "driver", "graphics"];
+      if (title.includes("Disk")) return ["disk", "drive", "storage"];
+      if (title.includes("Thermal")) return ["thermal", "temperature", "heat"];
+      if (title.includes("Network")) return ["network", "internet", "connection"];
+      if (title.includes("Security")) return ["security", "firewall", "defender", "virus", "antivirus", "tamper"];
+      if (title.includes("Battery")) return ["battery", "power"];
+      if (title.includes("Windows")) return ["windows", "optimization", "update", "startup"];
+      return [];
+    };
+
+    validSections.forEach(s => {
+      if ((s.score as number) < ATTENTION_THRESHOLD) {
+        const keywords = getKeywords(s.title);
+        const hasSpecific = attentionItems.some(i => keywords.some(k => i.toLowerCase().includes(k)));
+        if (!hasSpecific) {
+          attentionItems.push(`${s.title} requires attention (Score: ${s.score}/100). Review the detailed results.`);
+        }
+      }
+    });
+  }
+
   return (
-    <div className="page-shell space-y-5">
+    <div className="page-shell">
+      <div className="max-w-5xl mx-auto w-full space-y-6 pb-8">
       <header className="flex items-end justify-between gap-5">
         <div>
           <p className="section-label">Diagnostics workspace</p>
@@ -777,14 +801,19 @@ export function SystemCheckPage() {
           {error}
         </div>
       )}
-      <div className="grid grid-cols-[minmax(300px,.72fr)_minmax(0,1.55fr)] gap-5 max-[1000px]:grid-cols-1">
-        <aside className="space-y-4">
-          <section className="rounded-2xl border border-brand-primary/20 bg-bg-elevated p-5">
+      <div className="grid grid-cols-[1fr_1.6fr] gap-6 max-[1000px]:grid-cols-1 items-stretch">
+        <aside className="space-y-6 flex flex-col">
+          <section className="rounded-2xl border border-brand-primary/20 bg-bg-elevated p-8 flex-1 flex flex-col shadow-sm">
             {data ? (
               <>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="section-label">Overall status</p>
+                    <p className="section-label group relative cursor-help">
+                      Full diagnostic score
+                      <span className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all absolute top-full left-0 mt-2 w-56 bg-bg-elevated border border-border shadow-lg rounded-lg p-3 text-xs text-text-secondary normal-case tracking-normal z-50 pointer-events-none">
+                        This is your authoritative score derived from a complete diagnostic scan across 8 system categories.
+                      </span>
+                    </p>
                     <h2 className="mt-2 text-2xl font-semibold tracking-[-.035em] text-text-primary">
                       {hs?.label ?? "Checked"}
                     </h2>
@@ -792,17 +821,12 @@ export function SystemCheckPage() {
                       Grade {hs?.grade ?? "—"}
                     </p>
                   </div>
-                  <HealthRing
-                    score={hs?.overall ?? 0}
-                    grade={hs?.grade ?? "?"}
-                    label=""
-                  />
+                  <HealthRing score={hs?.overall ?? 0} />
                 </div>
                 <div className="mt-4 grid grid-cols-2 gap-2">
-                  <MiniScore label="Memory" score={hs?.memory} />
-                  <MiniScore label="Thermal" score={hs?.thermal} />
-                  <MiniScore label="Security" score={hs?.security} />
-                  <MiniScore label="Optimization" score={hs?.optimization} />
+                  {lowest4.map((s) => (
+                    <MiniScore key={s.title} label={s.title} score={s.score} />
+                  ))}
                 </div>
               </>
             ) : scanning ? (
@@ -830,16 +854,18 @@ export function SystemCheckPage() {
                 </div>
               </div>
             ) : (
-              <div>
-                <Shield className="h-7 w-7 text-brand-primary" />
-                <h2 className="mt-5 text-xl font-semibold tracking-[-.03em] text-text-primary">
-                  Ready for a complete assessment
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-text-secondary">
-                  The check reads existing Windows and hardware signals, then
-                  organizes them into clear health categories.
-                </p>
-                <div className="mt-5 grid grid-cols-2 gap-2 text-[11px] text-text-muted">
+              <div className="flex flex-col flex-1 min-h-[300px]">
+                <div>
+                  <Shield className="h-8 w-8 text-brand-primary mb-5" />
+                  <h2 className="text-2xl font-bold tracking-tight text-text-primary">
+                    Ready for a complete assessment
+                  </h2>
+                  <p className="mt-3 text-sm leading-relaxed text-text-secondary">
+                    The check reads existing Windows and hardware signals, then
+                    organizes them into clear health categories.
+                  </p>
+                </div>
+                <div className="mt-auto pt-8 grid grid-cols-2 gap-x-2 gap-y-3 text-[11px]">
                   {[
                     "Hardware",
                     "Drivers",
@@ -850,7 +876,8 @@ export function SystemCheckPage() {
                     "Battery",
                     "Optimization",
                   ].map((x) => (
-                    <span key={x} className="border-b border-border/50 pb-2">
+                    <span key={x} className="flex items-center gap-1.5 text-text-secondary">
+                      <span className="w-1.5 h-1.5 rounded-full bg-brand-primary/60 shrink-0" />
                       {x}
                     </span>
                   ))}
@@ -858,13 +885,13 @@ export function SystemCheckPage() {
               </div>
             )}
           </section>
-          {hs?.criticalIssues?.length > 0 && (
+          {attentionItems.length > 0 && (
             <section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-4">
               <p className="text-xs font-semibold text-red-500">
                 Needs attention
               </p>
               <div className="mt-2 space-y-2">
-                {hs.criticalIssues.map((issue: string, i: number) => (
+                {attentionItems.map((issue: string, i: number) => (
                   <p
                     key={i}
                     className="flex gap-2 text-xs leading-5 text-text-secondary"
@@ -877,17 +904,19 @@ export function SystemCheckPage() {
             </section>
           )}
         </aside>
-        <section>
-          <div className="mb-3 flex items-center justify-between">
+        <section className="rounded-2xl border border-border/50 bg-bg-surface/50 p-7 flex flex-col h-full">
+          <div className="mb-6 flex items-center justify-between">
             <div>
-              <p className="section-label">Diagnostic categories</p>
-              <h2 className="mt-1 text-base font-semibold text-text-primary">
+              <p className="text-[10px] font-bold tracking-wider text-text-muted uppercase mb-1">
+                Diagnostic Categories
+              </p>
+              <h2 className="text-sm font-semibold text-text-primary">
                 {data ? "Detailed results" : "Coverage"}
               </h2>
             </div>
             {data && (
-              <span className="text-[11px] text-text-muted">
-                Select a category to inspect
+              <span className="text-[11px] font-medium text-text-muted">
+                Select to inspect
               </span>
             )}
           </div>
@@ -895,7 +924,7 @@ export function SystemCheckPage() {
             variants={staggerContainer}
             initial="initial"
             animate="animate"
-            className="grid grid-cols-2 gap-3 max-[760px]:grid-cols-1"
+            className="grid grid-cols-2 gap-4 max-[760px]:grid-cols-1"
           >
             {sections.map((section, i) => (
               <SectionCard
@@ -916,6 +945,7 @@ export function SystemCheckPage() {
             ))}
           </motion.div>
         </section>
+      </div>
       </div>
     </div>
   );

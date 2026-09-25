@@ -20,6 +20,7 @@ import {
   History,
   Shield,
   RotateCcw,
+  ChevronRight,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useCleanerHistoryStore } from "@/store/cleanerHistoryStore";
@@ -151,9 +152,16 @@ const CategoryCard: React.FC<{
               {cat.fileCount.toLocaleString()} files
             </span>
           </div>
-          <div className="flex items-center gap-1 mt-1.5">
-            <ShieldCheck className="w-3 h-3 text-emerald-400" />
-            <span className="text-2xs text-emerald-400">Safe to remove</span>
+          <div className="flex flex-col gap-0.5 mt-1.5">
+            <div className="flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-emerald-400" />
+              <span className="text-2xs text-emerald-400">Safe to remove</span>
+            </div>
+            {cat.id === "gpu-cache" && (
+              <span className="text-[10px] leading-tight text-text-muted mt-0.5">
+                Apps may take slightly longer to launch next time.
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -620,153 +628,143 @@ export const CleanerPage: React.FC = () => {
       )}
       <div className="h-full flex flex-col overflow-hidden">
         {/* ── Header ── */}
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0"
-        >
-          <div>
-            <h1 className="text-xl font-bold text-text-primary">
-              System Cleaner
-            </h1>
-            <p className="text-sm text-text-secondary mt-0.5">
-              {phase === "idle" &&
-                "Scan and safely remove junk files from your PC"}
-              {phase === "scanning" && (
-                <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-primary animate-pulse inline-block" />
-                  Scanning — {formatBytes(scanLive.totalSize)} found so far
-                </span>
-              )}
-              {phase === "results" &&
-                `Found ${formatBytes(totalJunk)} across ${categories.length} categories`}
-              {phase === "cleaning" &&
-                `Cleaning — freed ${formatBytes(cleanLive.freed)} so far`}
-              {phase === "complete" && "System successfully optimized"}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <SafetyBadge safe={safeCleaningMode} />
-            {(phase === "idle" || phase === "results") && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<Shield className="w-3.5 h-3.5" />}
-                onClick={() => setShowExclusions(true)}
-              >
-                Exclusions
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<History className="w-3.5 h-3.5" />}
-              onClick={() => setShowHistory(true)}
-            >
-              History
-            </Button>
-            {(phase === "idle" || phase === "results") && (
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<Search className="w-3.5 h-3.5" />}
-                onClick={handleScan}
-              >
-                {phase === "results" ? "Re-Scan" : "Scan Now"}
-              </Button>
-            )}
-          </div>
-        </motion.div>
+        <div className="px-6 pt-6 pb-4 shrink-0">
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-5xl mx-auto w-full flex items-center justify-between"
+          >
+            <div>
+              <h1 className="text-xl font-bold text-text-primary">
+                System Cleaner
+              </h1>
+              <p className="text-sm text-text-secondary mt-0.5">
+                {phase === "idle" &&
+                  "Scan and safely remove junk files from your PC"}
+                {phase === "scanning" && (
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-primary animate-pulse inline-block" />
+                    Scanning — {formatBytes(scanLive.totalSize)} found so far
+                  </span>
+                )}
+                {phase === "results" &&
+                  "Review scan results and select categories to clean"}
+                {phase === "cleaning" &&
+                  `Cleaning — freed ${formatBytes(cleanLive.freed)} so far`}
+                {phase === "complete" && "System successfully optimized"}
+              </p>
+            </div>
+          </motion.div>
+        </div>
 
         {/* ── Scrollable Body ── */}
-        <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-4">
-          {/* ── IDLE: Hero CTA ── */}
-          <AnimatePresence mode="wait">
+        <div className="flex-1 overflow-y-auto px-6 pb-6">
+          <div className="max-w-5xl mx-auto w-full space-y-4">
+            {/* ── IDLE: Hero CTA ── */}
+            <AnimatePresence mode="wait">
             {phase === "idle" && (
               <motion.div
                 key="idle"
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
-                className="grid grid-cols-[minmax(360px,1.15fr)_minmax(300px,.85fr)] gap-5 max-[1050px]:grid-cols-1"
+                className="flex flex-col gap-6 max-w-5xl"
               >
-                <section className="rounded-2xl border border-brand-primary/20 bg-bg-elevated p-6 flex flex-col justify-between min-h-[300px]">
-                  <div>
-                    <div className="flex items-center gap-2 text-xs font-semibold text-brand-secondary">
-                      <span className="status-dot" />
-                      Cleaner ready
-                    </div>
-                    <h2 className="mt-5 text-[30px] font-semibold tracking-[-.04em] text-text-primary">
-                      Find space you can safely reclaim
-                    </h2>
-                    <p className="mt-3 max-w-xl text-sm leading-6 text-text-secondary">
-                      Propel checks temporary data, browser caches, Windows
-                      leftovers and other non-essential files while respecting
-                      your exclusions.
-                    </p>
-                  </div>
-                  <div className="mt-7 flex items-center gap-3">
-                    <Button
-                      variant="primary"
-                      size="lg"
-                      icon={<Search className="w-4 h-4" />}
-                      onClick={handleScan}
-                    >
-                      Scan this PC
-                    </Button>
-                    <span className="text-[11px] text-text-muted">
-                      Usually 10–30 seconds
-                    </span>
-                  </div>
-                </section>
-                <aside className="rounded-2xl border border-border/70 bg-bg-surface/65 p-5">
-                  <div className="flex items-center justify-between">
+                {/* ── TWO COLUMN LAYOUT ── */}
+                <div className="grid grid-cols-[1.85fr_1fr] gap-6 max-[900px]:grid-cols-1">
+                  
+                  {/* LEFT — PRIMARY CLEANER HERO CARD */}
+                  <section className="rounded-2xl border border-border/70 bg-bg-elevated p-8 flex flex-col justify-between">
                     <div>
-                      <p className="section-label">Scan overview</p>
-                      <h3 className="mt-1 text-base font-semibold text-text-primary">
-                        What Propel will check
-                      </h3>
-                    </div>
-                    <ShieldCheck className="h-5 w-5 text-brand-primary" />
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2.5">
-                    {SCAN_ORDER.map((id) => (
-                      <div
-                        key={id}
-                        className="flex items-center gap-2 border-b border-border/40 pb-2 text-xs text-text-secondary"
-                      >
-                        <span className="h-1.5 w-1.5 rounded-full bg-brand-primary/70" />
-                        {STAGE_LABELS[id]
-                          ?.replace("…", "")
-                          .replace("Scanning ", "") ?? id}
+                      <div className="flex items-center gap-2 text-xs font-semibold text-text-muted mb-4">
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-primary/80" />
+                        Cleaner ready
                       </div>
-                    ))}
+                      <h2 className="text-2xl font-bold text-text-primary tracking-tight">
+                        Find space you can safely reclaim
+                      </h2>
+                      <p className="mt-3 text-sm leading-relaxed text-text-secondary max-w-[90%]">
+                        Propel checks temporary data, browser caches, Windows leftovers and other non-essential files while respecting your exclusions.
+                      </p>
+                    </div>
+                    
+                    <div className="mt-8 flex items-center gap-4">
+                      <Button
+                        variant="primary"
+                        size="lg"
+                        className="px-8 font-semibold shadow-sm"
+                        icon={<Search className="w-4 h-4" />}
+                        onClick={handleScan}
+                      >
+                        Scan this PC
+                      </Button>
+                      <span className="text-[11px] font-medium text-text-muted/80">
+                        Usually 5 to 10 seconds
+                      </span>
+                    </div>
+                  </section>
+                  
+                  {/* RIGHT — SCAN OVERVIEW CARD */}
+                  <aside className="rounded-2xl border border-border/50 bg-bg-surface/50 p-6 flex flex-col">
+                    <p className="text-[10px] font-bold tracking-wider text-text-muted uppercase mb-1">
+                      Scan Overview
+                    </p>
+                    <h3 className="text-sm font-semibold text-text-primary mb-5">
+                      What Propel will check
+                    </h3>
+                    
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-3 mt-auto">
+                      {SCAN_ORDER.map((id) => (
+                        <div
+                          key={id}
+                          className="flex items-center gap-2 text-[11px] text-text-secondary"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-primary/60 shrink-0" />
+                          <span className="truncate">
+                            {STAGE_LABELS[id]?.replace("…", "").replace("Scanning ", "") ?? id}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+                </div>
+                
+                {/* ── LOWER UTILITY AREA ── */}
+                <div className="grid grid-cols-3 gap-6 max-[700px]:grid-cols-1">
+                  
+                  <button onClick={() => setShowExclusions(true)} className="rounded-xl border border-border/50 bg-bg-surface/30 p-5 text-left transition-colors hover:bg-bg-surface/80 group">
+                    <h4 className="text-sm font-semibold text-text-primary">Exclusions</h4>
+                    <p className="text-xs text-text-muted mt-1">Protected paths</p>
+                    <div className="mt-4 flex items-center gap-1 text-[11px] font-medium text-text-secondary group-hover:text-text-primary transition-colors">
+                      View <ChevronRight className="w-3 h-3" />
+                    </div>
+                  </button>
+
+                  <button onClick={() => setShowHistory(true)} className="rounded-xl border border-border/50 bg-bg-surface/30 p-5 text-left transition-colors hover:bg-bg-surface/80 group">
+                    <h4 className="text-sm font-semibold text-text-primary">Cleanup History</h4>
+                    <p className="text-xs text-text-muted mt-1">Previous scans</p>
+                    <div className="mt-4 flex items-center gap-1 text-[11px] font-medium text-text-secondary group-hover:text-text-primary transition-colors">
+                      View <ChevronRight className="w-3 h-3" />
+                    </div>
+                  </button>
+
+                  <div className="rounded-xl border border-border/50 bg-bg-surface/30 p-5 text-left flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-text-primary flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5 text-brand-primary" />
+                        Safe Cleaning
+                      </h4>
+                      <p className="text-xs text-text-muted mt-1">
+                        {safeCleaningMode ? "Enabled and protecting OS files" : "Disabled"}
+                      </p>
+                    </div>
+                    <div className="mt-4 flex items-center gap-1 text-[11px] font-medium text-text-secondary">
+                      {safeCleaningMode ? "Protected" : "Unprotected"}
+                    </div>
                   </div>
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      onClick={() => setShowExclusions(true)}
-                      className="rounded-lg border border-border/70 bg-bg-elevated px-3 py-2 text-left"
-                    >
-                      <span className="block text-xs font-semibold text-text-primary">
-                        Exclusions
-                      </span>
-                      <span className="text-[10px] text-text-muted">
-                        Review protected paths
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => setShowHistory(true)}
-                      className="rounded-lg border border-border/70 bg-bg-elevated px-3 py-2 text-left"
-                    >
-                      <span className="block text-xs font-semibold text-text-primary">
-                        History
-                      </span>
-                      <span className="text-[10px] text-text-muted">
-                        Previous cleanups
-                      </span>
-                    </button>
-                  </div>
-                </aside>
+                  
+                </div>
+
               </motion.div>
             )}
 
@@ -1072,20 +1070,15 @@ export const CleanerPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     className="sticky bottom-0 glass rounded-2xl p-4 border border-brand-primary/25 flex items-center justify-between"
                   >
-                    <div>
+                    <div className="flex flex-col justify-center">
                       <p className="text-sm font-bold text-text-primary">
-                        {formatBytes(selectedSize)} will be freed
+                        {selected.size} categories selected
                       </p>
-                      <div className="flex items-center gap-3 mt-0.5">
-                        <p className="text-xs text-text-muted">
-                          {selected.size} categories selected
-                        </p>
-                        <div className="flex items-center gap-1 text-2xs text-emerald-400">
-                          <ShieldCheck className="w-3 h-3" />
-                          {safeCleaningMode
-                            ? "Safe Cleanup"
-                            : "Permanent Delete"}
-                        </div>
+                      <div className="flex items-center gap-1 mt-0.5 text-xs font-medium text-emerald-400">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        {safeCleaningMode
+                          ? "Safe Cleanup"
+                          : "Permanent Delete"}
                       </div>
                     </div>
                     <Button
@@ -1204,6 +1197,7 @@ export const CleanerPage: React.FC = () => {
               </motion.div>
             )}
           </AnimatePresence>
+          </div>
         </div>
       </div>
     </>

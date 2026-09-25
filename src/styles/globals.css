@@ -351,9 +351,7 @@
 .about-layout > :first-child {
   grid-column: 1 / -1;
 }
-.about-layout > :last-child {
-  grid-column: 1 / -1;
-}
+
 @media (max-width: 1050px) {
   .memory-workspace,
   .maintenance-workspace {

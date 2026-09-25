@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Zap,
@@ -134,7 +134,7 @@ const StatTile: React.FC<{
 
 // ── Process Row ────────────────────────────────────────────────────────────
 const ProcessRow: React.FC<{
-  proc: ProcessMemInfo;
+  proc: ProcessMemInfo & { count?: number };
   max: number;
   rank: number;
 }> = ({ proc, max, rank }) => {
@@ -156,8 +156,13 @@ const ProcessRow: React.FC<{
         {rank + 1}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-text-primary truncate">
+        <p className="text-xs font-medium text-text-primary truncate flex items-baseline gap-1">
           {proc.name}
+          {proc.count && proc.count > 1 && (
+            <span className="text-[10px] text-text-muted font-normal">
+              ({proc.count} processes)
+            </span>
+          )}
         </p>
         <div className="mt-1 h-1 rounded-full bg-white/5 overflow-hidden">
           <motion.div
@@ -372,43 +377,62 @@ export const MemoryPage: React.FC = () => {
     }
   }, [perfMode, perfModeLoading, addToast]);
 
-  const maxProcMem = processes[0]?.memBytes ?? 1;
+  const groupedProcesses = useMemo(() => {
+    const groups: Record<string, ProcessMemInfo & { count: number }> = {};
+    for (const p of processes) {
+      if (groups[p.name]) {
+        groups[p.name].memBytes += p.memBytes;
+        groups[p.name].count += 1;
+      } else {
+        groups[p.name] = { ...p, count: 1 };
+      }
+    }
+    return Object.values(groups).sort((a, b) => b.memBytes - a.memBytes);
+  }, [processes]);
+
+  const maxProcMem = groupedProcesses[0]?.memBytes ?? 1;
   const pressure = memStats?.pressurePercent ?? 0;
   const pressColor = pressureColor(pressure);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* ── Header ── */}
-      <motion.div
-        initial={{ opacity: 0, y: -8 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="px-6 pt-6 pb-4 flex items-center justify-between shrink-0"
-      >
-        <div>
-          <h1 className="text-xl font-bold text-text-primary">
-            Memory Optimizer
-          </h1>
-          <p className="text-sm text-text-secondary mt-0.5">
-            {memStats
-              ? `${formatBytes(memStats.used)} used of ${formatBytes(memStats.total)} · ${pressureLabel(pressure)} pressure`
-              : "Real-time memory analysis and safe optimization"}
-          </p>
-        </div>
-        <button
-          onClick={handleRefresh}
-          className="p-2 rounded-lg text-text-muted hover:text-text-secondary hover:bg-white/5 transition-all"
-          title="Refresh"
+      <div className="px-6 pt-6 pb-4 shrink-0">
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-5xl mx-auto w-full flex items-center justify-between"
         >
-          <RefreshCw
-            className={cn("w-4 h-4", isRefreshing && "animate-spin")}
-          />
-        </button>
-      </motion.div>
+          <div>
+            <h1 className="text-xl font-bold text-text-primary">
+              Memory Optimizer
+            </h1>
+            <p className="text-sm text-text-secondary mt-0.5">
+              {memStats
+                ? `${formatBytes(memStats.used)} used of ${formatBytes(memStats.total)} · ${pressureLabel(pressure)} pressure`
+                : "Real-time memory analysis and safe optimization"}
+            </p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            className="p-2 rounded-lg text-text-muted hover:text-text-secondary hover:bg-white/5 transition-all"
+            title="Refresh"
+          >
+            <RefreshCw
+              className={cn("w-4 h-4", isRefreshing && "animate-spin")}
+            />
+          </button>
+        </motion.div>
+      </div>
 
       {/* ── Scrollable Body ── */}
-      <div className="memory-workspace flex-1 overflow-y-auto px-6 pb-6">
-        {/* ── Memory Ring + Stats ── */}
-        <motion.div
+      <div className="flex-1 overflow-y-auto px-6 pb-6">
+        <div className="max-w-5xl mx-auto w-full grid grid-cols-[1.6fr_1fr] max-[900px]:grid-cols-1 gap-6 items-start">
+          
+          {/* ── Left Column ── */}
+          <div className="space-y-6 flex flex-col">
+            {/* ── Memory Ring + Stats ── */}
+            <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           className="memory-summary glass rounded-2xl p-5"
@@ -476,7 +500,15 @@ export const MemoryPage: React.FC = () => {
               </div>
               <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
                 <motion.div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500"
+                  className={cn(
+                    "h-full rounded-full bg-gradient-to-r",
+                    (() => {
+                      const pct = memStats.swapTotal > 0 ? (memStats.swapUsed / memStats.swapTotal) * 100 : 0;
+                      if (pct > 80) return "from-red-500 to-rose-600";
+                      if (pct > 50) return "from-amber-500 to-orange-500";
+                      return "from-emerald-400 to-emerald-500";
+                    })()
+                  )}
                   animate={{
                     width: `${memStats.swapTotal > 0 ? (memStats.swapUsed / memStats.swapTotal) * 100 : 0}%`,
                   }}
@@ -512,7 +544,7 @@ export const MemoryPage: React.FC = () => {
               initial="initial"
               animate="animate"
             >
-              {processes.map((proc, i) => (
+              {groupedProcesses.slice(0, 12).map((proc, i) => (
                 <ProcessRow
                   key={proc.pid}
                   proc={proc}
@@ -540,10 +572,13 @@ export const MemoryPage: React.FC = () => {
             />
           )}
         </AnimatePresence>
+          </div>
 
-        {/* ── Action Cards ── */}
-        <div className="memory-actions grid grid-cols-1 gap-4">
-          {/* Optimize Button */}
+          {/* ── Right Column ── */}
+          <div className="space-y-6">
+            {/* ── Action Cards ── */}
+            <div className="grid grid-cols-1 gap-6">
+              {/* Optimize Button */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -670,26 +705,30 @@ export const MemoryPage: React.FC = () => {
           </motion.div>
         </div>
 
-        {/* ── Safety note ── */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.18 }}
-          className="memory-note flex items-start gap-2.5 px-1"
-        >
-          <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-text-muted leading-relaxed">
-            All optimizations are{" "}
-            <span className="text-emerald-400">non-destructive</span>. No
-            processes are terminated. Working sets are trimmed using the
-            standard Windows{" "}
-            <code className="text-xs bg-white/5 px-1 rounded">
-              EmptyWorkingSet
-            </code>{" "}
-            API — the same technique used by Process Hacker and Windows
-            internals tools.
-          </p>
-        </motion.div>
+
+            {/* ── Safety note ── */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.18 }}
+              className="flex items-start gap-2.5 px-1"
+            >
+              <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-text-muted leading-relaxed">
+                All optimizations are{" "}
+                <span className="text-emerald-400">non-destructive</span>. No
+                processes are terminated. Working sets are trimmed using the
+                standard Windows{" "}
+                <code className="text-xs bg-white/5 px-1 rounded">
+                  EmptyWorkingSet
+                </code>{" "}
+                API — the same technique used by Process Hacker and Windows
+                internals tools.
+              </p>
+            </motion.div>
+          </div>
+
+        </div>
       </div>
     </div>
   );

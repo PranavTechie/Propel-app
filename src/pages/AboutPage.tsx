@@ -24,14 +24,7 @@ import {
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import appIconUrl from "@/assets/icons/propel.ico";
 
-const FEATURES = [
-  "Advanced junk file scanner",
-  "Safe browser cache cleaner",
-  "Real-time performance monitor",
-  "Live CPU, RAM & disk stats",
-  "License management system",
-  "Premium glassmorphic UI",
-];
+
 
 export const AboutPage: React.FC = () => {
   const entitlement = useAppStore((s) => s.entitlementStatus);
@@ -45,7 +38,7 @@ export const AboutPage: React.FC = () => {
   } = useManualUpdateCheck();
 
   return (
-    <div className="page-shell space-y-5">
+    <div className="page-shell flex flex-col min-h-full space-y-5">
       <motion.div
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: 1, y: 0 }}
@@ -98,15 +91,15 @@ export const AboutPage: React.FC = () => {
         </motion.div>
 
         {/* License */}
-        <motion.div variants={staggerItem}>
-          <MotionCard>
+        <motion.div variants={staggerItem} className="h-full">
+          <MotionCard className="h-full flex flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-brand-primary" />
                 License Status
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 flex flex-col justify-center">
               <AnimatePresence mode="wait">
                 {entitlement.plan === "PRO" || entitlement.plan === "MAX" ? (
                   /* ── Premium active state ── */
@@ -116,7 +109,7 @@ export const AboutPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
                     transition={{ type: "spring", stiffness: 360, damping: 28 }}
-                    className="rounded-xl overflow-hidden"
+                    className="rounded-xl overflow-hidden flex flex-col justify-center h-full"
                     style={{
                       background:
                         "linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(var(--c-accent),0.06) 100%)",
@@ -157,7 +150,7 @@ export const AboutPage: React.FC = () => {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4 }}
                     transition={{ type: "spring", stiffness: 360, damping: 28 }}
-                    className="space-y-3"
+                    className="space-y-3 flex flex-col justify-center h-full"
                   >
                     <div className="flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-border/50">
                       <div className="w-2 h-2 rounded-full shrink-0 bg-text-muted/30 shadow-none" />
@@ -199,38 +192,15 @@ export const AboutPage: React.FC = () => {
           </MotionCard>
         </motion.div>
 
-        {/* Features */}
-        <motion.div variants={staggerItem}>
-          <MotionCard>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400" />
-                Features
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-2">
-                {FEATURES.map((f) => (
-                  <div
-                    key={f}
-                    className="flex items-center gap-2 text-sm text-text-secondary"
-                  >
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    {f}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </MotionCard>
-        </motion.div>
+
 
         {/* Updates & Links */}
-        <motion.div variants={staggerItem}>
-          <MotionCard>
+        <motion.div variants={staggerItem} className="h-full">
+          <MotionCard className="h-full flex flex-col">
             <CardHeader>
               <CardTitle>Updates & Support</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 flex-1 flex flex-col justify-center">
               {/* Check button */}
               <button
                 onClick={() => {
@@ -346,13 +316,12 @@ export const AboutPage: React.FC = () => {
             </CardContent>
           </MotionCard>
         </motion.div>
-
-        <motion.div
-          variants={staggerItem}
-          className="text-center text-xs text-text-muted py-2"
-        >
-          © 2024 Propel. All rights reserved.
-        </motion.div>
+      </motion.div>
+      <motion.div
+        variants={staggerItem}
+        className="text-center text-xs text-text-muted py-4 mt-auto"
+      >
+        © 2024 Propel. All rights reserved.
       </motion.div>
     </div>
   );

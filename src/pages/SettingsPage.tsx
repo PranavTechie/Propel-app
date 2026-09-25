@@ -30,8 +30,7 @@ import {
 import { THEMES, type ThemeId } from "@/theme/themes";
 import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabase";
-import { DiagnosticsPanel } from "@/components/settings/DiagnosticsPanel";
-import { PerfPanel } from "@/components/settings/PerfPanel";
+
 import {
   MotionCard,
   CardHeader,
@@ -128,30 +127,12 @@ export const SettingsPage: React.FC = () => {
     setSoundEnabled, // sound enabled state
     toastPosition,
     setToastPosition, // toast position state
-    overlayEnabled,
-    setOverlayEnabled, // overlay enabled state
+
     crashReporting,
     setCrashReporting, // crash reporting state
   } = useSettingsStore();
 
-  const [overlayBusy, setOverlayBusy] = useState(false); // overlay busy state
 
-  const handleOverlayToggle = async (v: boolean) => {
-    setOverlayBusy(true);
-    try {
-      if (v) await window.propel.overlay.open();
-      else await window.propel.overlay.close();
-      setOverlayEnabled(v);
-    } catch {
-      addToast({
-        type: "error",
-        title: "Overlay error",
-        description: "Could not open overlay window",
-      });
-    } finally {
-      setOverlayBusy(false);
-    }
-  };
 
   const [maintenanceSettings, setMaintenanceSettings] = useState<any | null>(null);
 
@@ -226,8 +207,6 @@ export const SettingsPage: React.FC = () => {
           ["appearance", "Appearance"],
           ["notifications", "Notifications"],
           ["privacy", "Privacy"],
-          ["diagnostics", "Diagnostics"],
-          ["performance-tools", "Performance"],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -549,101 +528,6 @@ export const SettingsPage: React.FC = () => {
             </CardContent>
           </MotionCard>
         </motion.div>
-
-        {/* ── Diagnostics ── */}
-        <motion.div
-          id="settings-diagnostics"
-          variants={staggerItem}
-          className="scroll-mt-5"
-        >
-          <MotionCard>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bug className="w-4 h-4 text-[rgb(var(--c-accent))]" />
-                Diagnostics
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-text-muted mb-4">
-                Locally stored error and warning log — useful for
-                troubleshooting. Never uploaded.
-              </p>
-              <DiagnosticsPanel />
-            </CardContent>
-          </MotionCard>
-        </motion.div>
-
-        {/* ── Performance Tools ── */}
-        <motion.div
-          id="settings-performance-tools"
-          variants={staggerItem}
-          className="scroll-mt-5"
-        >
-          <MotionCard>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MonitorPlay className="w-4 h-4 text-[rgb(var(--c-accent))]" />
-                Performance Tools
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <SectionTitle
-                icon={<MonitorPlay className="w-3.5 h-3.5" />}
-                label="Floating Performance Overlay"
-              />
-              <div className="flex items-center justify-between py-2.5">
-                <div>
-                  <p className="text-sm text-text-primary">
-                    Enable Floating Overlay
-                  </p>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    Always-on-top compact window: CPU, RAM &amp; network —
-                    updates every second
-                  </p>
-                </div>
-                <Toggle
-                  checked={overlayEnabled}
-                  onChange={overlayBusy ? () => {} : handleOverlayToggle}
-                />
-              </div>
-              {overlayEnabled && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-border/40"
-                >
-                  <p className="text-2xs text-text-muted">
-                    Overlay is{" "}
-                    <span className="text-emerald-400 font-semibold">
-                      active
-                    </span>{" "}
-                    — drag to reposition it anywhere on screen. Closes
-                    automatically when you quit the app.
-                  </p>
-                </motion.div>
-              )}
-            </CardContent>
-          </MotionCard>
-        </motion.div>
-      </motion.div>
-
-      {/* ── Perf Diagnostics (developer timing panel) ── */}
-      <motion.div className="settings-diagnostics mt-4" variants={staggerItem}>
-        <MotionCard>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-[rgb(var(--c-accent))]" />
-              Performance Diagnostics
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-text-muted mb-4">
-              Timing data for scan, IPC, and render operations. Refresh after
-              running a scan to see results.
-            </p>
-            <PerfPanel />
-          </CardContent>
-        </MotionCard>
       </motion.div>
     </div>
   );

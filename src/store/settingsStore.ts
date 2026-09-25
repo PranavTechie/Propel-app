@@ -8,13 +8,13 @@ export type ToastPosition = 'bottom-right' | 'top-right' | 'system-default'
 interface SettingsState {
   soundEnabled:   boolean
   toastPosition:  ToastPosition
-  overlayEnabled: boolean
+
   themeId:        ThemeId
   // Crash reporting — default ON in production, OFF in dev
   crashReporting: boolean
   setSoundEnabled:     (v: boolean)       => void
   setToastPosition:    (p: ToastPosition) => void
-  setOverlayEnabled:   (v: boolean)       => void
+
   setThemeId:          (t: ThemeId)       => void
   setCrashReporting:   (v: boolean)       => void
 }
@@ -24,13 +24,13 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       soundEnabled:   false,
       toastPosition:  'bottom-right',
-      overlayEnabled: false,
+
       themeId:        'light',
       // Default ON in production, OFF in dev so engineers aren't tracked during development
       crashReporting: import.meta.env.PROD ?? true,
       setSoundEnabled:   (v) => set({ soundEnabled: v }),
       setToastPosition:  (p) => set({ toastPosition: p }),
-      setOverlayEnabled: (v) => set({ overlayEnabled: v }),
+
       setThemeId:        (t) => {
         set({ themeId: t })
         applyTheme(t)

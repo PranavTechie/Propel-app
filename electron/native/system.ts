@@ -53,15 +53,15 @@ export async function getSystemStats(): Promise<SystemStats> {
   return {
     cpu: Math.round(cpuLoad.currentLoad),
     ram: {
-      used: Math.round(mem.used / 1024 / 1024),
-      total: Math.round(mem.total / 1024 / 1024),
-      free: Math.round(mem.free / 1024 / 1024),
+      used: mem.used,
+      total: mem.total,
+      free: mem.free,
       percent: Math.round((mem.used / mem.total) * 100),
     },
     disk: {
-      used: Math.round((systemDrive?.used ?? 0) / 1024 / 1024 / 1024),
-      total: Math.round((systemDrive?.size ?? 0) / 1024 / 1024 / 1024),
-      free: Math.round(((systemDrive?.size ?? 0) - (systemDrive?.used ?? 0)) / 1024 / 1024 / 1024),
+      used: systemDrive?.used ?? 0,
+      total: systemDrive?.size ?? 0,
+      free: (systemDrive?.size ?? 0) - (systemDrive?.used ?? 0),
       percent: Math.round(systemDrive?.use ?? 0),
     },
     network: { download: parseFloat(download.toFixed(2)), upload: parseFloat(upload.toFixed(2)) },
@@ -276,8 +276,8 @@ export async function scanJunk(): Promise<ScanCategory[]> {
       ],
     },
     {
-      name: 'dx_cache',
-      label: 'DirectX Shader Cache',
+      name: 'gpu_cache',
+      label: 'GPU Shader Cache',
       paths: [
         path.join(local, 'D3DSCache'),
         path.join(local, 'NVIDIA', 'DXCache'),

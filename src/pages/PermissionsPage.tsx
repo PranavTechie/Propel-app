@@ -388,7 +388,8 @@ export function PermissionsPage(): React.ReactElement {
                 placeholder="Search apps…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 pr-8 py-2 rounded-xl bg-bg-surface border border-border text-xs text-text-primary placeholder-text-muted/50 focus:outline-none focus:border-border/80 transition-colors w-48"
+                disabled={!hasScanned || loadingApps}
+                className="pl-8 pr-8 py-2 rounded-xl bg-bg-surface border border-border text-xs text-text-primary placeholder-text-muted/50 focus:outline-none focus:border-border/80 transition-colors w-60 disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <AnimatePresence>
                 {search && (
@@ -469,10 +470,10 @@ export function PermissionsPage(): React.ReactElement {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="grid grid-cols-[minmax(320px,1fr)_minmax(280px,.8fr)] items-center gap-10 rounded-2xl border border-border/70 bg-bg-elevated p-8 max-[900px]:grid-cols-1"
+            className="flex flex-col items-center justify-center text-center py-16 px-6 rounded-2xl border border-border/70 bg-bg-elevated"
           >
             <div
-              className="w-20 h-20 rounded-3xl flex items-center justify-center border"
+              className="w-16 h-16 rounded-2xl flex items-center justify-center border mb-6"
               style={{
                 background: "var(--t-card-elevated-bg)",
                 border: "var(--t-card-elevated-border)",
@@ -480,23 +481,23 @@ export function PermissionsPage(): React.ReactElement {
               }}
             >
               <Shield
-                className="w-9 h-9"
+                className="w-8 h-8"
                 style={{ color: "rgb(var(--t-text-accent))" }}
               />
             </div>
-            <div className="space-y-2 max-w-md">
-              <h2 className="text-base font-semibold text-text-primary">
-                Ready to Scan Installed Apps
-              </h2>
-              <p className="text-xs text-text-secondary leading-relaxed">
-                Scan your installed applications to detect permissions, privacy
-                access and security information.
-              </p>
-            </div>
+            
+            <h2 className="text-lg font-semibold text-text-primary mb-2">
+              Ready to Scan Installed Apps
+            </h2>
+            <p className="text-xs text-text-secondary max-w-sm leading-relaxed mb-8">
+              Scan your installed applications to detect permissions, privacy
+              access and security information.
+            </p>
+            
             <button
               onClick={() => loadApps()}
               disabled={loadingApps}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-2 w-[200px] h-10 rounded-xl text-sm font-semibold text-white transition-all hover:brightness-110 active:scale-[0.97] disabled:opacity-60 disabled:cursor-not-allowed mb-4"
               style={{
                 background: "var(--t-btn-bg)",
                 boxShadow: "var(--t-btn-shadow)",
@@ -505,27 +506,41 @@ export function PermissionsPage(): React.ReactElement {
               <Shield className="w-4 h-4" />
               Scan Apps
             </button>
+            
             <p className="text-[11px] text-text-muted/50">
-              Scanning may take a few seconds depending on installed
-              applications.
+              Scanning may take a few seconds depending on installed applications.
             </p>
           </motion.div>
         )}
 
         {/* ── Skeleton ────────────────────────────────────────────── */}
         {loadingApps && (
-          <div
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            }}
-          >
-            {Array.from({ length: 18 }).map((_, i) => (
+          <div className="overflow-hidden rounded-xl border border-border/70 bg-bg-elevated">
+            <div className="grid grid-cols-[minmax(220px,1.2fr)_minmax(260px,1fr)_90px] gap-4 border-b border-border/60 bg-bg-surface/70 px-4 py-2 text-[9px] font-bold uppercase tracking-[.14em] text-text-muted max-[900px]:hidden">
+              <span>Application</span>
+              <span>Detected access</span>
+              <span>Action</span>
+            </div>
+            {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="h-[200px] rounded-2xl bg-bg-elevated border border-border/40 animate-pulse"
-                style={{ animationDelay: `${i * 50}ms` }}
-              />
+                className="grid grid-cols-[minmax(220px,1.2fr)_minmax(260px,1fr)_90px] items-center gap-4 border-b border-border/55 px-4 py-3 last:border-0 max-[900px]:grid-cols-[1fr_auto]"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="h-14 w-14 shrink-0 rounded-2xl bg-bg-surface/80 border border-border/30 animate-pulse" style={{ animationDelay: `${i * 50}ms` }} />
+                  <div className="min-w-0 space-y-2.5 w-full">
+                    <div className="h-3.5 w-32 rounded-md bg-bg-surface/80 animate-pulse" style={{ animationDelay: `${i * 50}ms` }} />
+                    <div className="h-2.5 w-24 rounded-md bg-bg-surface/60 animate-pulse" style={{ animationDelay: `${i * 50}ms` }} />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5 max-[900px]:col-span-2 max-[900px]:row-start-2">
+                  <div className="h-[22px] w-20 rounded-full bg-bg-surface/80 border border-border/30 animate-pulse" style={{ animationDelay: `${i * 50}ms` }} />
+                  <div className="h-[22px] w-24 rounded-full bg-bg-surface/80 border border-border/30 animate-pulse" style={{ animationDelay: `${i * 50}ms` }} />
+                </div>
+                <div className="flex justify-end max-[900px]:col-start-2 max-[900px]:row-start-1">
+                  <div className="h-7 w-[72px] rounded-lg bg-bg-surface/80 border border-border/30 animate-pulse" style={{ animationDelay: `${i * 50}ms` }} />
+                </div>
+              </div>
             ))}
           </div>
         )}
