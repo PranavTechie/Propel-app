@@ -313,7 +313,7 @@ const SafetyBadge: React.FC<{ safe: boolean }> = ({ safe }) => (
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 export const CleanerPage: React.FC = () => {
-  const { setScanResults, setIsScanning, setIsCleaning, addToast } =
+  const { setScanResults, setIsScanning, setIsCleaning, addToast, setHasScanned } =
     useAppStore();
   const { addReport: addHistoryReport } = useCleanerHistoryStore();
 
@@ -482,6 +482,7 @@ export const CleanerPage: React.FC = () => {
       const allIds = new Set(results.map((r) => r.id));
       setSelected(allIds);
       setScanResults(results);
+      setHasScanned(true);
       setPhase("results");
       const total = results.reduce((a, c) => a + c.totalSize, 0);
       addToast({

@@ -42,11 +42,7 @@ const SystemCheckPage = lazy(() =>
     default: m.SystemCheckPage,
   })),
 );
-const PermissionsPage = lazy(() =>
-  import("@/pages/PermissionsPage").then((m) => ({
-    default: m.PermissionsPage,
-  })),
-);
+
 const PAGE_MAP = {
   dashboard: Dashboard,
   cleaner: CleanerPage,
@@ -55,7 +51,6 @@ const PAGE_MAP = {
   performance: PerformancePage,
   ai: AIFeaturesPage,
   systemcheck: SystemCheckPage,
-  permissions: PermissionsPage,
   settings: SettingsPage,
   about: AboutPage,
 };
@@ -84,11 +79,7 @@ export const AppLayout: React.FC = () => {
     handleRetry,
   } = useUpdateCheck();
   const perfProfile = usePerformanceProfile();
-  React.useEffect(() => {
-    if (useSettingsStore.getState().overlayEnabled) {
-      window.propel.overlay.open().catch(() => {});
-    }
-  }, []);
+
   const ActivePage = PAGE_MAP[activePage];
   return (
     <>

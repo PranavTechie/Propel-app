@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Settings,
   AppWindow,
+  MapPin,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { cn } from "@/utils/cn";
@@ -26,6 +27,7 @@ interface PermAppInfo {
   iconPath: string;
   hasCamera: boolean;
   hasMicrophone: boolean;
+  hasLocation: boolean;
   isStartup: boolean;
   isRunning: boolean;
   hasNetwork: boolean;
@@ -45,6 +47,13 @@ interface PermCol {
 }
 
 const PERM_COLS: PermCol[] = [
+  {
+    key: "hasLocation",
+    label: "Location",
+    icon: MapPin,
+    settingsPage: "location",
+    activeColor: "text-rose-400 bg-rose-500/15 border-rose-500/25",
+  },
   {
     key: "hasCamera",
     label: "Camera",
@@ -110,15 +119,35 @@ function getGradient(name: string): [string, string] {
 
 function cleanPublisher(pub: string): string {
   if (!pub) return "";
-  if (pub.startsWith("CN=")) {
-    const m = pub.match(/^CN=([^,]+)/);
-    return m ? m[1].trim() : "";
+  
+  let p = pub;
+  if (p.startsWith("CN=")) {
+    const m = p.match(/^CN=([^,]+)/);
+    p = m ? m[1].trim() : "";
+  } else {
+    const slash = p.indexOf("\\");
+    if (slash > 0) p = p.substring(0, slash).trim();
+    else {
+      const fwd = p.indexOf("/");
+      if (fwd > 0) p = p.substring(0, fwd).trim();
+    }
   }
-  const slash = pub.indexOf("\\");
-  if (slash > 0) return pub.substring(0, slash).trim();
-  const fwd = pub.indexOf("/");
-  if (fwd > 0) return pub.substring(0, fwd).trim();
-  return pub.trim();
+
+  p = p.trim();
+  const lowerP = p.toLowerCase();
+  
+  // Filter out typical fallback/placeholder artifacts
+  const placeholders = ["icon", "image", "unknown", "n/a", "none", "placeholder", "default", "null", "undefined"];
+  if (!p || placeholders.includes(lowerP)) {
+    return "";
+  }
+  
+  // Filter out raw GUIDs
+  if (/^[0-9a-fA-F\-]{36}$/.test(p)) {
+    return "";
+  }
+
+  return p;
 }
 
 // Module-level icon cache (persists across renders)
@@ -230,8 +259,8 @@ const AppCard = memo<{
           >
             {app.name}
           </p>
-          <p className="truncate text-[11px] text-text-muted" title={pub}>
-            {pub || app.exeName}
+          <p className="truncate text-[11px] text-text-muted" title={pub || "Unknown publisher"}>
+            {pub || "Unknown publisher"}
           </p>
         </div>
         {app.isRunning && (
@@ -269,6 +298,7 @@ type FilterKey =
   | "all"
   | "camera"
   | "mic"
+  | "location"
   | "screen"
   | "network"
   | "startup"
@@ -279,6 +309,7 @@ const FILTERS: { key: FilterKey; label: string; icon: React.ElementType }[] = [
   { key: "running", label: "Running", icon: RefreshCw },
   { key: "camera", label: "Camera", icon: Camera },
   { key: "mic", label: "Mic", icon: Mic },
+  { key: "location", label: "Location", icon: MapPin },
   { key: "screen", label: "Screen", icon: Monitor },
   { key: "network", label: "Network", icon: Clipboard },
   { key: "startup", label: "Startup", icon: Zap },
@@ -328,6 +359,7 @@ export function PermissionsPage(): React.ReactElement {
         }
         if (activeFilter === "camera") return a.hasCamera;
         if (activeFilter === "mic") return a.hasMicrophone;
+        if (activeFilter === "location") return a.hasLocation;
         if (activeFilter === "screen") return a.hasOverlay;
         if (activeFilter === "network") return a.hasNetwork;
         if (activeFilter === "startup") return a.isStartup;
@@ -349,6 +381,7 @@ export function PermissionsPage(): React.ReactElement {
       running: apps.filter((a) => a.isRunning).length,
       camera: apps.filter((a) => a.hasCamera).length,
       mic: apps.filter((a) => a.hasMicrophone).length,
+      location: apps.filter((a) => a.hasLocation).length,
       screen: apps.filter((a) => a.hasOverlay).length,
       network: apps.filter((a) => a.hasNetwork).length,
       startup: apps.filter((a) => a.isStartup).length,

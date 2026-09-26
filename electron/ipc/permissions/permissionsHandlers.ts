@@ -17,6 +17,7 @@ export function setupPermissionsIPC(): void {
     const pages: Record<string, string> = {
       webcam: 'ms-settings:privacy-webcam',
       microphone: 'ms-settings:privacy-microphone',
+      location: 'ms-settings:privacy-location',
       screen: 'ms-settings:privacy-broadfilesystemaccess',
       startup: 'ms-settings:startupapps',
     }

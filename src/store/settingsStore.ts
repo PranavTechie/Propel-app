@@ -12,11 +12,13 @@ interface SettingsState {
   themeId:        ThemeId
   // Crash reporting — default ON in production, OFF in dev
   crashReporting: boolean
+  aiAdvisorConsent: boolean
   setSoundEnabled:     (v: boolean)       => void
   setToastPosition:    (p: ToastPosition) => void
 
   setThemeId:          (t: ThemeId)       => void
   setCrashReporting:   (v: boolean)       => void
+  setAiAdvisorConsent: (v: boolean)       => void
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -28,8 +30,10 @@ export const useSettingsStore = create<SettingsState>()(
       themeId:        'light',
       // Default ON in production, OFF in dev so engineers aren't tracked during development
       crashReporting: import.meta.env.PROD ?? true,
+      aiAdvisorConsent: false,
       setSoundEnabled:   (v) => set({ soundEnabled: v }),
       setToastPosition:  (p) => set({ toastPosition: p }),
+      setAiAdvisorConsent: (v) => set({ aiAdvisorConsent: v }),
 
       setThemeId:        (t) => {
         set({ themeId: t })

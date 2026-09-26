@@ -7,6 +7,7 @@ interface PermAppInfo {
   iconPath: string
   hasCamera: boolean
   hasMicrophone: boolean
+  hasLocation: boolean
   isStartup: boolean
   isRunning: boolean
   hasNetwork: boolean

@@ -158,7 +158,7 @@ function deriveInsights(stats: SystemStats | null): Insight[] {
       icon: Wifi,
       title: 'High Network Activity',
       description: `Downloading at ${stats.network.download.toFixed(1)} Mbps. A background app may be using bandwidth.`,
-      action: { label: 'Check Permissions', page: 'permissions' },
+      action: { label: 'View Performance', page: 'performance' },
     })
   }
 

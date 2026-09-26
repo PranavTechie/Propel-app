@@ -41,8 +41,10 @@ interface AppStore {
   isCleaning: boolean
   scanProgress: number
   cleanProgress: number
+  hasScanned: boolean
   lastCleanResult: { freed: number; errors: number } | null
   cleanupHistory: CleanupReport[]
+  setHasScanned: (v: boolean) => void
   setScanResults: (results: ScanCategory[]) => void
   setIsScanning: (v: boolean) => void
   setIsCleaning: (v: boolean) => void
@@ -107,8 +109,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
   isCleaning: false,
   scanProgress: 0,
   cleanProgress: 0,
+  hasScanned: false,
   lastCleanResult: null,
   cleanupHistory: [],
+  setHasScanned: hasScanned => set({ hasScanned }),
   setScanResults: scanResults => set({ scanResults }),
   setIsScanning: isScanning => set({ isScanning }),
   setIsCleaning: isCleaning => set({ isCleaning }),

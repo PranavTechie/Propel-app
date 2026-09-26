@@ -2,13 +2,14 @@ import { EventEmitter } from 'events'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { randomUUID } from 'crypto'
+import { BrowserWindow } from 'electron'
 
 const execFileAsync = promisify(execFile)
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export interface ActiveAccess {
-  device: 'camera' | 'microphone' | 'screen' | 'admin' | 'clipboard' | 'overlay'
+  device: 'camera' | 'microphone' | 'location' | 'screen' | 'admin' | 'clipboard' | 'overlay'
   app: string
   pid?: number
   since: number
@@ -21,6 +22,7 @@ export interface PermAppInfo {
   iconPath: string
   hasCamera: boolean
   hasMicrophone: boolean
+  hasLocation: boolean
   isStartup: boolean
   isRunning: boolean
   hasNetwork: boolean
@@ -37,7 +39,7 @@ export interface StartupEntry {
 
 export interface PermEvent {
   id: string
-  device: 'camera' | 'microphone' | 'screen' | 'admin' | 'startup' | 'clipboard' | 'overlay'
+  device: 'camera' | 'microphone' | 'location' | 'screen' | 'admin' | 'startup' | 'clipboard' | 'overlay'
   app: string
   action: 'started' | 'stopped' | 'detected'
   timestamp: number
@@ -72,17 +74,25 @@ async function runPS(script: string): Promise<string> {
 async function getActiveDeviceAccesses(): Promise<ActiveAccess[]> {
   const script = `
 $results = @()
-$devices = @('webcam','microphone','graphicsCaptureProgrammatic')
+$devices = @('webcam','microphone','location','graphicsCaptureProgrammatic')
 foreach ($dev in $devices) {
-  $path = "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$dev\\NonPackaged"
-  if (-not (Test-Path $path)) { continue }
-  Get-ChildItem $path -ErrorAction SilentlyContinue | ForEach-Object {
-    $start = $_.GetValue('LastUsedTimeStart')
-    $stop  = $_.GetValue('LastUsedTimeStop')
-    if ($start -gt 0 -and ($stop -eq 0 -or $stop -lt $start)) {
-      $exePath = $_.PSChildName -replace '#','\\' -replace '##',':\\'
-      $exeName = [IO.Path]::GetFileNameWithoutExtension($exePath)
-      $results += "$dev|$exeName"
+  $paths = @(
+    "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$dev",
+    "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$dev\\NonPackaged"
+  )
+  foreach ($path in $paths) {
+    if (-not (Test-Path $path)) { continue }
+    Get-ChildItem $path -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -ne 'NonPackaged' } | ForEach-Object {
+      $start = $_.GetValue('LastUsedTimeStart')
+      $stop  = $_.GetValue('LastUsedTimeStop')
+      if ($start -gt 0 -and ($stop -eq 0 -or $stop -lt $start)) {
+        if ($path -match 'NonPackaged') {
+          $exeName = [IO.Path]::GetFileNameWithoutExtension(($_.PSChildName -replace '#','\\'))
+        } else {
+          $exeName = $_.PSChildName
+        }
+        $results += "$dev|$exeName"
+      }
     }
   }
 }
@@ -100,6 +110,7 @@ $results | ForEach-Object { $_ }
     let device: ActiveAccess['device']
     if (dev === 'webcam') device = 'camera'
     else if (dev === 'microphone') device = 'microphone'
+    else if (dev === 'location') device = 'location'
     else if (dev === 'graphicsCaptureProgrammatic') device = 'screen'
     else continue
     accesses.push({ device, app: appName, since: Date.now() })
@@ -152,6 +163,52 @@ async function getOverlayApps(): Promise<string[]> {
   return running.filter(r =>
     knownOverlayProcs.some(k => r.toLowerCase().includes(k.toLowerCase()))
   )
+}
+
+// ── Consent store state for change detection ───────────────────────────────────
+export interface ConsentState {
+  device: string
+  app: string
+  value: string
+}
+
+async function getConsentStates(): Promise<ConsentState[]> {
+  const script = `
+$out = @()
+$devs = @('webcam','microphone','location')
+foreach ($d in $devs) {
+  $paths = @(
+    "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$d",
+    "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$d\\NonPackaged"
+  )
+  foreach ($p in $paths) {
+    if (Test-Path $p) {
+      if ($p -notmatch 'NonPackaged') {
+        # Check global toggle (NonPackaged)
+        $npPath = "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$d\\NonPackaged"
+        if (Test-Path $npPath) {
+          $val = (Get-ItemProperty $npPath -ErrorAction SilentlyContinue).Value
+          if ($val) { $out += "$d|NonPackaged|$val" }
+        }
+      }
+      Get-ChildItem $p -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -ne 'NonPackaged' } | ForEach-Object {
+        $val = $_.GetValue('Value')
+        if ($val) {
+          $exe = if ($p -match 'NonPackaged') { [IO.Path]::GetFileNameWithoutExtension(($_.PSChildName -replace '#','\\')) } else { $_.PSChildName }
+          $out += "$d|$exe|$val"
+        }
+      }
+    }
+  }
+}
+$out | Sort-Object -Unique
+`
+  const raw = await runPS(script)
+  if (!raw) return []
+  return raw.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+    const [device, app, value] = line.split('|')
+    return { device: device ?? '', app: app ?? '', value: value ?? '' }
+  })
 }
 
 // ── Admin session check ───────────────────────────────────────────────────────
@@ -281,18 +338,27 @@ $apps | Where-Object { $_ } | Sort-Object -Unique
     if (name) runningMap[name.toLowerCase()] = parseInt(pid ?? '0', 10)
   }
 
-  // Get apps with camera/mic consent
+  // Get apps with camera/mic/location consent (both UWP and Win32)
   const camScript = `
 $out = @()
-$devs = @('webcam','microphone')
+$devs = @('webcam','microphone','location')
 foreach ($d in $devs) {
-  $p = "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$d\\NonPackaged"
-  if (Test-Path $p) {
-    Get-ChildItem $p -ErrorAction SilentlyContinue | ForEach-Object {
-      $val = $_.GetValue('Value')
-      if ($val -eq 'Allow') {
-        $exe = [IO.Path]::GetFileNameWithoutExtension(($_.PSChildName -replace '#','\\'))
-        $out += "$d|$exe"
+  $paths = @(
+    "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$d",
+    "HKCU:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\$d\\NonPackaged"
+  )
+  foreach ($p in $paths) {
+    if (Test-Path $p) {
+      Get-ChildItem $p -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -ne 'NonPackaged' } | ForEach-Object {
+        $val = $_.GetValue('Value')
+        if ($val -eq 'Allow') {
+          if ($p -match 'NonPackaged') {
+            $exe = [IO.Path]::GetFileNameWithoutExtension(($_.PSChildName -replace '#','\\'))
+          } else {
+            $exe = $_.PSChildName
+          }
+          $out += "$d|$exe"
+        }
       }
     }
   }
@@ -302,10 +368,12 @@ $out
   const camRaw = await runPS(camScript)
   const cameraApps = new Set<string>()
   const micApps = new Set<string>()
+  const locApps = new Set<string>()
   for (const line of (camRaw ?? '').split('\n')) {
     const [dev, exe] = line.trim().split('|')
     if (dev === 'webcam' && exe) cameraApps.add(exe.toLowerCase())
     if (dev === 'microphone' && exe) micApps.add(exe.toLowerCase())
+    if (dev === 'location' && exe) locApps.add(exe.toLowerCase())
   }
 
   // Get startup names
@@ -342,21 +410,17 @@ $out
 
     const nameLower = name.toLowerCase()
     const exeName = name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
-    // Also match individual words (e.g. 'Google Chrome' → 'chrome')
-    const words = name.toLowerCase().split(/[\s\-_]+/).filter(w => w.length > 3)
 
     // Check if a set contains this app using any of our name variants
     const matchesSet = (s: Set<string>): boolean =>
       (iconExe.length > 0 && s.has(iconExe)) ||
       s.has(exeName) ||
-      s.has(nameLower) ||
-      words.some(w => s.has(w))
+      s.has(nameLower)
 
     const runningPid =
       (iconExe && runningMap[iconExe]) ||
       runningMap[exeName] ||
-      runningMap[nameLower] ||
-      words.reduce<number | undefined>((acc, w) => acc ?? runningMap[w], undefined)
+      runningMap[nameLower]
 
     results.push({
       name,
@@ -365,6 +429,7 @@ $out
       iconPath,
       hasCamera: matchesSet(cameraApps),
       hasMicrophone: matchesSet(micApps),
+      hasLocation: matchesSet(locApps),
       isStartup: matchesSet(startupNames),
       isRunning: !!(runningPid),
       hasNetwork: matchesSet(netSet),
@@ -408,25 +473,39 @@ export async function disableStartupEntry(
 // ── Service class ─────────────────────────────────────────────────────────────
 
 export class PermissionsService extends EventEmitter {
-  private pollTimer: ReturnType<typeof setInterval> | null = null
+  private pollTimer: ReturnType<typeof setTimeout> | null = null
   private history: PermEvent[] = []
   private lastAccesses: Map<string, ActiveAccess> = new Map()
+  private lastConsentStates: Map<string, string> = new Map()
   private running = false
+  private lastConsentPoll = 0
 
   start(): void {
     if (this.running) return
     this.running = true
-    void this.poll()
-    this.pollTimer = setInterval(() => void this.poll(), 2000)
+    void this.poll().then(() => this.scheduleNextPoll())
   }
 
   stop(): void {
     if (this.pollTimer) {
-      clearInterval(this.pollTimer)
+      clearTimeout(this.pollTimer)
       this.pollTimer = null
     }
     this.running = false
     this.lastAccesses.clear() // reset so re-start fires fresh events
+    this.lastConsentStates.clear()
+  }
+
+  private scheduleNextPoll(): void {
+    if (!this.running) return
+    
+    // Throttle general polling when app is minimized to tray / not visible
+    const isVisible = BrowserWindow.getAllWindows().some(w => w.isVisible() && !w.isMinimized())
+    const interval = isVisible ? 2000 : 15000 // 2s active, 15s idle
+
+    this.pollTimer = setTimeout(() => {
+      void this.poll().then(() => this.scheduleNextPoll())
+    }, interval)
   }
 
   getHistory(): PermEvent[] {
@@ -435,13 +514,49 @@ export class PermissionsService extends EventEmitter {
 
   private async poll(): Promise<void> {
     try {
-      const [accesses, netApps, isAdmin, clipboardApps, overlayApps] = await Promise.all([
+      const isConsentDue = Date.now() - this.lastConsentPoll >= 60000
+      if (isConsentDue) this.lastConsentPoll = Date.now()
+
+      const [accesses, netApps, isAdmin, clipboardApps, overlayApps, consentStates] = await Promise.all([
         getActiveDeviceAccesses(),
         getNetworkApps(),
         getIsAdmin(),
         getClipboardApps(),
         getOverlayApps(),
+        isConsentDue ? getConsentStates() : Promise.resolve(null),
       ])
+
+      // Detect consent changes (Settings toggles)
+      if (consentStates) {
+        if (this.lastConsentStates.size > 0) {
+          for (const st of consentStates) {
+            const key = `${st.device}:${st.app}`
+            const prevValue = this.lastConsentStates.get(key)
+            // If the value changed from Deny/Prompt to Allow, or Allow to Deny
+            if (prevValue && prevValue !== st.value) {
+              this.emit('consent-changed', {
+                device: st.device,
+                app: st.app,
+                oldValue: prevValue,
+                newValue: st.value
+              })
+            } else if (!prevValue && st.value === 'Allow') {
+              // Newly added and allowed
+              this.emit('consent-changed', {
+                device: st.device,
+                app: st.app,
+                oldValue: 'Unknown',
+                newValue: st.value
+              })
+            }
+          }
+        }
+
+        this.lastConsentStates.clear()
+        for (const st of consentStates) {
+          this.lastConsentStates.set(`${st.device}:${st.app}`, st.value)
+        }
+      }
 
       // Augment accesses with overlay entries
       const allAccesses: ActiveAccess[] = [...accesses]

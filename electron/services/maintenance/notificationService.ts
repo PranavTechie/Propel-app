@@ -209,6 +209,31 @@ function handlePermissionAccess(acc: any) {
   }).catch(() => {})
 }
 
+function handleConsentChanged(change: { device: string, app: string, oldValue: string, newValue: string }) {
+  loadSettings().then(settings => {
+    if (!settings.permissionAlertsEnabled) return
+    if (!Notification.isSupported()) return
+
+    const deviceName = change.device === 'webcam' ? 'Camera'
+                     : change.device === 'microphone' ? 'Microphone'
+                     : change.device === 'location' ? 'Location'
+                     : change.device
+
+    const appName = change.app === 'NonPackaged' ? 'Desktop apps' : `"${change.app}"`
+    
+    let actionStr = 'was changed'
+    if (change.newValue === 'Allow') actionStr = 'was granted'
+    if (change.newValue === 'Deny') actionStr = 'was revoked'
+
+    new Notification({
+      title: 'Propel — Permission Settings Changed',
+      body: `${deviceName} access for ${appName} ${actionStr} in Windows settings.`,
+      urgency: 'normal',
+      icon: getAppIconPath(),
+    }).show()
+  }).catch(() => {})
+}
+
 // ── Lifecycle ──────────────────────────────────────────────────────────────
 
 export function startNotificationService(): void {
@@ -231,6 +256,7 @@ export function startNotificationService(): void {
 
   // Hook permissions event
   permissionsService.on('access-started', handlePermissionAccess)
+  permissionsService.on('consent-changed', handleConsentChanged)
 }
 
 export function stopNotificationService(): void {
@@ -240,5 +266,6 @@ export function stopNotificationService(): void {
   if (_startupTimer) { clearInterval(_startupTimer); _startupTimer = null }
 
   permissionsService.removeListener('access-started', handlePermissionAccess)
+  permissionsService.removeListener('consent-changed', handleConsentChanged)
 }
 

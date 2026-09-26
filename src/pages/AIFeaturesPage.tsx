@@ -48,6 +48,7 @@ import type {
   DuplicateGroup,
   DuplicateScanProgress,
 } from "@/types";
+import { PCAdvisorSection } from "@/components/ai/PCAdvisorSection";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function healthColor(score: number): string {
@@ -1344,7 +1345,7 @@ const DuplicateFinderSection: React.FC = () => {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // MAIN PAGE
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-type Tab = "boost" | "gamemode" | "startup" | "duplicates";
+type Tab = "advisor" | "boost" | "gamemode" | "startup" | "duplicates";
 
 const TABS: {
   id: Tab;
@@ -1353,10 +1354,15 @@ const TABS: {
   badge?: string;
 }[] = [
   {
-    id: "boost",
-    label: "Smart Boost",
+    id: "advisor",
+    label: "PC Advisor",
     icon: <Brain className="w-4 h-4" />,
     badge: "AI",
+  },
+  {
+    id: "boost",
+    label: "Smart Boost",
+    icon: <Zap className="w-4 h-4" />,
   },
   {
     id: "gamemode",
@@ -1376,7 +1382,7 @@ const TABS: {
 ];
 
 export const AIFeaturesPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>("boost");
+  const [activeTab, setActiveTab] = useState<Tab>("advisor");
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -1443,6 +1449,17 @@ export const AIFeaturesPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="max-w-5xl mx-auto w-full">
           <AnimatePresence mode="wait">
+            {activeTab === "advisor" && (
+              <motion.div
+                key="advisor"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
+              >
+                <PCAdvisorSection />
+              </motion.div>
+            )}
             {activeTab === "boost" && (
               <motion.div
                 key="boost"

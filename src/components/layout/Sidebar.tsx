@@ -40,15 +40,9 @@ const GROUPS: NavGroup[] = [
     items: [{ id: "maintenance", label: "Smart Maintenance", icon: Bot }],
   },
   {
-    label: "Privacy & intelligence",
-    items: [
-      { id: "permissions", label: "Permissions", icon: ShieldCheck },
-      { id: "ai", label: "AI Features", icon: Brain },
-    ],
-  },
-  {
     label: "System",
     items: [
+      { id: "ai", label: "AI Features", icon: Brain },
       { id: "settings", label: "Settings", icon: Settings },
       { id: "about", label: "About", icon: Info },
     ],
