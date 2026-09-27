@@ -45,6 +45,9 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
   "gpu-cache": <Cpu className="w-5 h-5" />,
   "crash-dumps": <AlertTriangle className="w-5 h-5" />,
   "windows-logs": <FileText className="w-5 h-5" />,
+  "win-update-cache": <HardDrive className="w-5 h-5" />,
+  "prefetch": <Zap className="w-5 h-5" />,
+  "delivery-opt": <Globe className="w-5 h-5" />,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -55,6 +58,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   "gpu-cache": "text-brand-primary bg-brand-primary/10",
   "crash-dumps": "text-amber-400 bg-amber-500/10",
   "windows-logs": "text-emerald-400 bg-emerald-500/10",
+  "win-update-cache": "text-blue-400 bg-blue-500/10",
+  "prefetch": "text-amber-400 bg-amber-500/10",
+  "delivery-opt": "text-emerald-400 bg-emerald-500/10",
 };
 
 type Phase = "idle" | "scanning" | "results" | "cleaning" | "complete";
@@ -74,7 +80,7 @@ interface CleanLiveState {
 }
 
 // ── CategoryCard ──────────────────────────────────────────────────────────
-const CategoryCard: React.FC<{
+export const CategoryCard: React.FC<{
   cat: ScanCategory;
   selected: boolean;
   scanning?: boolean;
@@ -149,7 +155,7 @@ const CategoryCard: React.FC<{
               />
             </div>
             <span className="text-2xs text-text-muted tabular-nums shrink-0">
-              {cat.fileCount.toLocaleString()} files
+              {cat.isCapped ? "5,000+ files" : `${cat.fileCount.toLocaleString()} files`}
             </span>
           </div>
           <div className="flex flex-col gap-0.5 mt-1.5">
@@ -157,6 +163,12 @@ const CategoryCard: React.FC<{
               <ShieldCheck className="w-3 h-3 text-emerald-400" />
               <span className="text-2xs text-emerald-400">Safe to remove</span>
             </div>
+            {cat.isCapped && (
+              <span className="text-[10px] leading-tight text-amber-400/90 mt-0.5 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" />
+                Scan limit reached — actual space may be larger
+              </span>
+            )}
             {cat.id === "gpu-cache" && (
               <span className="text-[10px] leading-tight text-text-muted mt-0.5">
                 Apps may take slightly longer to launch next time.
@@ -352,6 +364,9 @@ export const CleanerPage: React.FC = () => {
     "temp-files",
     "recycle-bin",
     "windows-logs",
+    "win-update-cache",
+    "prefetch",
+    "delivery-opt",
     "crash-dumps",
     "browser-cache",
     "thumbnail-cache",
@@ -362,6 +377,9 @@ export const CleanerPage: React.FC = () => {
     "temp-files": "Scanning Temporary Files…",
     "recycle-bin": "Scanning Recycle Bin…",
     "windows-logs": "Scanning Windows Logs…",
+    "win-update-cache": "Scanning Update Cache…",
+    "prefetch": "Scanning Prefetch Files…",
+    "delivery-opt": "Scanning Delivery Optimization…",
     "crash-dumps": "Scanning Crash Dumps…",
     "browser-cache": "Scanning Browser Cache…",
     "thumbnail-cache": "Scanning Thumbnail Cache…",
@@ -437,6 +455,7 @@ export const CleanerPage: React.FC = () => {
                       ...c,
                       totalSize: evt.totalSize ?? 0,
                       fileCount: evt.fileCount ?? 0,
+                      isCapped: evt.isCapped ?? c.isCapped,
                     }
                   : c,
               )
@@ -449,6 +468,7 @@ export const CleanerPage: React.FC = () => {
                   totalSize: evt.totalSize ?? 0,
                   fileCount: evt.fileCount ?? 0,
                   isSafe: true,
+                  isCapped: evt.isCapped ?? false,
                 },
               ];
           // Derive scan % from how many of the known ordered categories are done
@@ -756,7 +776,7 @@ export const CleanerPage: React.FC = () => {
                         Safe Cleaning
                       </h4>
                       <p className="text-xs text-text-muted mt-1">
-                        {safeCleaningMode ? "Enabled and protecting OS files" : "Disabled"}
+                        {safeCleaningMode ? "Deleted files go to Recycle Bin, not permanently removed" : "Disabled"}
                       </p>
                     </div>
                     <div className="mt-4 flex items-center gap-1 text-[11px] font-medium text-text-secondary">

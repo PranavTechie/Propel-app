@@ -31,10 +31,12 @@ function thermalScore(cpuTemp: number | null, gpuTemp: number | null): number {
   return 5
 }
 
-export async function getThermalInfo(): Promise<ThermalInfo> {
+import { SharedSystemInfo } from './optimizationService'
+
+export async function getThermalInfo(sharedData?: SharedSystemInfo): Promise<ThermalInfo> {
   const [cpuTempData, graphics] = await Promise.all([
     si.cpuTemperature().catch(() => ({ main: null, cores: [], max: null })),
-    si.graphics().catch(() => ({ controllers: [] })),
+    sharedData?.graphics ? Promise.resolve(sharedData.graphics).catch(() => ({ controllers: [] })) : si.graphics().catch(() => ({ controllers: [] })),
   ])
 
   const cpuTemp =

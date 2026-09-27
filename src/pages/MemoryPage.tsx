@@ -277,7 +277,6 @@ export const MemoryPage: React.FC = () => {
   const [memStats, setMemStats] = useState<MemoryDetails | null>(null);
   const [processes, setProcesses] = useState<ProcessMemInfo[]>([]);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const [optimizeStep, setOptimizeStep] = useState("");
   const [optimizeResult, setOptimizeResult] =
     useState<OptimizationResult | null>(null);
   const [perfMode, setPerfMode] = useState(false);
@@ -324,12 +323,8 @@ export const MemoryPage: React.FC = () => {
 
     setIsOptimizing(true);
     setOptimizeResult(null);
-    setOptimizeStep("Preparing…");
 
     memApi.current.removeListeners();
-    memApi.current.onOptimizeProgress((info) => {
-      setOptimizeStep(info.step);
-    });
 
     try {
       const result = await memApi.current.optimize();
@@ -351,7 +346,6 @@ export const MemoryPage: React.FC = () => {
       });
     } finally {
       setIsOptimizing(false);
-      setOptimizeStep("");
       memApi.current?.removeListeners();
     }
   }, [isOptimizing, fetchStats, addToast]);
@@ -365,13 +359,13 @@ export const MemoryPage: React.FC = () => {
       setPerfMode(result.enabled);
       addToast({
         type: result.enabled ? "success" : "info",
-        title: result.enabled ? "Performance Mode On" : "Performance Mode Off",
+        title: result.enabled ? "Focus Mode On" : "Focus Mode Off",
         description: result.enabled
           ? `${result.processesAffected} background processes deprioritized`
           : `${result.processesAffected} processes restored to normal priority`,
       });
     } catch {
-      addToast({ type: "error", title: "Failed to toggle Performance Mode" });
+      addToast({ type: "error", title: "Failed to toggle Focus Mode" });
     } finally {
       setPerfModeLoading(false);
     }
@@ -626,8 +620,8 @@ export const MemoryPage: React.FC = () => {
             </p>
             <p className="text-xs text-text-muted mb-4 leading-relaxed">
               {isOptimizing
-                ? optimizeStep
-                : "Safely trim inactive working sets to reclaim RAM without killing any processes"}
+                ? "This may cause a momentary slowdown in recently-optimized apps as they resume."
+                : "Trims memory working sets to reclaim available RAM without killing any processes."}
             </p>
 
             <Button
@@ -640,6 +634,19 @@ export const MemoryPage: React.FC = () => {
             >
               {isOptimizing ? "Running…" : "Optimize Now"}
             </Button>
+          </motion.div>
+
+          {/* Optimize Memory Disclaimer */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.18 }}
+            className="flex items-start gap-2.5 px-2 mb-2"
+          >
+            <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-text-muted leading-relaxed text-left">
+              Optimization is <span className="text-emerald-400">non-destructive</span>. No processes are terminated. Working sets are trimmed using the standard Windows <code className="text-xs bg-white/5 px-1 rounded">EmptyWorkingSet</code> API.
+            </p>
           </motion.div>
 
           {/* Performance Mode */}
@@ -679,7 +686,7 @@ export const MemoryPage: React.FC = () => {
 
             <div className="flex items-center gap-2 mb-1">
               <p className="text-sm font-bold text-text-primary">
-                Performance Mode
+                Focus Mode
               </p>
               {perfMode && (
                 <span className="text-2xs bg-brand-secondary/15 text-brand-secondary px-1.5 py-0.5 rounded-full font-medium">
@@ -703,30 +710,21 @@ export const MemoryPage: React.FC = () => {
               {perfMode ? "Disable" : "Enable"}
             </Button>
           </motion.div>
+
+          {/* Performance Mode Disclaimer */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.18 }}
+            className="flex items-start gap-2.5 px-2"
+          >
+            <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-text-muted leading-relaxed text-left">
+              Focus Mode temporarily lowers priority of background apps to favor your active app or game. Automatically restores original priorities when disabled.
+            </p>
+          </motion.div>
         </div>
-
-
-            {/* ── Safety note ── */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.18 }}
-              className="flex items-start gap-2.5 px-1"
-            >
-              <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-text-muted leading-relaxed">
-                All optimizations are{" "}
-                <span className="text-emerald-400">non-destructive</span>. No
-                processes are terminated. Working sets are trimmed using the
-                standard Windows{" "}
-                <code className="text-xs bg-white/5 px-1 rounded">
-                  EmptyWorkingSet
-                </code>{" "}
-                API — the same technique used by Process Hacker and Windows
-                internals tools.
-              </p>
-            </motion.div>
-          </div>
+      </div>
 
         </div>
       </div>

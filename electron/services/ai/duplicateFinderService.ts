@@ -118,24 +118,24 @@ async function collectFiles(
   const results: Array<{ path: string; size: number; ext: string }> = []
   const excluded = excludedPaths.map(p => p.toLowerCase())
 
-  function walkSync(dir: string): void {
+  async function walk(dir: string): Promise<void> {
     if (isProtected(dir)) return
     if (excluded.some(ex => dir.toLowerCase().startsWith(ex))) return
 
     let entries: fs.Dirent[]
     try {
-      entries = fs.readdirSync(dir, { withFileTypes: true })
+      entries = await fs.promises.readdir(dir, { withFileTypes: true })
     } catch { return }
 
     for (const entry of entries) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        if (!isProtected(full)) walkSync(full)
+        if (!isProtected(full)) await walk(full)
       } else if (entry.isFile()) {
         const ext = path.extname(entry.name).toLowerCase()
         if (ALL_EXTS.has(ext)) {
           try {
-            const { size } = fs.statSync(full)
+            const { size } = await fs.promises.stat(full)
             if (size > 1024) { // skip files < 1KB (unlikely duplicates worth caring about)
               results.push({ path: full, size, ext })
               if (results.length % 100 === 0) onProgress(results.length, full)
@@ -147,7 +147,7 @@ async function collectFiles(
   }
 
   for (const root of roots) {
-    walkSync(root)
+    await walk(root)
   }
 
   return results
@@ -155,29 +155,33 @@ async function collectFiles(
 
 // ── File hashing ───────────────────────────────────────────────────────────
 // Hash first 64KB + file size for speed, then full hash for candidates
-function quickHash(filePath: string, size: number): string {
+async function quickHash(filePath: string, size: number): Promise<string> {
+  let fd: fs.promises.FileHandle | null = null
   try {
     const CHUNK = 65536 // 64 KB
-    const fd = fs.openSync(filePath, 'r')
+    fd = await fs.promises.open(filePath, 'r')
     const buf = Buffer.alloc(Math.min(CHUNK, size))
-    fs.readSync(fd, buf, 0, buf.length, 0)
-    fs.closeSync(fd)
+    await fd.read(buf, 0, buf.length, 0)
     const hash = crypto.createHash('md5')
     hash.update(buf)
     hash.update(`:size:${size}`)
     return hash.digest('hex')
   } catch {
     return `error_${Math.random()}`
+  } finally {
+    if (fd) await fd.close().catch(() => {})
   }
 }
 
-function fullHash(filePath: string): string {
-  try {
-    const content = fs.readFileSync(filePath)
-    return crypto.createHash('md5').update(content).digest('hex')
-  } catch {
-    return `error_${Math.random()}`
-  }
+async function fullHash(filePath: string): Promise<string> {
+  return new Promise((resolve) => {
+    const hash = crypto.createHash('md5')
+    const stream = fs.createReadStream(filePath)
+    
+    stream.on('data', (chunk) => hash.update(chunk))
+    stream.on('end', () => resolve(hash.digest('hex')))
+    stream.on('error', () => resolve(`error_${Math.random()}`))
+  })
 }
 
 // ── Main scan function ──────────────────────────────────────────────────────
@@ -217,7 +221,7 @@ export async function scanForDuplicates(
   const quickHashGroups = new Map<string, typeof files>()
   let hashedCount = 0
   for (const f of candidates) {
-    const qh = quickHash(f.path, f.size)
+    const qh = await quickHash(f.path, f.size)
     const group = quickHashGroups.get(qh) ?? []
     group.push(f)
     quickHashGroups.set(qh, group)
@@ -234,7 +238,7 @@ export async function scanForDuplicates(
   for (const [, group] of quickHashGroups) {
     if (group.length < 2) continue
     for (const f of group) {
-      const fh = fullHash(f.path)
+      const fh = await fullHash(f.path)
       const fg = finalGroups.get(fh) ?? []
       fg.push(f)
       finalGroups.set(fh, fg)
@@ -377,11 +381,13 @@ export async function deleteSelectedDuplicates(
     }
 
     try {
-      if (!fs.existsSync(filePath)) {
+      let stat: fs.Stats
+      try {
+        stat = await fs.promises.stat(filePath)
+      } catch {
         errors++
         continue
       }
-      const stat = fs.statSync(filePath)
       // Send to Windows Recycle Bin via Electron shell.trashItem (do NOT permanently unlink)
       await shell.trashItem(filePath)
       freedBytes += stat.size

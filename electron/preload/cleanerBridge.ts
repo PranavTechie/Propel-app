@@ -5,7 +5,7 @@ import type { CleanupReport } from '../services/cleaner/cleanupReport'
 export type ScanProgressEvent =
   | { type: 'category-start'; categoryId: string; categoryName: string }
   | { type: 'file-found'; categoryId: string; currentPath: string; totalSize: number; fileCount: number }
-  | { type: 'category-done'; id: string; name: string; totalSize: number; fileCount: number }
+  | { type: 'category-done'; id: string; name: string; totalSize: number; fileCount: number; isCapped: boolean }
   | { type: 'scan-complete'; categories: CategorySummary[] }
 
 export type CleanProgressEvent =

@@ -76,3 +76,40 @@ export async function scanWindowsLogs(onProgress: ScanProgressCallback): Promise
   const allFiles = await scanDirectories(dirs, LOGS_CATEGORY_ID, onProgress, 2)
   return allFiles.filter(f => /\.(log|txt|etl|tmp)$/i.test(f.path))
 }
+
+// ── Windows Update Download Cache ─────────────────────────────────────────
+
+export const WIN_UPDATE_CATEGORY_ID = 'win-update-cache'
+
+export async function scanWindowsUpdateCache(onProgress: ScanProgressCallback): Promise<ScannedFile[]> {
+  const winDir = process.env.WINDIR ?? process.env.SystemRoot ?? 'C:\\Windows'
+  const dirs = [
+    path.join(winDir, 'SoftwareDistribution', 'Download'),
+  ]
+  return scanDirectories(dirs, WIN_UPDATE_CATEGORY_ID, onProgress, 4)
+}
+
+// ── Windows Prefetch ──────────────────────────────────────────────────────
+
+export const PREFETCH_CATEGORY_ID = 'prefetch'
+
+export async function scanPrefetch(onProgress: ScanProgressCallback): Promise<ScannedFile[]> {
+  const winDir = process.env.WINDIR ?? process.env.SystemRoot ?? 'C:\\Windows'
+  const dirs = [path.join(winDir, 'Prefetch')]
+  const allFiles = await scanDirectories(dirs, PREFETCH_CATEGORY_ID, onProgress, 1)
+  // Only .pf files are prefetch data — avoid sweeping up anything else if Windows ever
+  // puts non-prefetch items in this folder.
+  return allFiles.filter(f => /\.pf$/i.test(f.path))
+}
+
+// ── Delivery Optimization Cache ───────────────────────────────────────────
+
+export const DELIVERY_OPT_CATEGORY_ID = 'delivery-opt'
+
+export async function scanDeliveryOptimization(onProgress: ScanProgressCallback): Promise<ScannedFile[]> {
+  const winDir = process.env.WINDIR ?? process.env.SystemRoot ?? 'C:\\Windows'
+  const dirs = [
+    path.join(winDir, 'SoftwareDistribution', 'DeliveryOptimization'),
+  ]
+  return scanDirectories(dirs, DELIVERY_OPT_CATEGORY_ID, onProgress, 4)
+}

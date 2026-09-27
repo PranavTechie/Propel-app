@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron'
+import si from 'systeminformation'
 import { getHardwareInfo } from '../../services/system-check/hardwareService'
 import { getGpuReport } from '../../services/system-check/gpuService'
 import { getDiskHealth } from '../../services/system-check/diskHealthService'
@@ -84,15 +85,23 @@ export function setupSystemCheckIPC(): void {
 
   ipcMain.handle('systemcheck:run-full', async () => {
     try {
+      // FIX 2: Pre-fetch shared systeminformation queries
+      const [mem, currentLoad, graphics] = await Promise.all([
+        si.mem().catch(() => undefined),
+        si.currentLoad().catch(() => undefined),
+        si.graphics().catch(() => undefined),
+      ])
+      const sharedData = { mem, currentLoad, graphics }
+
       const [hw, gpu, disk, thermal, network, security, battery, opt] = await Promise.allSettled([
-        getHardwareInfo(),
-        getGpuReport(),
+        getHardwareInfo(sharedData),
+        getGpuReport(sharedData),
         getDiskHealth(),
-        getThermalInfo(),
+        getThermalInfo(sharedData),
         getNetworkInfo(),
         getSecurityStatus(),
         getBatteryInfo(),
-        getOptimizationReport(),
+        getOptimizationReport(sharedData),
       ])
 
       const hardware = hw.status === 'fulfilled' ? hw.value : null

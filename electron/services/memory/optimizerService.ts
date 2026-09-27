@@ -51,7 +51,7 @@ foreach ($p in $procs) {
 Start-Sleep -Milliseconds 800
 $after = (Get-CimInstance -ClassName Win32_OperatingSystem).FreePhysicalMemory
 $freed = [Math]::Max(0, ($after - $before)) * 1024
-"$freed|$($results.Count)|$($results | Select-Object -Unique | Join-String -Separator ',')"
+"$freed|$($results.Count)|$(($results | Select-Object -Unique) -join ',')"
 `
 
 export async function runSafeOptimization(
@@ -60,30 +60,24 @@ export async function runSafeOptimization(
   const startTime = Date.now()
   const tmpFile = path.join(os.tmpdir(), `cm_opt_${Date.now()}.ps1`)
 
-  onProgress({ step: 'Analyzing memory pressure…', processed: 0, total: 4 })
+  onProgress({ step: 'Optimizing memory…', processed: 0, total: 1 })
 
   try {
     await fs.writeFile(tmpFile, OPTIMIZE_SCRIPT, 'utf8')
-
-    onProgress({ step: 'Identifying reclaimable working sets…', processed: 1, total: 4 })
 
     const { stdout } = await execAsync(
       `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${tmpFile}"`,
       { timeout: 60000 },
     )
 
-    onProgress({ step: 'Trimming inactive memory pages…', processed: 2, total: 4 })
-
     const parts = stdout.trim().split('|')
     const recoveredBytes = parseInt(parts[0] ?? '0', 10) || 0
     const count = parseInt(parts[1] ?? '0', 10) || 0
     const names = (parts[2] ?? '').split(',').filter(Boolean)
 
-    onProgress({ step: 'Finalizing optimization…', processed: 3, total: 4 })
-
     await fs.unlink(tmpFile).catch(() => {})
 
-    onProgress({ step: 'Complete', processed: 4, total: 4 })
+    onProgress({ step: 'Complete', processed: 1, total: 1 })
 
     return {
       recoveredBytes,
@@ -93,7 +87,7 @@ export async function runSafeOptimization(
     }
   } catch {
     await fs.unlink(tmpFile).catch(() => {})
-    onProgress({ step: 'Complete', processed: 4, total: 4 })
+    onProgress({ step: 'Complete', processed: 1, total: 1 })
     return {
       recoveredBytes: 0,
       processesOptimized: 0,

@@ -1,13 +1,11 @@
 import si from 'systeminformation'
-import { exec } from 'child_process'
-import { promisify } from 'util'
-import fs from 'fs'
-import path from 'path'
-import os from 'os'
-import { shell } from 'electron'
 import { loadSettings } from '../maintenance/automationStore'
 
-const execAsync = promisify(exec)
+// Import existing validated services
+import { runSafeOptimization } from '../memory/optimizerService'
+import { analyzeStartup } from './startupAnalyzerService'
+import { scanTempFiles } from '../cleaner/tempCleaner'
+import { cleanFiles } from '../cleaner/cleanupService'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 export interface SystemHealthData {
@@ -60,104 +58,38 @@ export interface SmartBoostResult {
   durationMs: number
 }
 
-// ── Temp directory helpers ──────────────────────────────────────────────────
-function getTempDirs(): string[] {
-  const localAppData = process.env.LOCALAPPDATA ?? ''
-  const winDir = process.env.WINDIR ?? 'C:\\Windows'
-  const temp = process.env.TEMP ?? os.tmpdir()
-  return [
-    temp,
-    path.join(localAppData, 'Temp'),
-    path.join(winDir, 'Temp'),
-    path.join(localAppData, 'Microsoft', 'Windows', 'INetCache'),
-  ].filter(d => d.length > 3)
-}
-
-function getDirSize(dirPath: string): number {
-  let total = 0
-  try {
-    if (!fs.existsSync(dirPath)) return 0
-    const entries = fs.readdirSync(dirPath, { withFileTypes: true })
-    for (const e of entries) {
-      const full = path.join(dirPath, e.name)
-      try {
-        if (e.isDirectory()) {
-          total += getDirSize(full)
-        } else {
-          total += fs.statSync(full).size
-        }
-      } catch { /* skip locked */ }
-    }
-  } catch { /* skip unreadable */ }
-  return total
-}
-
-async function cleanDirSafe(dirPath: string, safeMode: boolean): Promise<number> {
-  let freed = 0
-  try {
-    if (!fs.existsSync(dirPath)) return 0
-    for (const entry of fs.readdirSync(dirPath, { withFileTypes: true })) {
-      const full = path.join(dirPath, entry.name)
-      try {
-        const size = entry.isDirectory() ? 0 : fs.statSync(full).size
-        if (entry.isDirectory()) {
-          if (safeMode) {
-            freed += await cleanDirSafe(full, safeMode)
-          } else {
-            fs.rmSync(full, { recursive: true, force: true })
-            freed += size
-          }
-        } else {
-          if (safeMode) {
-            await shell.trashItem(full)
-          } else {
-            fs.unlinkSync(full)
-          }
-          freed += size
-        }
-      } catch { /* locked / permission denied — skip */ }
-    }
-  } catch { /* unreadable — skip */ }
-  return freed
-}
-
 // ── Scoring helpers ────────────────────────────────────────────────────────
 function scoreFromPercent(pct: number): number {
-  // Higher usage = lower score
   if (pct < 40) return 100
-  if (pct < 60) return Math.round(100 - ((pct - 40) / 20) * 30)   // 100→70
-  if (pct < 80) return Math.round(70 - ((pct - 60) / 20) * 30)    // 70→40
-  return Math.round(40 - ((pct - 80) / 20) * 40)                   // 40→0
+  if (pct < 60) return Math.round(100 - ((pct - 40) / 20) * 30)
+  if (pct < 80) return Math.round(70 - ((pct - 60) / 20) * 30)
+  return Math.round(40 - ((pct - 80) / 20) * 40)
 }
 
 // ── Main analysis ──────────────────────────────────────────────────────────
 export async function runSmartBoostAnalysis(): Promise<SmartBoostAnalysis> {
-  const [cpuData, memData, diskData, processData] = await Promise.all([
+  const [cpuData, memData, diskData, processData, startupAnalysis] = await Promise.all([
     si.currentLoad(),
     si.mem(),
     si.fsSize(),
     si.processes(),
+    analyzeStartup()
   ])
 
-  // CPU
   const cpuLoad = Math.round(cpuData.currentLoad)
-
-  // RAM
   const totalRam = memData.total
   const freeRam = memData.available
   const ramPressure = Math.round((memData.used / totalRam) * 100)
 
-  // Disk (aggregate)
   const mainDisk = diskData.find(d => d.mount === 'C:' || d.mount === '/') ?? diskData[0]
   const totalDisk = mainDisk?.size ?? 0
   const freeDisk = mainDisk?.available ?? 0
   const diskUsage = mainDisk ? Math.round(((mainDisk.used) / mainDisk.size) * 100) : 0
 
-  // Temp junk
-  const tempDirs = getTempDirs()
-  const tempJunkBytes = tempDirs.reduce((acc, d) => acc + getDirSize(d), 0)
+  // Temp junk using Cleaner service (Async)
+  const tempFiles = await scanTempFiles(() => {})
+  const tempJunkBytes = tempFiles.reduce((acc, f) => acc + f.size, 0)
 
-  // Browser processes memory
   const BROWSER_NAMES = ['chrome', 'firefox', 'msedge', 'opera', 'brave', 'vivaldi', 'iexplore']
   let browserMemoryBytes = 0
   let backgroundProcessCount = 0
@@ -173,25 +105,11 @@ export async function runSmartBoostAnalysis(): Promise<SmartBoostAnalysis> {
     }
   }
 
-  // Startup app count via PowerShell
-  let startupAppCount = 0
-  try {
-    const { stdout } = await execAsync(
-      `powershell -NoProfile -NonInteractive -Command "` +
-      `$r1 = Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -ErrorAction SilentlyContinue; ` +
-      `$r2 = Get-ItemProperty 'HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run' -ErrorAction SilentlyContinue; ` +
-      `$c = 0; if($r1){$c += ($r1.PSObject.Properties | Where-Object {$_.MemberType -eq 'NoteProperty' -and $_.Name -notmatch '^PS'}).Count}; ` +
-      `if($r2){$c += ($r2.PSObject.Properties | Where-Object {$_.MemberType -eq 'NoteProperty' -and $_.Name -notmatch '^PS'}).Count}; ` +
-      `Write-Output $c"`,
-      { timeout: 10000 },
-    )
-    startupAppCount = parseInt(stdout.trim(), 10) || 0
-  } catch { /* non-critical */ }
+  // Startup app count from existing startup service
+  const startupAppCount = startupAnalysis.entries.length
 
-  // Uptime
   const uptimeSeconds = Math.round(si.time().uptime)
 
-  // ── Health scores ──────────────────────────────────────────────────────
   const cpuScore = scoreFromPercent(cpuLoad)
   const ramScore = scoreFromPercent(ramPressure)
   const diskScore = scoreFromPercent(diskUsage)
@@ -201,7 +119,6 @@ export async function runSmartBoostAnalysis(): Promise<SmartBoostAnalysis> {
 
   const health: HealthScore = { overall, cpu: cpuScore, ram: ramScore, disk: diskScore, startup: startupScore, background: backgroundScore }
 
-  // ── Recommendations ──────────────────────────────────────────────────
   const recommendations: Recommendation[] = []
 
   if (ramPressure > 75) {
@@ -209,7 +126,7 @@ export async function runSmartBoostAnalysis(): Promise<SmartBoostAnalysis> {
       id: 'high_ram',
       priority: ramPressure > 88 ? 'critical' : 'high',
       title: 'High RAM Pressure Detected',
-      detail: `${ramPressure}% RAM in use. Reclaiming inactive working sets can free ${Math.round(freeRam * 0.15 / 1024 / 1024)} MB.`,
+      detail: `${ramPressure}% RAM in use. Reclaiming inactive working sets can free memory.`,
       reclaimableBytes: Math.round(freeRam * 0.15),
       action: 'optimize_ram',
     })
@@ -241,7 +158,7 @@ export async function runSmartBoostAnalysis(): Promise<SmartBoostAnalysis> {
       id: 'background_procs',
       priority: 'medium',
       title: 'Many Background Processes',
-      detail: `${backgroundProcessCount} low-activity background processes detected. Reducing their priority frees CPU time.`,
+      detail: `${backgroundProcessCount} low-activity background processes detected.`,
       action: 'background',
     })
   }
@@ -291,85 +208,36 @@ export async function runSmartBoostOptimize(
 
   onProgress('Analyzing system state…', 5)
 
-  // Step 1: Clean temp files
+  // Step 1: Clean temp files using existing Cleaner service
   onProgress('Removing temporary junk files…', 20)
   try {
     const settings = await loadSettings()
     const safeMode = settings.safeCleaningMode
-    const tempDirs = getTempDirs()
-    for (const d of tempDirs) {
-      storageFreedBytes += await cleanDirSafe(d, safeMode)
+    const tempFiles = await scanTempFiles(() => {})
+    const stats = await cleanFiles(tempFiles, () => {}, safeMode)
+    storageFreedBytes = stats.freed
+    if (storageFreedBytes > 0) {
+      actionsApplied.push(`Cleared ${Math.round(storageFreedBytes / 1024 / 1024)} MB of temp files`)
+    } else if (stats.errors > 0) {
+       actionsApplied.push(`Temp file cleanup encountered ${stats.errors} errors`)
     }
-    actionsApplied.push(`Cleared ${Math.round(storageFreedBytes / 1024 / 1024)} MB of temp files`)
-  } catch { /* non-critical */ }
+  } catch {
+      actionsApplied.push(`Failed to clean temp files`)
+  }
 
   onProgress('Trimming inactive RAM working sets…', 45)
 
-  // Step 2: Memory optimization via EmptyWorkingSet
+  // Step 2: Memory optimization using existing Memory service
   try {
-    const MEM_SCRIPT = `
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-public class CMAIBoost {
-    [DllImport("psapi.dll", SetLastError=true)]
-    public static extern bool EmptyWorkingSet(IntPtr hProcess);
-}
-"@
-$SKIP = @("System","Idle","smss","csrss","wininit","winlogon","lsass","services","svchost","dwm","audiodg","Registry","MsMpEng")
-$procs = Get-Process | Where-Object {
-    try { !$_.HasExited -and $_.WorkingSet64 -gt 5MB -and $SKIP -notcontains $_.Name } catch { $false }
-}
-$before = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
-$count = 0
-foreach ($p in $procs) {
-    try { [CMAIBoost]::EmptyWorkingSet($p.Handle) | Out-Null; $count++ } catch {}
-}
-Start-Sleep -Milliseconds 500
-$after = (Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory
-$freed = [Math]::Max(0, ($after - $before)) * 1024
-"$freed|$count"
-`.trim()
-
-    const tmpFile = path.join(os.tmpdir(), `cm_ai_boost_${Date.now()}.ps1`)
-    fs.writeFileSync(tmpFile, MEM_SCRIPT, 'utf8')
-
-    const { stdout } = await execAsync(
-      `powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${tmpFile}"`,
-      { timeout: 30000 },
-    )
-    try { fs.unlinkSync(tmpFile) } catch { /* ignore */ }
-
-    const parts = stdout.trim().split('|')
-    ramFreedBytes = parseInt(parts[0] ?? '0', 10) || 0
-    processesOptimized = parseInt(parts[1] ?? '0', 10) || 0
-    actionsApplied.push(`Freed ${Math.round(ramFreedBytes / 1024 / 1024)} MB RAM from ${processesOptimized} processes`)
-  } catch { /* non-critical */ }
-
-  onProgress('Lowering background process priority…', 70)
-
-  // Step 3: Lower background process priority
-  try {
-    const PRIO_SCRIPT = `
-$count = 0
-Get-Process | Where-Object {
-    try {
-        !$_.HasExited -and $_.MainWindowHandle -eq 0 -and
-        $_.PriorityClass -notin @('Idle','BelowNormal') -and
-        $_.Name -notmatch "^(System|Idle|smss|csrss|wininit|winlogon|lsass|services|svchost|dwm|audiodg|MsMpEng)$"
-    } catch { $false }
-} | ForEach-Object {
-    try { $_.PriorityClass = 'BelowNormal'; $count++ } catch {}
-}
-$count
-`.trim()
-    const { stdout } = await execAsync(
-      `powershell -NoProfile -NonInteractive -Command "${PRIO_SCRIPT.replace(/\r?\n/g, ' ')}"`,
-      { timeout: 15000 },
-    )
-    const affected = parseInt(stdout.trim(), 10) || 0
-    if (affected > 0) actionsApplied.push(`Lowered priority on ${affected} background processes`)
-  } catch { /* non-critical */ }
+    const result = await runSafeOptimization(() => {})
+    ramFreedBytes = result.recoveredBytes
+    processesOptimized = result.processesOptimized
+    if (ramFreedBytes > 0 || processesOptimized > 0) {
+      actionsApplied.push(`Freed ${Math.round(ramFreedBytes / 1024 / 1024)} MB RAM from ${processesOptimized} processes`)
+    }
+  } catch { 
+     actionsApplied.push(`Failed to optimize memory`)
+  }
 
   onProgress('Finalizing optimization…', 90)
 

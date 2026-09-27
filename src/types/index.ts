@@ -43,6 +43,7 @@ export interface ScanCategory {
   totalSize: number
   fileCount: number
   isSafe: boolean
+  isCapped: boolean
 }
 
 export interface CleanResult {
@@ -70,6 +71,7 @@ export interface ScanProgressEvent {
   id?: string
   name?: string
   categories?: ScanCategory[]
+  isCapped?: boolean
 }
 
 export interface CleanProgressEvent {
@@ -254,28 +256,6 @@ export interface SmartBoostResult {
   durationMs: number
 }
 
-export interface DetectedGame {
-  pid: number
-  name: string
-  displayName: string
-  cpuPercent: number
-  memPercent: number
-  memBytes: number
-}
-
-export interface GameModeStatus {
-  active: boolean
-  detectedGame: DetectedGame | null
-  ramFreedBytes: number
-  processesAffected: number
-  actionsApplied: string[]
-  powerPlanSet: boolean
-}
-
-export interface GameDetectionResult {
-  detected: boolean
-  games: DetectedGame[]
-}
 
 export type StartupImpact = 'critical' | 'high' | 'medium' | 'low' | 'unknown'
 

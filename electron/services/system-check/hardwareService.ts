@@ -82,17 +82,19 @@ async function ps(cmd: string): Promise<string> {
   }
 }
 
-export async function getHardwareInfo(): Promise<HardwareInfo> {
+import { SharedSystemInfo } from './optimizationService'
+
+export async function getHardwareInfo(sharedData?: SharedSystemInfo): Promise<HardwareInfo> {
   const [cpuData, cpuLoad, memData, memLayout, system, bios, diskData, graphics, osData] =
     await Promise.all([
       si.cpu(),
-      si.currentLoad(),
-      si.mem(),
+      sharedData?.currentLoad ? Promise.resolve(sharedData.currentLoad) : si.currentLoad(),
+      sharedData?.mem ? Promise.resolve(sharedData.mem) : si.mem(),
       si.memLayout(),
       si.system(),
       si.bios(),
       si.diskLayout(),
-      si.graphics(),
+      sharedData?.graphics ? Promise.resolve(sharedData.graphics) : si.graphics(),
       si.osInfo(),
     ])
 
@@ -169,7 +171,7 @@ Get-Disk | Select-Object FriendlyName, @{N='Temp';E={ try { (Get-StorageReliabil
   })
 
   // Displays
-  const displays: DisplayInfo[] = (graphics.displays ?? []).map(d => ({
+  const displays: DisplayInfo[] = (graphics?.displays ?? []).map((d: any) => ({
     manufacturer: d.vendor ?? 'Unknown',
     model: d.model ?? 'Unknown',
     resolutionX: d.currentResX ?? 0,

@@ -76,18 +76,31 @@ async function getRegistryStartupEntries(
   location: 'HKCU_Run' | 'HKLM_Run',
 ): Promise<StartupEntry[]> {
   const regKey = `${hive}:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`
+  const approvedKey = `${hive}:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\${location === 'HKCU_Run' ? 'Run' : 'Run32'}`
+  
   const script = `
+$runKey = '${regKey}'
+$approvedKey = '${approvedKey}'
 try {
-  $props = Get-ItemProperty -Path '${regKey}' -ErrorAction Stop
+  $props = Get-ItemProperty -Path $runKey -ErrorAction Stop
+  $approvedProps = $null
+  if (Test-Path $approvedKey) {
+    $approvedProps = Get-ItemProperty -Path $approvedKey -ErrorAction SilentlyContinue
+  }
   $props.PSObject.Properties | Where-Object { $_.MemberType -eq 'NoteProperty' -and $_.Name -notmatch '^PS' } | ForEach-Object {
-    "$($_.Name)|||$($_.Value)"
+    $isEnabled = $true
+    if ($approvedProps -and $null -ne $approvedProps.($_.Name) -and $approvedProps.($_.Name).Length -ge 1) {
+      if ($approvedProps.($_.Name)[0] -eq 3) { $isEnabled = $false }
+    }
+    "$($_.Name)|||$($_.Value)|||$isEnabled"
   }
 } catch { }
 `.trim()
 
   try {
+    const encoded = Buffer.from(script, 'utf16le').toString('base64')
     const { stdout } = await execAsync(
-      `powershell -NoProfile -NonInteractive -Command "${script.replace(/\r?\n/g, ' ')}"`,
+      `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
       { timeout: 10000 },
     )
     return stdout
@@ -95,9 +108,10 @@ try {
       .map(l => l.trim())
       .filter(l => l.includes('|||'))
       .map(line => {
-        const sep = line.indexOf('|||')
-        const name = line.substring(0, sep).trim()
-        const command = line.substring(sep + 3).trim()
+        const parts = line.split('|||')
+        const name = parts[0].trim()
+        const command = parts[1].trim()
+        const isEnabled = parts[2].trim() === 'True'
         const { impact, delaySec, label } = estimateImpact(name, command)
         const id = `${location}_${name}`
         return {
@@ -106,7 +120,7 @@ try {
           displayName: name,
           command,
           location,
-          enabled: true,
+          enabled: isEnabled, // Fix 3: Read actual enabled/disabled state
           impact,
           impactLabel: label,
           estimatedDelaySec: delaySec,
@@ -120,13 +134,24 @@ try {
 }
 
 // ── Read startup folder entries ─────────────────────────────────────────────
-function getStartupFolderEntries(folderPath: string, location: StartupEntry['location']): StartupEntry[] {
+async function getStartupFolderEntries(folderPath: string, location: StartupEntry['location']): Promise<StartupEntry[]> {
   const entries: StartupEntry[] = []
   try {
-    if (!fs.existsSync(folderPath)) return []
-    const files = fs.readdirSync(folderPath)
+    try {
+      await fs.promises.access(folderPath)
+    } catch {
+      return []
+    }
+    const files = await fs.promises.readdir(folderPath)
     for (const file of files) {
-      const name = path.basename(file, path.extname(file))
+      const ext = path.extname(file).toLowerCase()
+      // Fix 4: Filter out non-application files (.lnk, .exe, and .disabled only)
+      if (ext !== '.lnk' && ext !== '.exe' && ext !== '.disabled') continue
+      if (file.toLowerCase() === 'desktop.ini' || file.toLowerCase() === 'thumbs.db') continue
+
+      const isEnabled = ext !== '.disabled' // Fix 3: Determine state from extension
+      const actualFileName = isEnabled ? file : file.replace(/\.disabled$/i, '')
+      const name = path.basename(actualFileName, path.extname(actualFileName))
       const command = path.join(folderPath, file)
       const { impact, delaySec, label } = estimateImpact(name, command)
       entries.push({
@@ -135,7 +160,7 @@ function getStartupFolderEntries(folderPath: string, location: StartupEntry['loc
         displayName: name,
         command,
         location,
-        enabled: true,
+        enabled: isEnabled,
         impact,
         impactLabel: label,
         estimatedDelaySec: delaySec,
@@ -160,8 +185,10 @@ export async function analyzeStartup(): Promise<StartupAnalysis> {
   const userStartupFolder = path.join(appDataRoaming, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
   const allUsersStartupFolder = path.join(programData, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
 
-  const userFolderEntries = getStartupFolderEntries(userStartupFolder, 'StartupFolder_User')
-  const allFolderEntries = getStartupFolderEntries(allUsersStartupFolder, 'StartupFolder_All')
+  const [userFolderEntries, allFolderEntries] = await Promise.all([
+    getStartupFolderEntries(userStartupFolder, 'StartupFolder_User'),
+    getStartupFolderEntries(allUsersStartupFolder, 'StartupFolder_All')
+  ])
 
   const entries = [...hkcuEntries, ...hklmEntries, ...userFolderEntries, ...allFolderEntries]
 
@@ -184,55 +211,80 @@ export async function setStartupEntryEnabled(entry: StartupEntry, enabled: boole
   const DISABLED_HIVE_32 = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32'
   const DISABLED_FOLDER_HIVE = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder'
 
+  const b64Name = Buffer.from(entry.name).toString('base64')
+  const b64Command = Buffer.from(entry.command).toString('base64')
+
+  // Check admin rights if modifying HKLM or All-Users
+  const requiresAdmin = entry.location === 'HKLM_Run' || entry.location === 'StartupFolder_All'
+  const adminCheckScript = requiresAdmin ? `
+$isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $isAdmin) {
+  Write-Error "RequiresAdmin"
+  exit 1
+}
+` : ''
+
   if (entry.location === 'HKCU_Run' || entry.location === 'HKLM_Run') {
     const hivePrefix = entry.location === 'HKCU_Run' ? 'HKCU' : 'HKLM'
     const regKey = `${hivePrefix}:\\Software\\Microsoft\\Windows\\CurrentVersion\\Run`
     const hiveApproved = entry.location === 'HKCU_Run' ? DISABLED_HIVE : DISABLED_HIVE_32
 
-    if (enabled) {
-      // 1. Restore CurrentVersion\Run entry
-      // 2. Restore StartupApproved state to Windows enabled state (0x02)
-      const enableScript = `
-Set-ItemProperty -Path '${regKey}' -Name '${entry.name}' -Value '${entry.command.replace(/'/g, "''")}' -ErrorAction Stop;
-$hives = @('${hiveApproved}', '${DISABLED_HIVE}');
-foreach ($h in $hives) {
-  if (Test-Path $h) {
-    $prop = (Get-ItemProperty -Path $h -Name '${entry.name}' -ErrorAction SilentlyContinue).'${entry.name}';
-    if ($null -ne $prop -and $prop.Length -ge 1) {
-      $prop[0] = 2;
-      Set-ItemProperty -Path $h -Name '${entry.name}' -Value $prop -Type Binary -ErrorAction SilentlyContinue;
+    const script = `
+${adminCheckScript}
+$name = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${b64Name}'))
+$cmd = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('${b64Command}'))
+
+if (${enabled ? '$true' : '$false'}) {
+  Set-ItemProperty -Path '${regKey}' -Name $name -Value $cmd -ErrorAction Stop
+  $hives = @('${hiveApproved}', '${DISABLED_HIVE}')
+  foreach ($h in $hives) {
+    if (Test-Path $h) {
+      $prop = (Get-ItemProperty -Path $h -Name $name -ErrorAction SilentlyContinue).$name
+      if ($null -ne $prop -and $prop.Length -ge 1) {
+        $prop[0] = 2
+        Set-ItemProperty -Path $h -Name $name -Value $prop -Type Binary -ErrorAction SilentlyContinue
+      }
     }
   }
-};
+} else {
+  if (-not (Test-Path '${hiveApproved}')) { New-Item -Path '${hiveApproved}' -Force | Out-Null }
+  $val = [byte[]]::new(12)
+  $val[0] = 3
+  Set-ItemProperty -Path '${hiveApproved}' -Name $name -Value $val -Type Binary -ErrorAction Stop
+}
 `.trim()
-      try {
-        await execAsync(
-          `powershell -NoProfile -NonInteractive -Command "${enableScript.replace(/\r?\n/g, ' ')}"`,
-          { timeout: 8000 },
-        )
-        return true
-      } catch { return false }
-    } else {
-      // Disable via StartupApproved (sets first byte to 03 = disabled, matching Task Manager)
-      const disableScript = `
-if (-not (Test-Path '${hiveApproved}')) { New-Item -Path '${hiveApproved}' -Force | Out-Null };
-$val = [byte[]]::new(12);
-$val[0] = 3;
-Set-ItemProperty -Path '${hiveApproved}' -Name '${entry.name}' -Value $val -Type Binary -ErrorAction Stop;
-`.trim()
-      try {
-        await execAsync(
-          `powershell -NoProfile -NonInteractive -Command "${disableScript.replace(/\r?\n/g, ' ')}"`,
-          { timeout: 8000 },
-        )
-        return true
-      } catch { return false }
+
+    try {
+      const encoded = Buffer.from(script, 'utf16le').toString('base64')
+      await execAsync(
+        `powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`,
+        { timeout: 8000 },
+      )
+      return true
+    } catch (err: any) {
+      if (err.stderr && err.stderr.includes('RequiresAdmin')) {
+        throw new Error('RequiresAdmin') // Fix 5: Throw explicit error for UI
+      }
+      return false
     }
   }
 
-  // For startup folder entries — rename .lnk to .lnk.disabled and synchronize StartupApproved\StartupFolder
   if (entry.location === 'StartupFolder_User' || entry.location === 'StartupFolder_All') {
     const baseName = path.basename(entry.command).replace(/\.disabled$/i, '')
+    
+    // Admin check for all users folder
+    if (requiresAdmin) {
+      try {
+        const encoded = Buffer.from(adminCheckScript, 'utf16le').toString('base64')
+        await execAsync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout: 8000 })
+      } catch (err: any) {
+        if (err.stderr && err.stderr.includes('RequiresAdmin')) {
+          throw new Error('RequiresAdmin')
+        }
+        return false
+      }
+    }
+
     try {
       if (enabled) {
         const disabled = entry.command.endsWith('.disabled') ? entry.command : entry.command + '.disabled'
@@ -241,24 +293,20 @@ Set-ItemProperty -Path '${hiveApproved}' -Name '${entry.name}' -Value $val -Type
           fs.renameSync(disabled, normal)
         }
 
-        // Restore StartupApproved\StartupFolder state to enabled (0x02)
-        const enableFolderScript = `
+        const script = `
 if (Test-Path '${DISABLED_FOLDER_HIVE}') {
-  $names = @('${entry.name}', '${baseName}', '${baseName}.lnk');
+  $names = @('${entry.name}', '${baseName}', '${baseName}.lnk')
   foreach ($n in $names) {
-    $prop = (Get-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name $n -ErrorAction SilentlyContinue).$n;
+    $prop = (Get-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name $n -ErrorAction SilentlyContinue).$n
     if ($null -ne $prop -and $prop.Length -ge 1) {
-      $prop[0] = 2;
-      Set-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name $n -Value $prop -Type Binary -ErrorAction SilentlyContinue;
+      $prop[0] = 2
+      Set-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name $n -Value $prop -Type Binary -ErrorAction SilentlyContinue
     }
   }
-};
+}
 `.trim()
-        await execAsync(
-          `powershell -NoProfile -NonInteractive -Command "${enableFolderScript.replace(/\r?\n/g, ' ')}"`,
-          { timeout: 8000 },
-        ).catch(() => {})
-
+        const encoded = Buffer.from(script, 'utf16le').toString('base64')
+        await execAsync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout: 8000 }).catch(() => {})
         return true
       } else {
         const normal = entry.command.endsWith('.disabled') ? entry.command.slice(0, -9) : entry.command
@@ -267,18 +315,14 @@ if (Test-Path '${DISABLED_FOLDER_HIVE}') {
           fs.renameSync(normal, disabled)
         }
 
-        // Mark disabled in StartupApproved\StartupFolder
-        const disableFolderScript = `
-if (-not (Test-Path '${DISABLED_FOLDER_HIVE}')) { New-Item -Path '${DISABLED_FOLDER_HIVE}' -Force | Out-Null };
-$val = [byte[]]::new(12);
-$val[0] = 3;
-Set-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name '${baseName}' -Value $val -Type Binary -ErrorAction SilentlyContinue;
+        const script = `
+if (-not (Test-Path '${DISABLED_FOLDER_HIVE}')) { New-Item -Path '${DISABLED_FOLDER_HIVE}' -Force | Out-Null }
+$val = [byte[]]::new(12)
+$val[0] = 3
+Set-ItemProperty -Path '${DISABLED_FOLDER_HIVE}' -Name '${baseName}' -Value $val -Type Binary -ErrorAction SilentlyContinue
 `.trim()
-        await execAsync(
-          `powershell -NoProfile -NonInteractive -Command "${disableFolderScript.replace(/\r?\n/g, ' ')}"`,
-          { timeout: 8000 },
-        ).catch(() => {})
-
+        const encoded = Buffer.from(script, 'utf16le').toString('base64')
+        await execAsync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout: 8000 }).catch(() => {})
         return true
       }
     } catch { /* permission denied */ }

@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { Stats } from 'fs'
+import { isProtectedPath } from './pathGuard'
 
 export interface ScannedFile {
   path: string
@@ -18,7 +19,7 @@ export type ScanProgressCallback = (info: ScanProgressInfo) => void
 
 // ── Concurrency controls ──────────────────────────────────────────────────
 const MAX_DEPTH          = 4       // Don't recurse deeper than this
-const MAX_FILES_PER_CAT  = 5_000  // Stop collecting once we hit this per category
+export const MAX_FILES_PER_CAT  = 5_000  // Stop collecting once we hit this per category
 const DIR_TIMEOUT_MS     = 5_000  // Skip any dir that takes longer than this
 const STAT_CONCURRENCY   = 24     // Parallel stat() calls per directory
 const DIR_CONCURRENCY    = 6      // Parallel sub-directory traversals
@@ -119,6 +120,8 @@ export async function scanDirectories(
   const all: ScannedFile[] = []
   await pLimit(
     dirs.map(dir => async () => {
+      // OS path guard: skip any directory that resolves inside a protected system location
+      if (isProtectedPath(dir)) return
       const stat = await statSafe(dir)
       if (!stat?.isDirectory()) return
       const files = await scanDirectory(dir, categoryId, onProgress, maxDepth, 0, counter)

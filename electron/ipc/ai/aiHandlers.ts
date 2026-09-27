@@ -3,12 +3,7 @@ import {
   runSmartBoostAnalysis,
   runSmartBoostOptimize,
 } from '../../services/ai/smartBoostService'
-import {
-  detectGames,
-  enableGameMode,
-  disableGameMode,
-  getGameModeState,
-} from '../../services/ai/gameModeService'
+
 import {
   analyzeStartup,
   setStartupEntryEnabled,
@@ -33,22 +28,7 @@ export function setupAIIPC(): void {
     })
   })
 
-  // ── Game Mode ──────────────────────────────────────────────────────────
-  ipcMain.handle('ai:game-detect', async () => {
-    return detectGames()
-  })
 
-  ipcMain.handle('ai:game-mode-enable', async () => {
-    return enableGameMode()
-  })
-
-  ipcMain.handle('ai:game-mode-disable', async () => {
-    return disableGameMode()
-  })
-
-  ipcMain.handle('ai:game-mode-state', () => {
-    return getGameModeState()
-  })
 
   // ── Startup Analyzer ──────────────────────────────────────────────────
   ipcMain.handle('ai:startup-analyze', async () => {

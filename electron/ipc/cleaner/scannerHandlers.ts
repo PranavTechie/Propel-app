@@ -9,6 +9,7 @@
 
 import type { IpcMainInvokeEvent } from 'electron'
 import type { ScannedFile, ScanProgressCallback } from '../../services/cleaner/scannerService'
+import { MAX_FILES_PER_CAT } from '../../services/cleaner/scannerService'
 import type { CategoryDef } from './cleanerHandlers'
 
 export interface CategoryScanResult {
@@ -16,6 +17,8 @@ export interface CategoryScanResult {
   totalSize: number
   fileCount: number
   files: ScannedFile[]
+  /** True when file collection was halted by MAX_FILES_PER_CAT — actual space may be larger */
+  isCapped: boolean
 }
 
 const IPC_THROTTLE_MS = 60  // max one progress ping per 60 ms per category
@@ -68,7 +71,8 @@ export async function runCategoryScan(
     totalSize,
     fileCount,
     isSafe: def.isSafe,
+    isCapped: fileCount >= MAX_FILES_PER_CAT,
   })
 
-  return { id: def.id, totalSize, fileCount, files }
+  return { id: def.id, totalSize, fileCount, files, isCapped: fileCount >= MAX_FILES_PER_CAT }
 }

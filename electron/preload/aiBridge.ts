@@ -1,6 +1,5 @@
 import { ipcRenderer } from 'electron'
 import type { SmartBoostAnalysis, SmartBoostResult } from '../services/ai/smartBoostService'
-import type { GameDetectionResult, GameModeStatus } from '../services/ai/gameModeService'
 import type { StartupAnalysis, StartupEntry } from '../services/ai/startupAnalyzerService'
 import type { DuplicateScanResult, DeleteDuplicatesResult, DuplicateScanProgress } from '../services/ai/duplicateFinderService'
 
@@ -16,18 +15,7 @@ export const aiBridge = {
     ipcRenderer.on('ai:smart-boost-progress', (_event, data) => cb(data))
   },
 
-  // ── Game Mode ────────────────────────────────────────────────────────────
-  detectGames: (): Promise<GameDetectionResult> =>
-    ipcRenderer.invoke('ai:game-detect'),
 
-  enableGameMode: (): Promise<GameModeStatus> =>
-    ipcRenderer.invoke('ai:game-mode-enable'),
-
-  disableGameMode: (): Promise<GameModeStatus> =>
-    ipcRenderer.invoke('ai:game-mode-disable'),
-
-  getGameModeState: (): Promise<boolean> =>
-    ipcRenderer.invoke('ai:game-mode-state'),
 
   // ── Startup Analyzer ─────────────────────────────────────────────────────
   analyzeStartup: (): Promise<StartupAnalysis> =>

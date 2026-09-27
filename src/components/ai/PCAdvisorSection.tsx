@@ -201,9 +201,6 @@ export const PCAdvisorSection: React.FC = () => {
           >
             {/* Overall Assessment */}
             <div className="p-6 rounded-2xl bg-surface-card border border-white/[0.05] relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
-                <Brain className="w-32 h-32" />
-              </div>
               <div className="flex items-start gap-4 relative z-10">
                 <div className={cn("p-3 rounded-xl border", getImpactColor(result.healthImpact))}>
                   {getImpactIcon(result.healthImpact)}

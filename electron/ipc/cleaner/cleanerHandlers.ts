@@ -8,6 +8,9 @@ import {
   scanThumbnailCache,
   scanCrashDumps,
   scanWindowsLogs,
+  scanWindowsUpdateCache,
+  scanPrefetch,
+  scanDeliveryOptimization,
 } from '../../services/cleaner/cacheCleaner'
 import { getRecycleBinInfo, emptyRecycleBin } from '../../services/cleaner/recycleCleaner'
 import { cleanFiles } from '../../services/cleaner/cleanupService'
@@ -25,13 +28,16 @@ export interface CategoryDef {
 }
 
 export const CATEGORY_DEFS: CategoryDef[] = [
-  { id: 'temp-files',       name: 'Temporary Files',   description: 'System & app temp files',             isSafe: true },
-  { id: 'browser-cache',    name: 'Browser Cache',     description: 'Chrome, Edge, Firefox & Brave cache', isSafe: true },
-  { id: 'recycle-bin',      name: 'Recycle Bin',       description: 'Files awaiting permanent deletion',   isSafe: true },
-  { id: 'thumbnail-cache',  name: 'Thumbnail Cache',   description: 'Windows file preview database',       isSafe: true },
-  { id: 'gpu-cache',        name: 'GPU Shader Cache',  description: 'DirectX, NVIDIA & OpenGL cache',      isSafe: true },
-  { id: 'crash-dumps',      name: 'Crash Dumps',       description: 'App crash reports & error logs',      isSafe: true },
-  { id: 'windows-logs',     name: 'Windows Log Files', description: 'Old system event & error logs',       isSafe: true },
+  { id: 'temp-files',       name: 'Temporary Files',         description: 'System & app temp files',                             isSafe: true },
+  { id: 'browser-cache',    name: 'Browser Cache',           description: 'Chrome, Edge, Brave, Opera, Vivaldi, Arc & Firefox',   isSafe: true },
+  { id: 'recycle-bin',      name: 'Recycle Bin',             description: 'Files awaiting permanent deletion',                    isSafe: true },
+  { id: 'thumbnail-cache',  name: 'Thumbnail Cache',         description: 'Windows file preview database',                        isSafe: true },
+  { id: 'gpu-cache',        name: 'GPU Shader Cache',        description: 'DirectX, NVIDIA & OpenGL cache',                       isSafe: true },
+  { id: 'crash-dumps',      name: 'Crash Dumps',             description: 'App crash reports & error logs',                       isSafe: true },
+  { id: 'windows-logs',     name: 'Windows Log Files',       description: 'Old system event & error logs',                        isSafe: true },
+  { id: 'win-update-cache', name: 'Windows Update Cache',    description: 'Downloaded update packages (can be re-downloaded)',    isSafe: true },
+  { id: 'prefetch',         name: 'Prefetch Files',          description: 'App launch cache — apps relearn on next run',          isSafe: true },
+  { id: 'delivery-opt',     name: 'Delivery Optimization',   description: 'Windows peer-to-peer update distribution cache',       isSafe: true },
 ]
 
 // ── In-memory scan cache (keeps file paths server-side) ───────────────────
@@ -45,6 +51,8 @@ export interface CategorySummary {
   totalSize: number
   fileCount: number
   isSafe: boolean
+  /** True when the scan hit the MAX_FILES_PER_CAT cap — actual space may be larger */
+  isCapped: boolean
 }
 
 // ── Setup ─────────────────────────────────────────────────────────────────
@@ -75,6 +83,7 @@ export function setupCleanerIPC(): void {
         totalSize: result.totalSize,
         fileCount: result.fileCount,
         isSafe: def.isSafe,
+        isCapped: result.isCapped,
       }
     }
 
@@ -105,7 +114,7 @@ export function setupCleanerIPC(): void {
     }
 
     // ── Stage 1: fast / independent categories + recycle bin — all in parallel ──
-    // recycle-bin uses PowerShell (independent I/O); thumbnail/gpu/crash/logs are small dirs
+    // recycle-bin uses PowerShell (independent I/O); thumbnail/gpu/crash/logs/new categories are small dirs
     await Promise.allSettled([
       // Recycle bin (PowerShell, independent from file scan)
       (async () => {
@@ -119,15 +128,19 @@ export function setupCleanerIPC(): void {
             totalSize: recycleInfo.size,
             fileCount: recycleInfo.fileCount,
             isSafe: true,
+            isCapped: false,
           }
           emit({ type: 'category-done', ...recycleSummary })
           results.push(recycleSummary)
         }
       })(),
-      runScanFiltered('thumbnail-cache', scanThumbnailCache),
-      runScanFiltered('gpu-cache',       scanGPUCache),
-      runScanFiltered('crash-dumps',     scanCrashDumps),
-      runScanFiltered('windows-logs',    scanWindowsLogs),
+      runScanFiltered('thumbnail-cache',  scanThumbnailCache),
+      runScanFiltered('gpu-cache',        scanGPUCache),
+      runScanFiltered('crash-dumps',      scanCrashDumps),
+      runScanFiltered('windows-logs',     scanWindowsLogs),
+      runScanFiltered('win-update-cache', scanWindowsUpdateCache),
+      runScanFiltered('prefetch',         scanPrefetch),
+      runScanFiltered('delivery-opt',     scanDeliveryOptimization),
     ])
 
     // ── Stage 2: heavy disk-I/O categories — run sequentially to avoid thrashing

@@ -44,16 +44,21 @@ async function getFirefoxCacheDirs(): Promise<string[]> {
   return dirs
 }
 
+// Scans Chrome, Edge, Brave, Opera, Vivaldi, Arc (Chromium-family) + Firefox
 export async function scanBrowserCache(onProgress: ScanProgressCallback): Promise<ScannedFile[]> {
   const localAppData = process.env.LOCALAPPDATA ?? ''
+  const appData      = process.env.APPDATA      ?? ''
 
-  const [chrome, edge, brave, firefox] = await Promise.all([
-    getChromiumCacheDirs(path.join(localAppData, 'Google', 'Chrome', 'User Data')),
-    getChromiumCacheDirs(path.join(localAppData, 'Microsoft', 'Edge', 'User Data')),
-    getChromiumCacheDirs(path.join(localAppData, 'BraveSoftware', 'Brave-Browser', 'User Data')),
+  const [chrome, edge, brave, opera, vivaldi, arc, firefox] = await Promise.all([
+    getChromiumCacheDirs(path.join(localAppData, 'Google',         'Chrome',         'User Data')),
+    getChromiumCacheDirs(path.join(localAppData, 'Microsoft',      'Edge',           'User Data')),
+    getChromiumCacheDirs(path.join(localAppData, 'BraveSoftware',  'Brave-Browser',  'User Data')),
+    getChromiumCacheDirs(path.join(appData,      'Opera Software', 'Opera Stable')),
+    getChromiumCacheDirs(path.join(localAppData, 'Vivaldi',        'User Data')),
+    getChromiumCacheDirs(path.join(localAppData, 'Arc',            'User Data')),
     getFirefoxCacheDirs(),
   ])
 
-  const allDirs = [...chrome, ...edge, ...brave, ...firefox]
+  const allDirs = [...chrome, ...edge, ...brave, ...opera, ...vivaldi, ...arc, ...firefox]
   return scanDirectories(allDirs, BROWSER_CATEGORY_ID, onProgress, 2)
 }

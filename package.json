@@ -47,10 +47,11 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^6.22.2",
     "recharts": "^2.12.3",
+    "registry-js": "^1.16.1",
     "rehype-highlight": "^7.0.2",
     "remark-gfm": "^4.0.1",
     "semver": "^7.8.5",
-    "systeminformation": "^5.22.2",
+    "systeminformation": "^5.33.13",
     "tailwind-merge": "^2.2.1",
     "zustand": "^4.5.2"
   },

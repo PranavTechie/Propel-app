@@ -38,34 +38,46 @@ export interface OptimizationReport {
   highCount: number
 }
 
-function getTempDirSize(): number {
+export interface SharedSystemInfo {
+  mem?: si.Systeminformation.MemData
+  currentLoad?: si.Systeminformation.CurrentLoadData
+  graphics?: si.Systeminformation.GraphicsData
+}
+
+async function getTempDirSize(): Promise<number> {
   const dirs = [
     process.env.TEMP ?? os.tmpdir(),
     path.join(process.env.LOCALAPPDATA ?? '', 'Temp'),
     path.join(process.env.WINDIR ?? 'C:\\Windows', 'Temp'),
   ]
   let total = 0
-  function sizeDir(d: string) {
+  
+  async function sizeDir(d: string) {
     try {
       if (!fs.existsSync(d)) return
-      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const entries = await fs.promises.readdir(d, { withFileTypes: true })
+      for (const e of entries) {
         const full = path.join(d, e.name)
         try {
-          if (e.isFile()) total += fs.statSync(full).size
+          if (e.isFile()) {
+            const stat = await fs.promises.stat(full)
+            total += stat.size
+          }
         } catch { /* skip */ }
       }
     } catch { /* skip */ }
   }
-  dirs.forEach(sizeDir)
+  
+  await Promise.allSettled(dirs.map(sizeDir))
   return total
 }
 
-export async function getOptimizationReport(): Promise<OptimizationReport> {
+export async function getOptimizationReport(sharedData?: SharedSystemInfo): Promise<OptimizationReport> {
   const findings: OptimizationFinding[] = []
 
   const [mem, cpuLoad, processes] = await Promise.all([
-    si.mem(),
-    si.currentLoad(),
+    sharedData?.mem ? Promise.resolve(sharedData.mem) : si.mem(),
+    sharedData?.currentLoad ? Promise.resolve(sharedData.currentLoad) : si.currentLoad(),
     si.processes(),
   ])
 
@@ -105,7 +117,7 @@ export async function getOptimizationReport(): Promise<OptimizationReport> {
   }
 
   // ── Temp junk ──────────────────────────────────────────────────────────
-  const junkBytes = getTempDirSize()
+  const junkBytes = await getTempDirSize()
   if (junkBytes > 500 * 1024 * 1024) {
     findings.push({
       id: 'temp_junk',

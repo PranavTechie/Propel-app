@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
   Zap,
-  Gamepad2,
   Rocket,
   Files,
   Activity,
@@ -40,8 +39,6 @@ import type {
   SmartBoostAnalysis,
   SmartBoostResult,
   Recommendation,
-  GameDetectionResult,
-  GameModeStatus,
   StartupAnalysis,
   StartupEntry,
   DuplicateScanResult,
@@ -50,7 +47,7 @@ import type {
 } from "@/types";
 import { PCAdvisorSection } from "@/components/ai/PCAdvisorSection";
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function healthColor(score: number): string {
   if (score >= 80) return "#10b981";
   if (score >= 60) return "#f59e0b";
@@ -82,7 +79,7 @@ function impactColor(impact: StartupEntry["impact"]): string {
   return "text-emerald-400";
 }
 
-// ── Health Ring ────────────────────────────────────────────────────────────
+// â”€â”€ Health Ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const HealthRing: React.FC<{ score: number }> = ({ score }) => {
   const R = 70;
   const C = Math.PI * 2 * R;
@@ -151,7 +148,7 @@ const HealthRing: React.FC<{ score: number }> = ({ score }) => {
   );
 };
 
-// ── Mini Metric ────────────────────────────────────────────────────────────
+// â”€â”€ Mini Metric â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const MiniMetric: React.FC<{
   icon: React.ReactNode;
   label: string;
@@ -169,7 +166,7 @@ const MiniMetric: React.FC<{
   </div>
 );
 
-// ── Progress Step ─────────────────────────────────────────────────────────
+// â”€â”€ Progress Step â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const ProgressStep: React.FC<{ step: string; pct: number }> = ({
   step,
   pct,
@@ -192,9 +189,9 @@ const ProgressStep: React.FC<{ step: string; pct: number }> = ({
   </div>
 );
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 1 — AI SMART BOOST
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// SECTION 1 â€” AI SMART BOOST
+// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 const SmartBoostSection: React.FC = () => {
   const [analysis, setAnalysis] = useState<SmartBoostAnalysis | null>(null);
   const [result, setResult] = useState<SmartBoostResult | null>(null);
@@ -223,7 +220,7 @@ const SmartBoostSection: React.FC = () => {
   const runOptimize = useCallback(async () => {
     if (!analysis) return;
     setOptimizing(true);
-    setProgress({ step: "Starting optimization…", pct: 0 });
+    setProgress({ step: "Starting optimizationâ€¦", pct: 0 });
     setResult(null);
 
     window.propel.ai.onSmartBoostProgress((data) => {
@@ -248,7 +245,7 @@ const SmartBoostSection: React.FC = () => {
 
   return (
     <div className="grid grid-cols-[1.2fr_1fr] max-[900px]:grid-cols-1 gap-6 items-start">
-      {/* ── Left Column: Main Feature Info ── */}
+      {/* â”€â”€ Left Column: Main Feature Info â”€â”€ */}
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center border border-brand-primary/20">
@@ -256,10 +253,10 @@ const SmartBoostSection: React.FC = () => {
           </div>
           <div>
             <h2 className="text-xl font-bold text-text-primary">
-              AI Smart Boost
+              Quick Boost
             </h2>
             <p className="text-sm text-text-muted mt-0.5">
-              Real system analysis & safe optimization
+              One-click RAM + temp file cleanup
             </p>
           </div>
         </div>
@@ -269,18 +266,22 @@ const SmartBoostSection: React.FC = () => {
             Analyze your system and identify safe performance improvements to
             reclaim resources and maximize responsiveness.
           </p>
-          <ul className="space-y-3 mt-4">
-            <li className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-brand-primary" /> Memory pressure
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-brand-primary" /> Background processes
-            </li>
+          <p className="font-semibold text-text-primary mb-2">Analysis:</p>
+          <ul className="space-y-2 mb-4">
             <li className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-brand-primary" /> Startup load
             </li>
             <li className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-brand-primary" /> Temporary system data
+              <CheckCircle className="w-4 h-4 text-brand-primary" /> Background process count
+            </li>
+          </ul>
+          <p className="font-semibold text-text-primary mb-2">Optimization:</p>
+          <ul className="space-y-2">
+            <li className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-brand-primary" /> Memory pressure (Working Set trim)
+            </li>
+            <li className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-brand-primary" /> Temporary system data cleanup
             </li>
           </ul>
         </div>
@@ -324,7 +325,7 @@ const SmartBoostSection: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Right Column: Status Panel ── */}
+      {/* â”€â”€ Right Column: Status Panel â”€â”€ */}
       <div className="glass rounded-2xl p-5 border border-white/5 space-y-4 flex flex-col min-h-[300px]">
         <h3 className="text-sm font-semibold text-text-primary border-b border-white/5 pb-3">
           System Optimization
@@ -434,8 +435,13 @@ const SmartBoostSection: React.FC = () => {
                 <div className="flex items-center gap-2 text-brand-primary font-bold text-sm">
                   <CheckCircle className="w-4 h-4" /> Optimization Complete
                 </div>
-                <div className="text-xs text-brand-primary/80">
-                  Freed {formatBytes(result.ramFreedBytes)} RAM and {formatBytes(result.storageFreedBytes)} storage.
+                <div className="text-xs text-brand-primary/80 space-y-1 mt-1">
+                  {result.actionsApplied.map((action, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-brand-primary/60 shrink-0" />
+                      {action}
+                    </div>
+                  ))}
                 </div>
               </motion.div>
             )}
@@ -459,262 +465,18 @@ const SmartBoostSection: React.FC = () => {
   );
 };
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 2 — AI GAME MODE
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const GameModeSection: React.FC = () => {
-  const [detection, setDetection] = useState<GameDetectionResult | null>(null);
-  const [status, setStatus] = useState<GameModeStatus | null>(null);
-  const [gameModeActive, setGameModeActive] = useState(false);
-  const [detecting, setDetecting] = useState(false);
-  const [toggling, setToggling] = useState(false);
-  const [autoDetect, setAutoDetect] = useState(false);
-  const autoDetectTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    window.propel.ai
-      .getGameModeState()
-      .then(setGameModeActive)
-      .catch(() => {});
-    return () => {
-      if (autoDetectTimer.current) clearInterval(autoDetectTimer.current);
-    };
-  }, []);
-
-  const detectGames = useCallback(async () => {
-    setDetecting(true);
-    try {
-      const res = await window.propel.ai.detectGames();
-      setDetection(res);
-    } catch {
-      /* non-critical */
-    } finally {
-      setDetecting(false);
-    }
-  }, []);
-
-  const toggleGameMode = useCallback(async () => {
-    setToggling(true);
-    try {
-      if (gameModeActive) {
-        const res = await window.propel.ai.disableGameMode();
-        setStatus(res);
-        setGameModeActive(false);
-      } else {
-        const res = await window.propel.ai.enableGameMode();
-        setStatus(res);
-        setGameModeActive(true);
-      }
-    } catch {
-      /* non-critical */
-    } finally {
-      setToggling(false);
-    }
-  }, [gameModeActive]);
-
-  useEffect(() => {
-    if (autoDetect) {
-      detectGames();
-      autoDetectTimer.current = setInterval(detectGames, 10000);
-    } else {
-      if (autoDetectTimer.current) {
-        clearInterval(autoDetectTimer.current);
-        autoDetectTimer.current = null;
-      }
-    }
-  }, [autoDetect, detectGames]);
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-          <Gamepad2 className="w-4 h-4 text-white" />
-        </div>
-        <div>
-          <h2 className="text-base font-bold text-text-primary">
-            AI Game Mode
-          </h2>
-          <p className="text-2xs text-text-muted">
-            Detect games & boost performance safely
-          </p>
-        </div>
-      </div>
-
-      {/* Active banner */}
-      <AnimatePresence>
-        {gameModeActive && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-sm font-bold text-emerald-300">
-                Performance Mode Active
-              </span>
-              <span className="text-xs text-emerald-400/70 ml-auto">
-                System optimized for gaming
-              </span>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Controls row */}
-      <div className="flex items-center justify-between gap-3">
-        {/* Auto detect toggle */}
-        <button
-          onClick={() => setAutoDetect((v) => !v)}
-          className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all",
-            autoDetect
-              ? "bg-emerald-500/20 border-emerald-500/30 text-emerald-300"
-              : "bg-white/[0.04] border-white/[0.08] text-text-muted hover:text-text-secondary",
-          )}
-        >
-          {autoDetect ? (
-            <ToggleRight className="w-4 h-4" />
-          ) : (
-            <ToggleLeft className="w-4 h-4" />
-          )}
-          Auto Detect Games
-        </button>
-
-        <button
-          onClick={detectGames}
-          disabled={detecting}
-          className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-white/[0.04] border border-white/[0.08] text-text-secondary hover:text-text-primary transition-all"
-        >
-          <Scan className={cn("w-3.5 h-3.5", detecting && "animate-spin")} />
-          {detecting ? "Scanning…" : "Scan Now"}
-        </button>
-
-        <button
-          onClick={toggleGameMode}
-          disabled={toggling}
-          className={cn(
-            "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-200",
-            toggling
-              ? "bg-white/[0.06] text-text-muted cursor-not-allowed"
-              : gameModeActive
-                ? "bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 text-red-300"
-                : "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25 hover:scale-105",
-          )}
-        >
-          {toggling ? (
-            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-          ) : gameModeActive ? (
-            <>
-              <StopCircle className="w-3.5 h-3.5" /> Disable
-            </>
-          ) : (
-            <>
-              <Play className="w-3.5 h-3.5" /> Activate
-            </>
-          )}
-        </button>
-      </div>
-
-      {/* Detected games */}
-      {detection && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="space-y-2"
-        >
-          {detection.games.length > 0 ? (
-            detection.games.map((g) => (
-              <div
-                key={g.pid}
-                className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]"
-              >
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
-                  <Monitor className="w-4 h-4 text-emerald-400" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-text-primary truncate">
-                    {g.displayName}
-                  </div>
-                  <div className="text-2xs text-text-muted">PID {g.pid}</div>
-                </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xs font-bold text-blue-400">
-                    {g.cpuPercent}% CPU
-                  </div>
-                  <div className="text-2xs text-text-muted">
-                    {formatBytes(g.memBytes)} RAM
-                  </div>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-text-muted text-sm">
-              <Info className="w-4 h-4 shrink-0" />
-              No high-resource applications detected. You can still manually
-              activate Game Mode.
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      {/* Status details */}
-      {status && (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={cn(
-            "p-4 rounded-2xl border space-y-2",
-            status.active
-              ? "bg-emerald-500/10 border-emerald-500/20"
-              : "bg-white/[0.03] border-white/[0.06]",
-          )}
-        >
-          {status.active && (
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div>
-                <span className="text-text-muted">RAM Freed: </span>
-                <span className="font-bold text-emerald-300">
-                  {formatBytes(status.ramFreedBytes)}
-                </span>
-              </div>
-              <div>
-                <span className="text-text-muted">Processes: </span>
-                <span className="font-bold text-emerald-300">
-                  {status.processesAffected} adjusted
-                </span>
-              </div>
-            </div>
-          )}
-          {status.actionsApplied.map((a, i) => (
-            <div
-              key={i}
-              className={cn(
-                "flex items-center gap-2 text-xs",
-                status.active ? "text-emerald-400/80" : "text-text-muted",
-              )}
-            >
-              <CheckCircle className="w-3 h-3 shrink-0" /> {a}
-            </div>
-          ))}
-        </motion.div>
-      )}
-    </div>
-  );
-};
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 3 — AI STARTUP ANALYZER
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 3 â€” AI STARTUP ANALYZER
+// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 const StartupAnalyzerSection: React.FC = () => {
   const [analysis, setAnalysis] = useState<StartupAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [entries, setEntries] = useState<StartupEntry[]>([]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const runAnalysis = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await window.propel.ai.analyzeStartup();
       setAnalysis(data);
@@ -736,8 +498,12 @@ const StartupAnalyzerSection: React.FC = () => {
           e.id === entry.id ? { ...e, enabled: newEnabled } : e,
         ),
       );
-    } catch {
-      /* non-critical */
+    } catch (err: any) {
+      if (err.message === 'RequiresAdmin') {
+        setError("This item requires administrator privileges to modify — restart Propel as administrator to change it.");
+      } else {
+        setError("Failed to modify startup entry.");
+      }
     } finally {
       setTogglingId(null);
     }
@@ -752,10 +518,10 @@ const StartupAnalyzerSection: React.FC = () => {
           </div>
           <div>
             <h2 className="text-base font-bold text-text-primary">
-              AI Startup Analyzer
+              Startup Manager
             </h2>
             <p className="text-2xs text-text-muted">
-              Windows startup entries & boot impact
+              Windows startup entries & estimated impact
             </p>
           </div>
         </div>
@@ -770,9 +536,33 @@ const StartupAnalyzerSection: React.FC = () => {
           )}
         >
           <Scan className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
-          {loading ? "Scanning…" : analysis ? "Re-scan" : "Scan Startup"}
+          {loading ? "Scanningâ€¦" : analysis ? "Re-scan" : "Scan Startup"}
         </button>
       </div>
+
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, y: -10 }}
+            animate={{ opacity: 1, height: "auto", y: 0 }}
+            exit={{ opacity: 0, height: 0, y: -10 }}
+            className="overflow-hidden"
+          >
+            <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 mb-2 mt-2">
+              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+              <div className="flex-1 text-sm font-medium">
+                {error}
+              </div>
+              <button 
+                onClick={() => setError(null)}
+                className="p-1 hover:bg-red-500/20 rounded-lg transition-colors shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {!analysis && !loading && (
         <div className="flex flex-col items-center justify-center py-10 gap-3 rounded-2xl border border-dashed border-white/10">
@@ -780,7 +570,7 @@ const StartupAnalyzerSection: React.FC = () => {
           <p className="text-text-muted text-sm text-center">
             Analyzes Windows registry startup entries
             <br />
-            and startup folders to identify boot impact
+            and startup folders to identify estimated impact
           </p>
           <button
             onClick={runAnalysis}
@@ -799,7 +589,7 @@ const StartupAnalyzerSection: React.FC = () => {
           </div>
           <div>
             <p className="text-text-secondary font-medium text-sm">
-              Scanning startup entries…
+              Scanning startup entriesâ€¦
             </p>
             <p className="text-2xs text-text-muted">
               Reading registry & startup folders
@@ -845,6 +635,9 @@ const StartupAnalyzerSection: React.FC = () => {
               Estimated startup delay:{" "}
               <strong>{analysis.totalEstimatedDelaySec.toFixed(1)}s</strong>{" "}
               total from {entries.length} entries
+              <span className="opacity-70 text-2xs block mt-0.5">
+                (Estimated based on app type — not measured boot time)
+              </span>
             </span>
           </div>
 
@@ -880,7 +673,7 @@ const StartupAnalyzerSection: React.FC = () => {
                   <div
                     className={cn("text-2xs mt-0.5", impactColor(entry.impact))}
                   >
-                    +{entry.estimatedDelaySec}s boot delay
+                    Estimated impact: +{entry.estimatedDelaySec}s
                   </div>
                 </div>
                 <div className="text-right shrink-0 space-y-1">
@@ -918,9 +711,9 @@ const StartupAnalyzerSection: React.FC = () => {
   );
 };
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SECTION 4 — AI DUPLICATE FINDER
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// SECTION 4 â€” AI DUPLICATE FINDER
+// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 const DuplicateFinderSection: React.FC = () => {
   const [scanResult, setScanResult] = useState<DuplicateScanResult | null>(
     null,
@@ -1044,7 +837,7 @@ const DuplicateFinderSection: React.FC = () => {
           )}
         >
           <Scan className={cn("w-3.5 h-3.5", scanning && "animate-spin")} />
-          {scanning ? "Scanning…" : scanResult ? "Re-scan" : "Scan Files"}
+          {scanning ? "Scanningâ€¦" : scanResult ? "Re-scan" : "Scan Files"}
         </button>
       </div>
 
@@ -1058,7 +851,7 @@ const DuplicateFinderSection: React.FC = () => {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
             <span className="text-xs font-semibold text-text-secondary capitalize">
-              {progress.phase}…
+              {progress.phase}â€¦
             </span>
             {progress.duplicatesFound > 0 && (
               <span className="ml-auto text-xs text-rose-400 font-semibold">
@@ -1069,10 +862,10 @@ const DuplicateFinderSection: React.FC = () => {
           <ProgressStep
             step={
               progress.phase === "scanning"
-                ? `Collecting files (${progress.scannedFiles} found)…`
+                ? `Collecting files (${progress.scannedFiles} found)â€¦`
                 : progress.phase === "hashing"
-                  ? `Hashing candidates (${progress.hashedFiles}/${progress.totalFiles})…`
-                  : "Grouping duplicates…"
+                  ? `Hashing candidates (${progress.hashedFiles}/${progress.totalFiles})â€¦`
+                  : "Grouping duplicatesâ€¦"
             }
             pct={
               progress.phase === "scanning"
@@ -1147,7 +940,7 @@ const DuplicateFinderSection: React.FC = () => {
             <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
               <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-xs text-emerald-300">
-                Deleted {deleteResult.deletedCount} files · Freed{" "}
+                Deleted {deleteResult.deletedCount} files Â· Freed{" "}
                 {formatBytes(deleteResult.freedBytes)}
               </span>
             </div>
@@ -1259,7 +1052,7 @@ const DuplicateFinderSection: React.FC = () => {
                         {group.files[0].name}
                       </div>
                       <div className="text-2xs text-text-muted capitalize">
-                        {group.category} · {group.count} copies ·{" "}
+                        {group.category} Â· {group.count} copies Â·{" "}
                         {formatBytes(group.size)} each
                       </div>
                     </div>
@@ -1342,10 +1135,10 @@ const DuplicateFinderSection: React.FC = () => {
   );
 };
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 // MAIN PAGE
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-type Tab = "advisor" | "boost" | "gamemode" | "startup" | "duplicates";
+// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+type Tab = "advisor" | "boost" | "startup" | "duplicates";
 
 const TABS: {
   id: Tab;
@@ -1361,14 +1154,10 @@ const TABS: {
   },
   {
     id: "boost",
-    label: "Smart Boost",
+    label: "Quick Boost",
     icon: <Zap className="w-4 h-4" />,
   },
-  {
-    id: "gamemode",
-    label: "Game Mode",
-    icon: <Gamepad2 className="w-4 h-4" />,
-  },
+
   {
     id: "startup",
     label: "Startup",
@@ -1386,7 +1175,7 @@ export const AIFeaturesPage: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* ── Header & Tabs ── */}
+      {/* â”€â”€ Header & Tabs â”€â”€ */}
       <div className="shrink-0 px-6 pt-6 pb-4">
         <motion.div
           initial={{ opacity: 0, y: -8 }}
@@ -1445,7 +1234,7 @@ export const AIFeaturesPage: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* ── Content ── */}
+      {/* â”€â”€ Content â”€â”€ */}
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="max-w-5xl mx-auto w-full">
           <AnimatePresence mode="wait">
@@ -1469,17 +1258,6 @@ export const AIFeaturesPage: React.FC = () => {
                 transition={{ duration: 0.15 }}
               >
                 <SmartBoostSection />
-              </motion.div>
-            )}
-            {activeTab === "gamemode" && (
-              <motion.div
-                key="gamemode"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -8 }}
-                transition={{ duration: 0.15 }}
-              >
-                <GameModeSection />
               </motion.div>
             )}
             {activeTab === "startup" && (

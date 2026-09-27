@@ -13,6 +13,28 @@ import { setupAIIPC } from "../ipc/ai/aiHandlers";
 import { setupSystemCheckIPC } from "../ipc/system-check/systemCheckHandlers";
 import { setupPermissionsIPC } from "../ipc/permissions/permissionsHandlers";
 import { setupExclusionsIPC } from "../ipc/cleaner/exclusionsHandlers";
+import { recoverPerformanceModeState } from "../services/memory/performanceModeService";
+
+async function cleanupOrphanedGameMode() {
+  const stateFile = path.join(app.getPath('userData'), 'gameModeState.json');
+  if (fs.existsSync(stateFile)) {
+    try {
+      const data = fs.readFileSync(stateFile, 'utf8');
+      const state = JSON.parse(data);
+      if (state.gameModeActive && state.originalPowerPlanGuid) {
+        console.log('[GameMode Cleanup] Restoring orphaned power plan...');
+        const { exec } = require('child_process');
+        await new Promise((resolve) => {
+          exec(`powercfg /setactive ${state.originalPowerPlanGuid}`, () => resolve(true));
+        });
+      }
+      fs.unlinkSync(stateFile);
+      console.log('[GameMode Cleanup] Orphaned state file removed.');
+    } catch (e) {
+      console.error('[GameMode Cleanup] Failed:', e);
+    }
+  }
+}
 
 import { startScheduler } from "../services/maintenance/schedulerService";
 import { startNotificationService } from "../services/maintenance/notificationService";
@@ -149,6 +171,12 @@ app.whenReady().then(async () => {
   // ── INTEGRITY CHECK: must run before ANY window or service setup ────────
   // No-op in dev (app.isPackaged === false). Exits with code 1 if tampered.
   await verifyIntegrity();
+
+  // Run Game Mode legacy cleanup before UI loads
+  await cleanupOrphanedGameMode();
+
+  // Run Performance Mode crash recovery before UI loads
+  await recoverPerformanceModeState();
 
   setupIPC();
   setupCleanerIPC();

@@ -22,11 +22,11 @@ export interface DirectXInfo {
 export interface GpuReport {
   controllers: GpuController[]
   directX: DirectXInfo
-  openGlVersion: string
+  openGlVersion: string | null
   vulkanSupported: boolean
   hardwareAccelEnabled: boolean
   driverStatus: 'ok' | 'outdated' | 'unknown'
-  gamingReady: boolean
+  gamingReadyEstimate: boolean
   recommendation: string | null
 }
 
@@ -75,14 +75,14 @@ async function getVulkanSupport(): Promise<boolean> {
   return raw.toLowerCase().includes('true')
 }
 
-async function getOpenGLVersion(): Promise<string> {
+async function getOpenGLVersion(): Promise<string | null> {
   // Read from WMI / registry fallback
   const raw = await ps(
     `(Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\OpenGLDrivers' -ErrorAction SilentlyContinue) | Out-String`
   )
   if (raw && raw.includes('OpenGL')) return 'OpenGL (detected)'
-  // systeminformation doesn't expose this well; return standard fallback
-  return 'OpenGL 4.6+'
+  // Systeminformation doesn't expose this well; omit rather than fabricate
+  return null
 }
 
 async function checkHardwareAccel(): Promise<boolean> {
@@ -94,16 +94,18 @@ async function checkHardwareAccel(): Promise<boolean> {
   return raw !== '1'
 }
 
-export async function getGpuReport(): Promise<GpuReport> {
+import { SharedSystemInfo } from './optimizationService'
+
+export async function getGpuReport(sharedData?: SharedSystemInfo): Promise<GpuReport> {
   const [graphicsData, directX, vulkanSupported, openGlVersion, hwAccel] = await Promise.all([
-    si.graphics(),
+    sharedData?.graphics ? Promise.resolve(sharedData.graphics) : si.graphics(),
     getDirectXVersion(),
     getVulkanSupport(),
     getOpenGLVersion(),
     checkHardwareAccel(),
   ])
 
-  const controllers: GpuController[] = (graphicsData.controllers ?? []).map(c => ({
+  const controllers: GpuController[] = (graphicsData?.controllers ?? []).map((c: any) => ({
     model: c.model ?? 'Unknown',
     vendor: c.vendor ?? 'Unknown',
     vram: c.vram ?? 0,
@@ -130,13 +132,13 @@ export async function getGpuReport(): Promise<GpuReport> {
     }
   }
 
-  const gamingReady =
+  const gamingReadyEstimate =
     driverStatus !== 'outdated' &&
     vulkanSupported &&
     directX.version.includes('12') &&
     hwAccel
 
-  if (!gamingReady && !recommendation) {
+  if (!gamingReadyEstimate && !recommendation) {
     if (!vulkanSupported) recommendation = 'Vulkan runtime not detected. Some games may not launch correctly.'
     else if (!directX.version.includes('12')) recommendation = 'DirectX 12 not confirmed. Update Windows for best gaming support.'
   }
@@ -148,7 +150,7 @@ export async function getGpuReport(): Promise<GpuReport> {
     vulkanSupported,
     hardwareAccelEnabled: hwAccel,
     driverStatus,
-    gamingReady,
+    gamingReadyEstimate,
     recommendation,
   }
 }

@@ -35,7 +35,7 @@ async function ps(cmd: string): Promise<string> {
 
 async function measureLatency(): Promise<number> {
   try {
-    const { stdout } = await execAsync('ping -n 4 8.8.8.8', { timeout: 12000 })
+    const { stdout } = await execAsync('ping -n 2 8.8.8.8', { timeout: 3000 })
     const match = stdout.match(/Average\s*=\s*(\d+)ms/i)
     if (match) return parseInt(match[1], 10)
     // fallback parse for non-English Windows
@@ -48,7 +48,7 @@ async function measureLatency(): Promise<number> {
 async function measureDnsResponse(): Promise<number> {
   const start = Date.now()
   try {
-    await execAsync('nslookup google.com 8.8.8.8', { timeout: 8000 })
+    await execAsync('nslookup google.com 8.8.8.8', { timeout: 3000 })
     return Date.now() - start
   } catch {
     return -1
@@ -57,7 +57,7 @@ async function measureDnsResponse(): Promise<number> {
 
 async function getPublicIP(): Promise<string> {
   try {
-    const { stdout } = await execAsync('curl -s --max-time 5 https://api.ipify.org', { timeout: 8000 })
+    const { stdout } = await execAsync('curl -s --max-time 2 https://api.ipify.org', { timeout: 3000 })
     return stdout.trim() || 'Unavailable'
   } catch {
     return 'Unavailable'
@@ -102,7 +102,7 @@ function networkQualityScore(
 }
 
 export async function getNetworkInfo(): Promise<NetworkInfo> {
-  const [netInterfaces, netStats, publicIP, wifiInfo, latency, dnsMs] = await Promise.all([
+  const [netInterfacesRes, netStatsRes, publicIPRes, wifiInfoRes, latencyRes, dnsMsRes] = await Promise.allSettled([
     si.networkInterfaces(),
     si.networkStats(),
     getPublicIP(),
@@ -110,6 +110,13 @@ export async function getNetworkInfo(): Promise<NetworkInfo> {
     measureLatency(),
     measureDnsResponse(),
   ])
+
+  const netInterfaces = netInterfacesRes.status === 'fulfilled' ? netInterfacesRes.value : []
+  const netStats = netStatsRes.status === 'fulfilled' ? netStatsRes.value : []
+  const publicIP = publicIPRes.status === 'fulfilled' ? publicIPRes.value : 'Unavailable'
+  const wifiInfo = wifiInfoRes.status === 'fulfilled' ? wifiInfoRes.value : { signal: null, ssid: null }
+  const latency = latencyRes.status === 'fulfilled' ? latencyRes.value : -1
+  const dnsMs = dnsMsRes.status === 'fulfilled' ? dnsMsRes.value : -1
 
   // Pick primary adapter (first non-loopback with IP)
   const ifaces = Array.isArray(netInterfaces) ? netInterfaces : [netInterfaces]
