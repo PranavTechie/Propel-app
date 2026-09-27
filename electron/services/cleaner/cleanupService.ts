@@ -15,6 +15,7 @@ export interface CleanupStats {
   freed: number
   removed: number
   errors: number
+  errorDetails: { path: string; reason: string }[]
 }
 
 async function trashFile(filePath: string): Promise<void> {
@@ -29,6 +30,7 @@ export async function cleanFiles(
   let freed = 0
   let removed = 0
   let errors = 0
+  const errorDetails: { path: string; reason: string }[] = []
   const total = files.length
 
   for (let i = 0; i < total; i++) {
@@ -41,13 +43,14 @@ export async function cleanFiles(
       }
       freed += file.size
       removed++
-    } catch {
+    } catch (err: any) {
       errors++
+      errorDetails.push({ path: file.path, reason: err?.message || 'Unknown error' })
     }
     onProgress({ current: i + 1, total, currentFile: file.path, freed })
   }
 
-  return { freed, removed, errors }
+  return { freed, removed, errors, errorDetails }
 }
 
 export async function removeEmptyDirs(dirPath: string): Promise<void> {

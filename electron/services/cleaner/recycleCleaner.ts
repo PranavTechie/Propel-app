@@ -31,15 +31,15 @@ export async function getRecycleBinInfo(): Promise<RecycleBinInfo> {
   }
 }
 
-export async function emptyRecycleBin(): Promise<{ freed: number; removed: number; errors: number }> {
+export async function emptyRecycleBin(): Promise<{ freed: number; removed: number; errors: number; errorDetails?: { path: string; reason: string }[] }> {
   try {
     const info = await getRecycleBinInfo()
     await execAsync(
       'powershell -NoProfile -NonInteractive -Command "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"',
       { timeout: 30000 },
     )
-    return { freed: info.size, removed: info.fileCount, errors: 0 }
-  } catch {
-    return { freed: 0, removed: 0, errors: 1 }
+    return { freed: info.size, removed: info.fileCount, errors: 0, errorDetails: [] }
+  } catch (err: any) {
+    return { freed: 0, removed: 0, errors: 1, errorDetails: [{ path: 'Recycle Bin', reason: err?.message || 'Failed to empty recycle bin' }] }
   }
 }

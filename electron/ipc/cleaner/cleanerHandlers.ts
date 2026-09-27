@@ -174,6 +174,7 @@ export function setupCleanerIPC(): void {
       }
 
       const totalFiles = allFiles.length
+      const allErrors: { path: string; reason: string }[] = []
 
       // Clean regular files
       if (allFiles.length > 0) {
@@ -190,6 +191,7 @@ export function setupCleanerIPC(): void {
         totalFreed += stats.freed
         totalRemoved += stats.removed
         totalErrors += stats.errors
+        if (stats.errorDetails) allErrors.push(...stats.errorDetails)
       }
 
       // Empty recycle bin if selected
@@ -199,6 +201,7 @@ export function setupCleanerIPC(): void {
         totalFreed += recycleStats.freed
         totalRemoved += recycleStats.removed
         totalErrors += recycleStats.errors
+        if (recycleStats.errorDetails) allErrors.push(...recycleStats.errorDetails)
       }
 
       // Clear cache for cleaned categories
@@ -209,6 +212,7 @@ export function setupCleanerIPC(): void {
         totalFreed,
         filesRemoved: totalRemoved,
         errors: totalErrors,
+        errorDetails: allErrors,
         durationMs: Date.now() - startTime,
         categories: categoryIds,
       })

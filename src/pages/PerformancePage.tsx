@@ -1,4 +1,5 @@
 import React, { memo } from "react";
+import { useSessionStore } from "@/store/sessionStore";
 import { motion } from "framer-motion";
 import {
   Cpu,
@@ -79,10 +80,11 @@ export const PerformancePage: React.FC = () => {
   const stats = useAppStore((s) => s.stats);
   const chartData = useAppStore((s) => s.chartData);
   const addToast = useAppStore((s) => s.addToast);
-  const [isOptimizingDrive, setIsOptimizingDrive] = React.useState(false);
+  const { isOptimizingDrive } = useSessionStore(s => s.performance);
+  const setPerformance = useSessionStore(s => s.setPerformance);
 
   const handleOptimizeDrive = React.useCallback(async () => {
-    setIsOptimizingDrive(true);
+    setPerformance({ isOptimizingDrive: true });
     try {
       const systemApi = window.api?.system ?? window.electronAPI?.system ?? window.propel?.system;
       const res = await systemApi?.optimizeDrive("C");
@@ -108,9 +110,9 @@ export const PerformancePage: React.FC = () => {
         description: e?.message || "Drive optimization failed.",
       });
     } finally {
-      setIsOptimizingDrive(false);
+      setPerformance({ isOptimizingDrive: false });
     }
-  }, [addToast]);
+  }, [addToast, setPerformance]);
   return (
     <div className="page-shell space-y-5">
       <header>

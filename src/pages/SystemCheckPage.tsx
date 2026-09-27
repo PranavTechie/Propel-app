@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { useSessionStore } from "@/store/sessionStore";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -651,27 +652,26 @@ function MiniScore({
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 export function SystemCheckPage() {
-  const [scanning, setScanning] = useState(false);
-  const [data, setData] = useState<FullScanData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
-  const runScan = useCallback(async () => {
-    setScanning(true);
-    setError(null);
+  const { data, lastScanTime, error, scanning } = useSessionStore(s => s.systemCheck);
+  const setSystemCheck = useSessionStore(s => s.setSystemCheck);
+  
+  
+  
+    const runScan = useCallback(async () => {
+    setSystemCheck({ scanning: true, error: null });
     try {
       const result = await window.propel.systemCheck.runFull();
       if (result.ok) {
-        setData(result.data);
-        setLastScanTime(new Date());
+        setSystemCheck({ data: result.data, lastScanTime: new Date() });
       } else {
-        setError(result.error ?? "Scan failed");
+        setSystemCheck({ error: result.error ?? "Scan failed" });
       }
     } catch (e: any) {
-      setError(e?.message ?? "Unexpected error");
+      setSystemCheck({ error: e?.message ?? "Unexpected error" });
     } finally {
-      setScanning(false);
+      setSystemCheck({ scanning: false });
     }
-  }, []);
+  }, [setSystemCheck]);
 
   const hs = data?.healthScore?.breakdown;
   const sections = [

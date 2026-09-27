@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { useSessionStore } from "@/store/sessionStore";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
@@ -189,18 +190,16 @@ const ProgressStep: React.FC<{ step: string; pct: number }> = ({
   </div>
 );
 
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-// SECTION 1 â€” AI SMART BOOST
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// SECTION 1 AI SMART BOOST
 const SmartBoostSection: React.FC = () => {
-  const [analysis, setAnalysis] = useState<SmartBoostAnalysis | null>(null);
-  const [result, setResult] = useState<SmartBoostResult | null>(null);
+  const { sbAnalysis: analysis, sbResult: result, sbProgress: progress } = useSessionStore(s => s.ai) as { sbAnalysis: SmartBoostAnalysis | null, sbResult: SmartBoostResult | null, sbProgress: { step: string; pct: number } | null };
+  const setAi = useSessionStore(s => s.setAi);
+  const setAnalysis = (a: any) => setAi({ sbAnalysis: a });
+  const setResult = (r: any) => setAi({ sbResult: r });
+  const setProgress = (p: any) => setAi({ sbProgress: p });
+  
   const [analyzing, setAnalyzing] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
-  const [progress, setProgress] = useState<{
-    step: string;
-    pct: number;
-  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const runAnalysis = useCallback(async () => {
@@ -468,9 +467,12 @@ const SmartBoostSection: React.FC = () => {
 // SECTION 3 â€” AI STARTUP ANALYZER
 // â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 const StartupAnalyzerSection: React.FC = () => {
-  const [analysis, setAnalysis] = useState<StartupAnalysis | null>(null);
+  const { suAnalysis: analysis, suEntries: entries } = useSessionStore(s => s.ai) as { suAnalysis: StartupAnalysis | null, suEntries: StartupEntry[] };
+  const setAi = useSessionStore(s => s.setAi);
+  const setAnalysis = (a: StartupAnalysis | null) => setAi({ suAnalysis: a });
+  const setEntries = (e: StartupEntry[] | ((prev: StartupEntry[]) => StartupEntry[])) => setAi(s => ({ suEntries: typeof e === 'function' ? e(s.suEntries) : e }));
+  
   const [loading, setLoading] = useState(false);
-  const [entries, setEntries] = useState<StartupEntry[]>([]);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -715,19 +717,17 @@ const StartupAnalyzerSection: React.FC = () => {
 // SECTION 4 â€” AI DUPLICATE FINDER
 // â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
 const DuplicateFinderSection: React.FC = () => {
-  const [scanResult, setScanResult] = useState<DuplicateScanResult | null>(
-    null,
-  );
-  const [progress, setProgress] = useState<DuplicateScanProgress | null>(null);
+  const { dupScanResult: scanResult, dupProgress: progress, dupSelected: selected, dupExpandedGroups: expandedGroups, dupDeleteResult: deleteResult, dupFilterCategory: filterCategory } = useSessionStore(s => s.ai) as { dupScanResult: DuplicateScanResult | null, dupProgress: DuplicateScanProgress | null, dupSelected: Set<string>, dupExpandedGroups: Set<string>, dupDeleteResult: { freedBytes: number; deletedCount: number; } | null, dupFilterCategory: string };
+  const setAi = useSessionStore(s => s.setAi);
+  const setScanResult = (r: DuplicateScanResult | null) => setAi({ dupScanResult: r });
+  const setProgress = (p: DuplicateScanProgress | null) => setAi({ dupProgress: p });
+  const setSelected = (s: Set<string> | ((prev: Set<string>) => Set<string>)) => setAi(st => ({ dupSelected: typeof s === 'function' ? s(st.dupSelected) : s }));
+  const setExpandedGroups = (s: Set<string> | ((prev: Set<string>) => Set<string>)) => setAi(st => ({ dupExpandedGroups: typeof s === 'function' ? s(st.dupExpandedGroups) : s }));
+  const setDeleteResult = (r: { freedBytes: number; deletedCount: number; } | null) => setAi({ dupDeleteResult: r });
+  const setFilterCategory = (c: string) => setAi({ dupFilterCategory: c });
+
   const [scanning, setScanning] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-  const [deleteResult, setDeleteResult] = useState<{
-    freedBytes: number;
-    deletedCount: number;
-  } | null>(null);
-  const [filterCategory, setFilterCategory] = useState<string>("all");
 
   const startScan = useCallback(async () => {
     setScanning(true);
@@ -1171,7 +1171,9 @@ const TABS: {
 ];
 
 export const AIFeaturesPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>("advisor");
+  const { activeTab } = useSessionStore(s => s.ai);
+  const setAi = useSessionStore(s => s.setAi);
+  const setActiveTab = (t: any) => setAi({ activeTab: t });
 
   return (
     <div className="h-full flex flex-col overflow-hidden">

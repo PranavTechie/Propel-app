@@ -92,22 +92,31 @@ export const AppLayout: React.FC = () => {
         <div className="relative z-10 flex flex-1 overflow-hidden">
           <Sidebar />
           <main className="relative flex-1 overflow-hidden">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={activePage}
-                variants={pageVariants}
-                initial="initial"
-                animate="animate"
-                exit="exit"
-                data-page-container
-                className="absolute inset-0 overflow-y-auto overflow-x-hidden"
-                style={{ scrollbarGutter: "stable" }}
-              >
-                <Suspense fallback={<PageFallback />}>
-                  <ActivePage />
-                </Suspense>
-              </motion.div>
-            </AnimatePresence>
+            {Object.entries(PAGE_MAP).map(([key, Component]) => {
+              const isActive = key === activePage;
+              return (
+                <div
+                  key={key}
+                  style={{
+                    display: isActive ? "block" : "none",
+                  }}
+                  className="absolute inset-0 overflow-hidden"
+                >
+                  <motion.div
+                    variants={pageVariants}
+                    initial="initial"
+                    animate={isActive ? "animate" : "initial"}
+                    data-page-container
+                    className="absolute inset-0 overflow-y-auto overflow-x-hidden"
+                    style={{ scrollbarGutter: "stable" }}
+                  >
+                    <Suspense fallback={<PageFallback />}>
+                      <Component />
+                    </Suspense>
+                  </motion.div>
+                </div>
+              );
+            })}
           </main>
         </div>
         <ToastProvider />

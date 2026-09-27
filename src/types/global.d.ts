@@ -26,6 +26,7 @@ declare global {
       systemCheck:  typeof systemCheckBridge
       permissions:  typeof permissionsBridge
       exclusions:   typeof exclusionsBridge
+      overlay:      any
     }
     // Dev-only telemetry test suite — undefined in production builds
     __cmTelemetryTest?: {

@@ -17,6 +17,7 @@ import {
   Power,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
+import { useSessionStore } from "@/store/sessionStore";
 import { Button } from "@/components/ui/Button";
 import { formatBytes } from "@/utils/format";
 import { cn } from "@/utils/cn";
@@ -274,27 +275,28 @@ const OptimizeReport: React.FC<{
 export const MemoryPage: React.FC = () => {
   const { addToast } = useAppStore();
 
-  const [memStats, setMemStats] = useState<MemoryDetails | null>(null);
-  const [processes, setProcesses] = useState<ProcessMemInfo[]>([]);
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [optimizeResult, setOptimizeResult] =
-    useState<OptimizationResult | null>(null);
-  const [perfMode, setPerfMode] = useState(false);
-  const [perfModeLoading, setPerfModeLoading] = useState(false);
+  const { memStats, processes, lastOptimization, perfMode, isOptimizing, perfModeLoading } = useSessionStore(s => s.memory);
+  const setMemory = useSessionStore(s => s.setMemory);
+
+
+
+
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const memApi = useRef(window.propel?.memory);
 
   // ── Fetch memory stats ──────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
+    if (useAppStore.getState().activePage !== "memory") return;
     if (!memApi.current) return;
     try {
       const [stats, procs] = await Promise.all([
         memApi.current.getStats(),
         memApi.current.getProcesses(12),
       ]);
-      setMemStats(stats);
-      setProcesses(procs);
+      setMemory({ memStats: stats });
+      setMemory({ processes: procs });
     } catch {
       // silently ignore polling errors
     }
@@ -321,14 +323,14 @@ export const MemoryPage: React.FC = () => {
   const handleOptimize = useCallback(async () => {
     if (!memApi.current || isOptimizing) return;
 
-    setIsOptimizing(true);
-    setOptimizeResult(null);
+    setMemory({ isOptimizing: true });
+    setMemory({ lastOptimization: null });
 
     memApi.current.removeListeners();
 
     try {
       const result = await memApi.current.optimize();
-      setOptimizeResult(result);
+      setMemory({ lastOptimization: result });
       await fetchStats();
       addToast({
         type: "success",
@@ -345,7 +347,7 @@ export const MemoryPage: React.FC = () => {
         description: "Could not run optimizer.",
       });
     } finally {
-      setIsOptimizing(false);
+      setMemory({ isOptimizing: false });
       memApi.current?.removeListeners();
     }
   }, [isOptimizing, fetchStats, addToast]);
@@ -353,10 +355,10 @@ export const MemoryPage: React.FC = () => {
   // ── Performance Mode ────────────────────────────────────────────────────
   const handleTogglePerfMode = useCallback(async () => {
     if (!memApi.current || perfModeLoading) return;
-    setPerfModeLoading(true);
+    setMemory({ perfModeLoading: true });
     try {
       const result = await memApi.current.setPerformanceMode(!perfMode);
-      setPerfMode(result.enabled);
+      setMemory({ perfMode: result.enabled });
       addToast({
         type: result.enabled ? "success" : "info",
         title: result.enabled ? "Focus Mode On" : "Focus Mode Off",
@@ -367,7 +369,7 @@ export const MemoryPage: React.FC = () => {
     } catch {
       addToast({ type: "error", title: "Failed to toggle Focus Mode" });
     } finally {
-      setPerfModeLoading(false);
+      setMemory({ perfModeLoading: false });
     }
   }, [perfMode, perfModeLoading, addToast]);
 
@@ -559,10 +561,10 @@ export const MemoryPage: React.FC = () => {
 
         {/* ── Optimization Report ── */}
         <AnimatePresence>
-          {optimizeResult && (
+          {lastOptimization && (
             <OptimizeReport
-              result={optimizeResult}
-              onDismiss={() => setOptimizeResult(null)}
+              result={lastOptimization}
+              onDismiss={() => setMemory({ lastOptimization: null })}
             />
           )}
         </AnimatePresence>

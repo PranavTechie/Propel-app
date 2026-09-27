@@ -4,6 +4,7 @@ export interface CleanupReport {
   totalFreed: number
   filesRemoved: number
   errors: number
+  errorDetails?: { path: string; reason: string }[]
   durationMs: number
   categories: string[]
 }

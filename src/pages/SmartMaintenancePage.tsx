@@ -20,6 +20,8 @@ import {
   Activity,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
+import { useSessionStore } from "@/store/sessionStore";
+import { useAppStore } from "@/store/appStore";
 import type { MaintenanceSettings, MaintenanceStatus } from "@/types";
 
 // ── Glow Toggle ────────────────────────────────────────────────────────────
@@ -163,18 +165,17 @@ const DEFAULT_SETTINGS: MaintenanceSettings = {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 export const SmartMaintenancePage: React.FC = () => {
-  const [settings, setSettings] =
-    useState<MaintenanceSettings>(DEFAULT_SETTINGS);
-  const [status, setStatus] = useState<MaintenanceStatus | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
-  const [runResult, setRunResult] = useState<{
-    ok: boolean;
-    msg: string;
-  } | null>(null);
-  const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const { settings, status, loading, running, runResult, isTechnicalDetailsOpen } = useSessionStore(s => s.smartMaintenance);
+  const setSmartMaintenance = useSessionStore(s => s.setSmartMaintenance);
+  const setSettings = (s: MaintenanceSettings | ((prev: MaintenanceSettings) => MaintenanceSettings)) => setSmartMaintenance(st => ({ settings: typeof s === 'function' ? s(st.settings || DEFAULT_SETTINGS) : s }));
+  const setStatus = (st: any) => setSmartMaintenance({ status: st });
+  const setLoading = (l: boolean) => setSmartMaintenance({ loading: l });
+  const setRunning = (r: boolean) => setSmartMaintenance({ running: r });
+  const setRunResult = (rr: any) => setSmartMaintenance({ runResult: rr });
+  const setIsTechnicalDetailsOpen = (o: boolean) => setSmartMaintenance({ isTechnicalDetailsOpen: o });
   
-  const [isTechnicalDetailsOpen, setIsTechnicalDetailsOpen] = useState(false);
+  const statusTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Load settings + status on mount ─────────────────────────────────────
   useEffect(() => {
@@ -191,6 +192,7 @@ export const SmartMaintenancePage: React.FC = () => {
 
     // Refresh status every 30 s
     statusTimer.current = setInterval(() => {
+      if (useAppStore.getState().activePage !== "maintenance") return;
       window.propel.maintenance
         .getStatus()
         .then((st) => setStatus(st as MaintenanceStatus))

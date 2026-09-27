@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useCleanerHistoryStore } from "@/store/cleanerHistoryStore";
+import { useSessionStore } from "@/store/sessionStore";
 import { logError } from "@/services/crashLogger";
 import { perfTime } from "@/services/perfProfiler";
 import { Button } from "@/components/ui/Button";
@@ -422,7 +423,10 @@ export const CleanerPage: React.FC = () => {
     setIsScanning(true);
     // Start elapsed-time ticker
     if (elapsedRef.current) clearInterval(elapsedRef.current);
-    elapsedRef.current = setInterval(() => setElapsedSec((s) => s + 1), 1000);
+    elapsedRef.current = setInterval(() => setElapsedSec((s) => {
+      if (useAppStore.getState().activePage !== "cleaner") return s;
+      return s + 1;
+    }), 1000);
 
     cleanerRef.current.removeListeners();
     cleanerRef.current.onScanProgress((evt) => {
