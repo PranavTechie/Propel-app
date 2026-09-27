@@ -48,7 +48,7 @@ import type {
 } from "@/types";
 import { PCAdvisorSection } from "@/components/ai/PCAdvisorSection";
 
-// â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Helpers ----------------------------------------------------------------
 function healthColor(score: number): string {
   if (score >= 80) return "#10b981";
   if (score >= 60) return "#f59e0b";
@@ -80,7 +80,7 @@ function impactColor(impact: StartupEntry["impact"]): string {
   return "text-emerald-400";
 }
 
-// â”€â”€ Health Ring â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Health Ring ------------------------------------------------------------
 const HealthRing: React.FC<{ score: number }> = ({ score }) => {
   const R = 70;
   const C = Math.PI * 2 * R;
@@ -149,7 +149,7 @@ const HealthRing: React.FC<{ score: number }> = ({ score }) => {
   );
 };
 
-// â”€â”€ Mini Metric â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Mini Metric ------------------------------------------------------------
 const MiniMetric: React.FC<{
   icon: React.ReactNode;
   label: string;
@@ -167,7 +167,7 @@ const MiniMetric: React.FC<{
   </div>
 );
 
-// â”€â”€ Progress Step â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// -- Progress Step ---------------------------------------------------------
 const ProgressStep: React.FC<{ step: string; pct: number }> = ({
   step,
   pct,
@@ -219,7 +219,7 @@ const SmartBoostSection: React.FC = () => {
   const runOptimize = useCallback(async () => {
     if (!analysis) return;
     setOptimizing(true);
-    setProgress({ step: "Starting optimizationâ€¦", pct: 0 });
+    setProgress({ step: "Starting optimization...", pct: 0 });
     setResult(null);
 
     window.propel.ai.onSmartBoostProgress((data) => {
@@ -244,7 +244,7 @@ const SmartBoostSection: React.FC = () => {
 
   return (
     <div className="grid grid-cols-[1.2fr_1fr] max-[900px]:grid-cols-1 gap-6 items-start">
-      {/* â”€â”€ Left Column: Main Feature Info â”€â”€ */}
+      {/* -- Left Column: Main Feature Info -- */}
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center border border-brand-primary/20">
@@ -324,7 +324,7 @@ const SmartBoostSection: React.FC = () => {
         </div>
       </div>
 
-      {/* â”€â”€ Right Column: Status Panel â”€â”€ */}
+      {/* -- Right Column: Status Panel -- */}
       <div className="glass rounded-2xl p-5 border border-white/5 space-y-4 flex flex-col min-h-[300px]">
         <h3 className="text-sm font-semibold text-text-primary border-b border-white/5 pb-3">
           System Optimization
@@ -464,8 +464,8 @@ const SmartBoostSection: React.FC = () => {
   );
 };
 
-// SECTION 3 â€” AI STARTUP ANALYZER
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// SECTION 3 - AI STARTUP ANALYZER
+// =========================================================================
 const StartupAnalyzerSection: React.FC = () => {
   const { suAnalysis: analysis, suEntries: entries } = useSessionStore(s => s.ai) as { suAnalysis: StartupAnalysis | null, suEntries: StartupEntry[] };
   const setAi = useSessionStore(s => s.setAi);
@@ -538,7 +538,7 @@ const StartupAnalyzerSection: React.FC = () => {
           )}
         >
           <Scan className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
-          {loading ? "Scanningâ€¦" : analysis ? "Re-scan" : "Scan Startup"}
+          {loading ? "Scanning..." : analysis ? "Re-scan" : "Scan Startup"}
         </button>
       </div>
 
@@ -591,7 +591,7 @@ const StartupAnalyzerSection: React.FC = () => {
           </div>
           <div>
             <p className="text-text-secondary font-medium text-sm">
-              Scanning startup entriesâ€¦
+              Scanning startup entries
             </p>
             <p className="text-2xs text-text-muted">
               Reading registry & startup folders
@@ -713,9 +713,9 @@ const StartupAnalyzerSection: React.FC = () => {
   );
 };
 
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
-// SECTION 4 â€” AI DUPLICATE FINDER
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// =========================================================================
+// SECTION 4 - AI DUPLICATE FINDER
+// =========================================================================
 const DuplicateFinderSection: React.FC = () => {
   const { dupScanResult: scanResult, dupProgress: progress, dupSelected: selected, dupExpandedGroups: expandedGroups, dupDeleteResult: deleteResult, dupFilterCategory: filterCategory } = useSessionStore(s => s.ai) as { dupScanResult: DuplicateScanResult | null, dupProgress: DuplicateScanProgress | null, dupSelected: Set<string>, dupExpandedGroups: Set<string>, dupDeleteResult: { freedBytes: number; deletedCount: number; } | null, dupFilterCategory: string };
   const setAi = useSessionStore(s => s.setAi);
@@ -837,7 +837,7 @@ const DuplicateFinderSection: React.FC = () => {
           )}
         >
           <Scan className={cn("w-3.5 h-3.5", scanning && "animate-spin")} />
-          {scanning ? "Scanningâ€¦" : scanResult ? "Re-scan" : "Scan Files"}
+          {scanning ? "Scanning..." : scanResult ? "Re-scan" : "Scan Files"}
         </button>
       </div>
 
@@ -851,7 +851,7 @@ const DuplicateFinderSection: React.FC = () => {
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-rose-400 animate-pulse" />
             <span className="text-xs font-semibold text-text-secondary capitalize">
-              {progress.phase}â€¦
+              {progress.phase}...
             </span>
             {progress.duplicatesFound > 0 && (
               <span className="ml-auto text-xs text-rose-400 font-semibold">
@@ -862,10 +862,10 @@ const DuplicateFinderSection: React.FC = () => {
           <ProgressStep
             step={
               progress.phase === "scanning"
-                ? `Collecting files (${progress.scannedFiles} found)â€¦`
+                ? `Collecting files (${progress.scannedFiles} found)...`
                 : progress.phase === "hashing"
-                  ? `Hashing candidates (${progress.hashedFiles}/${progress.totalFiles})â€¦`
-                  : "Grouping duplicatesâ€¦"
+                  ? `Hashing candidates (${progress.hashedFiles}/${progress.totalFiles})...`
+                  : "Grouping duplicates..."
             }
             pct={
               progress.phase === "scanning"
@@ -940,7 +940,7 @@ const DuplicateFinderSection: React.FC = () => {
             <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
               <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
               <span className="text-xs text-emerald-300">
-                Deleted {deleteResult.deletedCount} files Â· Freed{" "}
+                Deleted {deleteResult.deletedCount} files | Freed{" "}
                 {formatBytes(deleteResult.freedBytes)}
               </span>
             </div>
@@ -1052,7 +1052,7 @@ const DuplicateFinderSection: React.FC = () => {
                         {group.files[0].name}
                       </div>
                       <div className="text-2xs text-text-muted capitalize">
-                        {group.category} Â· {group.count} copies Â·{" "}
+                        {group.category} | {group.count} copies |{" "}
                         {formatBytes(group.size)} each
                       </div>
                     </div>
@@ -1135,9 +1135,9 @@ const DuplicateFinderSection: React.FC = () => {
   );
 };
 
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// =========================================================================
 // MAIN PAGE
-// â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”
+// =========================================================================
 type Tab = "advisor" | "boost" | "startup" | "duplicates";
 
 const TABS: {
@@ -1177,7 +1177,7 @@ export const AIFeaturesPage: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* â”€â”€ Header & Tabs â”€â”€ */}
+      {/* -- Header & Tabs -- */}
       <div className="shrink-0 px-6 pt-6 pb-4">
         <motion.div
           initial={{ opacity: 0, y: -8 }}
@@ -1236,7 +1236,7 @@ export const AIFeaturesPage: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* â”€â”€ Content â”€â”€ */}
+      {/* -- Content -- */}
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <div className="max-w-5xl mx-auto w-full">
           <AnimatePresence mode="wait">
