@@ -63,7 +63,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "delivery-opt": "text-emerald-400 bg-emerald-500/10",
 };
 
-type Phase = "idle" | "scanning" | "results" | "cleaning" | "complete";
+type Phase = "idle" | "scanning" | "results" | "cleaning" | "pending-permission" | "complete";
 
 interface ScanLiveState {
   currentPath: string;
@@ -600,21 +600,22 @@ export const CleanerPage: React.FC = () => {
       setCategories([]);
       setScanResults([]);
       setSelected(new Set());
-      setPhase("complete");
       if (result.permissionBatchToken && result.permissionDeniedCount) {
+        setPhase("pending-permission");
         setPermissionBatch({
           report: result,
           count: result.permissionDeniedCount,
           token: result.permissionBatchToken,
         });
       } else {
+        setPhase("complete");
         addHistoryReport(result);
+        addToast({
+          type: "success",
+          title: "Cleanup Complete!",
+          description: `Freed ${formatBytes(result.totalFreed)} from ${result.filesRemoved.toLocaleString()} files`,
+        });
       }
-      addToast({
-        type: "success",
-        title: "Cleanup Complete!",
-        description: `Freed ${formatBytes(result.totalFreed)} from ${result.filesRemoved.toLocaleString()} files`,
-      });
     } catch (err) {
       setPhase("results");
       logError(
@@ -668,7 +669,6 @@ export const CleanerPage: React.FC = () => {
     setScanResults([]);
     setSelected(new Set());
     setPhase("complete");
-    addHistoryReport(finalReport);
     addToast({
       type: "success",
       title: "Cleanup Complete!",
