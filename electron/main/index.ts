@@ -15,6 +15,10 @@ import { setupPermissionsIPC } from "../ipc/permissions/permissionsHandlers";
 import { setupExclusionsIPC } from "../ipc/cleaner/exclusionsHandlers";
 import { recoverPerformanceModeState } from "../services/memory/performanceModeService";
 
+// Strict Windows GUID / power-plan GUID format validator.
+// Power plan GUIDs are always exactly the canonical 8-4-4-4-12 hex format.
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function cleanupOrphanedGameMode() {
   const stateFile = path.join(app.getPath('userData'), 'gameModeState.json');
   if (fs.existsSync(stateFile)) {
@@ -22,10 +26,21 @@ async function cleanupOrphanedGameMode() {
       const data = fs.readFileSync(stateFile, 'utf8');
       const state = JSON.parse(data);
       if (state.gameModeActive && state.originalPowerPlanGuid) {
+        const guid = String(state.originalPowerPlanGuid);
+
+        // SECURITY: Validate GUID format before passing to exec to prevent
+        // command injection via a tampered gameModeState.json file.
+        if (!GUID_RE.test(guid)) {
+          console.error('[GameMode Cleanup] Rejected invalid GUID format — possible tamper:', guid.slice(0, 36));
+          fs.unlinkSync(stateFile);
+          return;
+        }
+
         console.log('[GameMode Cleanup] Restoring orphaned power plan...');
         const { exec } = require('child_process');
         await new Promise((resolve) => {
-          exec(`powercfg /setactive ${state.originalPowerPlanGuid}`, () => resolve(true));
+          // GUID is validated above — safe to interpolate.
+          exec(`powercfg /setactive ${guid}`, { windowsHide: true }, () => resolve(true));
         });
       }
       fs.unlinkSync(stateFile);
@@ -97,6 +112,12 @@ function createWindow(): void {
       preload: path.join(__dirname, "../preload/index.js"),
       nodeIntegration: false,
       contextIsolation: true,
+      // sandbox: false is required because several Electron services (memoryService,
+      // performanceModeService, cleaner) use native Node APIs (child_process, fs, si)
+      // which are incompatible with the renderer-level sandbox. The renderer itself
+      // never receives Node access — contextIsolation + a strict preload enforce the
+      // security boundary instead. Revisit if native deps are ever replaced with
+      // IPC-only shims.
       sandbox: false,
       webSecurity: true,
     },
