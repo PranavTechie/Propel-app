@@ -19,6 +19,12 @@ export const cleanerBridge = {
   clean: (categoryIds: string[]): Promise<CleanupReport> =>
     ipcRenderer.invoke('cleaner:clean', categoryIds),
 
+  cleanAdminBatch: (token: string): Promise<CleanupReport> =>
+    ipcRenderer.invoke('cleaner:clean-admin', token),
+
+  discardAdminBatch: (token: string): Promise<void> =>
+    ipcRenderer.invoke('cleaner:discard-admin-batch', token),
+
   getRecycleInfo: (): Promise<{ size: number; fileCount: number }> =>
     ipcRenderer.invoke('cleaner:recycle-info'),
 

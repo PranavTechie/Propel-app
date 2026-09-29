@@ -28,7 +28,6 @@ import { useSessionStore } from "@/store/sessionStore";
 import { logError } from "@/services/crashLogger";
 import { perfTime } from "@/services/perfProfiler";
 import { Button } from "@/components/ui/Button";
-import { CleanupPreviewModal } from "@/components/cleaner/CleanupPreviewModal";
 import { ExclusionsModal } from "@/components/cleaner/ExclusionsModal";
 import { HistoryPanel } from "@/components/cleaner/HistoryPanel";
 import { RestoreInfoModal } from "@/components/cleaner/RestoreInfoModal";
@@ -79,6 +78,31 @@ interface CleanLiveState {
   currentFile: string;
   freed: number;
 }
+
+const PermissionBatchModal: React.FC<{
+  count: number;
+  onContinue: () => void;
+  onSkip: () => void;
+}> = ({ count, onContinue, onSkip }) => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="w-full max-w-md rounded-2xl border border-border/70 bg-bg-elevated p-6 shadow-2xl">
+      <div className="flex items-start gap-3">
+        <Shield className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+        <div>
+          <h2 className="text-base font-bold text-text-primary">Some Files Need Administrator Permission</h2>
+          <p className="mt-2 text-sm text-text-secondary">
+            {count} {count === 1 ? "file couldn't" : "files couldn't"} be cleaned without administrator permission.
+            Would you like to try cleaning them with administrator permission?
+          </p>
+        </div>
+      </div>
+      <div className="mt-6 flex justify-end gap-2">
+        <Button variant="outline" size="sm" onClick={onSkip}>Skip</Button>
+        <Button variant="primary" size="sm" onClick={onContinue}>Allow &amp; Clean</Button>
+      </div>
+    </div>
+  </div>
+);
 
 // ── CategoryCard ──────────────────────────────────────────────────────────
 export const CategoryCard: React.FC<{
@@ -282,6 +306,15 @@ const CleanupReportCard: React.FC<{
         </div>
       )}
 
+      {(report.filesSkipped ?? 0) > 0 && (
+        <div className="px-5 pb-3">
+          <p className="text-xs text-text-muted flex items-center gap-1.5">
+            <Shield className="w-3 h-3 text-amber-400" />
+            {report.filesSkipped} files skipped because administrator permission was required.
+          </p>
+        </div>
+      )}
+
       <div className="px-5 pb-5 flex items-center gap-2">
         <Button
           variant="outline"
@@ -348,8 +381,8 @@ export const CleanerPage: React.FC = () => {
   const [report, setReport] = useState<CleanupReport | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showExclusions, setShowExclusions] = useState(false);
-  const [restoreWarning, setRestoreWarning] = useState(false);
   const [showRestore, setShowRestore] = useState(false);
+  const [permissionBatch, setPermissionBatch] = useState<{ report: CleanupReport; count: number; token: string } | null>(null);
   const [safeCleaningMode, setSafeCleaningMode] = useState(true);
   // ── Scan progress percentage (0-100) derived from category completion ──
   const [scanPct, setScanPct] = useState(0);
@@ -536,25 +569,8 @@ export const CleanerPage: React.FC = () => {
     }
   }, [addToast, setScanResults, setIsScanning]);
 
-  // ── Preview gate ────────────────────────────────────────────────────────
-  const [showPreview, setShowPreview] = useState(false);
-
-  const openPreview = useCallback(() => {
-    if (selected.size === 0) return;
-    // Show one-time restore point warning for large cleanups (>100MB)
-    const size = categories
-      .filter((c) => selected.has(c.id))
-      .reduce((a, c) => a + c.totalSize, 0);
-    if (size > 100 * 1024 * 1024 && !restoreWarning) {
-      setRestoreWarning(true);
-      return;
-    }
-    setShowPreview(true);
-  }, [selected, categories, restoreWarning]);
-
   // ── Clean ───────────────────────────────────────────────────────────────
   const handleClean = useCallback(async () => {
-    setShowPreview(false);
     if (!cleanerRef.current || selected.size === 0) return;
 
     setPhase("cleaning");
@@ -581,11 +597,19 @@ export const CleanerPage: React.FC = () => {
         { categories: [...selected] },
       );
       setReport(result);
-      addHistoryReport(result);
       setCategories([]);
       setScanResults([]);
       setSelected(new Set());
       setPhase("complete");
+      if (result.permissionBatchToken && result.permissionDeniedCount) {
+        setPermissionBatch({
+          report: result,
+          count: result.permissionDeniedCount,
+          token: result.permissionBatchToken,
+        });
+      } else {
+        addHistoryReport(result);
+      }
       addToast({
         type: "success",
         title: "Cleanup Complete!",
@@ -609,6 +633,49 @@ export const CleanerPage: React.FC = () => {
     }
   }, [selected, addToast, setScanResults, setIsCleaning, addHistoryReport]);
 
+  const finishPermissionBatch = useCallback(async (action: "continue" | "skip") => {
+    if (!permissionBatch || !cleanerRef.current) return;
+    const firstPass = permissionBatch.report;
+    setPermissionBatch(null);
+    if (action === "skip") {
+      void cleanerRef.current.discardAdminBatch(permissionBatch.token);
+    }
+    let finalReport: CleanupReport = {
+      ...firstPass,
+      filesSkipped: action === "skip" ? permissionBatch.count : 0,
+    };
+    if (action === "continue") {
+      try {
+        const elevated = await cleanerRef.current.cleanAdminBatch(permissionBatch.token);
+        finalReport = {
+          ...firstPass,
+          totalFreed: firstPass.totalFreed + elevated.totalFreed,
+          filesRemoved: firstPass.filesRemoved + elevated.filesRemoved,
+          errors: firstPass.errors - permissionBatch.count + elevated.errors,
+          errorDetails: (firstPass.errorDetails ?? []).filter(
+            error => !(firstPass.permissionDeniedPaths ?? []).includes(error.path),
+          ).concat(elevated.errorDetails ?? []),
+          filesSkipped: elevated.filesSkipped ?? elevated.errors,
+          permissionDeniedPaths: [],
+        };
+      } catch {
+        finalReport.filesSkipped = permissionBatch.count;
+      }
+    }
+    setReport(finalReport);
+    addHistoryReport(finalReport);
+    setCategories([]);
+    setScanResults([]);
+    setSelected(new Set());
+    setPhase("complete");
+    addHistoryReport(finalReport);
+    addToast({
+      type: "success",
+      title: "Cleanup Complete!",
+      description: `Freed ${formatBytes(finalReport.totalFreed)} from ${finalReport.filesRemoved.toLocaleString()} files`,
+    });
+  }, [permissionBatch, addHistoryReport, setScanResults, addToast]);
+
   // ── Helpers ──────────────────────────────────────────────────────────────
   const toggleCategory = (id: string) =>
     setSelected((prev) => {
@@ -631,14 +698,13 @@ export const CleanerPage: React.FC = () => {
 
   return (
     <>
-      <CleanupPreviewModal
-        open={showPreview}
-        categories={categories}
-        selectedIds={selected}
-        selectedSize={selectedSize}
-        onConfirm={handleClean}
-        onCancel={() => setShowPreview(false)}
-      />
+      {permissionBatch && (
+        <PermissionBatchModal
+          count={permissionBatch.count}
+          onContinue={() => void finishPermissionBatch("continue")}
+          onSkip={() => void finishPermissionBatch("skip")}
+        />
+      )}
       <ExclusionsModal
         open={showExclusions}
         onClose={() => setShowExclusions(false)}
@@ -996,12 +1062,12 @@ export const CleanerPage: React.FC = () => {
                 className="space-y-4"
               >
                 {/* Summary bar */}
-                <div className="glass rounded-2xl p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-brand-primary/10 flex items-center justify-center">
+                <div className="glass rounded-2xl p-4 flex flex-wrap items-center gap-4 justify-between border border-brand-primary/15">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-brand-primary/10 flex items-center justify-center shrink-0">
                       <HardDrive className="w-5 h-5 text-brand-primary" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-bold text-text-primary">
                         {formatBytes(selectedSize)} selected
                       </p>
@@ -1010,20 +1076,31 @@ export const CleanerPage: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={selectAll}
-                      className="text-xs text-brand-primary hover:text-text-accent transition-colors"
+                  <div className="flex items-center gap-4 ml-auto max-[560px]:w-full max-[560px]:justify-between">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={selectAll}
+                        className="text-xs text-brand-primary hover:text-text-accent transition-colors"
+                      >
+                        All
+                      </button>
+                      <span className="text-text-muted text-xs">·</span>
+                      <button
+                        onClick={clearAll}
+                        className="text-xs text-text-muted hover:text-text-secondary transition-colors"
+                      >
+                        None
+                      </button>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={<Zap className="w-4 h-4" />}
+                      onClick={() => void handleClean()}
+                      disabled={selected.size === 0}
                     >
-                      All
-                    </button>
-                    <span className="text-text-muted text-xs">·</span>
-                    <button
-                      onClick={clearAll}
-                      className="text-xs text-text-muted hover:text-text-secondary transition-colors"
-                    >
-                      None
-                    </button>
+                      Start Clean
+                    </Button>
                   </div>
                 </div>
 
@@ -1044,77 +1121,6 @@ export const CleanerPage: React.FC = () => {
                   ))}
                 </motion.div>
 
-                {/* Restore point warning (>100MB, one-time) */}
-                <AnimatePresence>
-                  {restoreWarning && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="glass rounded-2xl p-4 border border-amber-500/25 bg-amber-500/[0.04] flex items-start gap-3"
-                    >
-                      <RotateCcw className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-amber-400">
-                          Recommended: Create a Restore Point
-                        </p>
-                        <p className="text-xs text-text-secondary mt-0.5">
-                          You're about to clean{" "}
-                          <span className="font-semibold text-text-primary">
-                            {formatBytes(selectedSize)}
-                          </span>
-                          . Before proceeding, consider creating a Windows
-                          System Restore Point as a safety net.
-                        </p>
-                      </div>
-                      <div className="flex flex-col gap-1.5 shrink-0">
-                        <button
-                          onClick={() => {
-                            setRestoreWarning(false);
-                            setShowPreview(true);
-                          }}
-                          className="px-3 py-1.5 rounded-lg text-2xs font-bold text-white [background:var(--t-btn-bg)] hover:brightness-105 transition-all"
-                        >
-                          Continue
-                        </button>
-                        <button
-                          onClick={() => setRestoreWarning(false)}
-                          className="px-3 py-1.5 rounded-lg text-2xs text-text-muted border border-border hover:text-text-secondary transition-colors text-center"
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Clean CTA */}
-                {selected.size > 0 && !restoreWarning && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="sticky bottom-0 glass rounded-2xl p-4 border border-brand-primary/25 flex items-center justify-between"
-                  >
-                    <div className="flex flex-col justify-center">
-                      <p className="text-sm font-bold text-text-primary">
-                        {selected.size} categories selected
-                      </p>
-                      <div className="flex items-center gap-1 mt-0.5 text-xs font-medium text-emerald-400">
-                        <ShieldCheck className="w-3.5 h-3.5" />
-                        {safeCleaningMode
-                          ? "Safe Cleanup"
-                          : "Permanent Delete"}
-                      </div>
-                    </div>
-                    <Button
-                      variant="primary"
-                      icon={<Zap className="w-4 h-4" />}
-                      onClick={openPreview}
-                    >
-                      Start Clean
-                    </Button>
-                  </motion.div>
-                )}
               </motion.div>
             )}
 

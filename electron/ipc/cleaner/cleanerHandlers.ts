@@ -1,4 +1,6 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron'
+import fs from 'fs/promises'
+import path from 'path'
 import { runCategoryScan } from './scannerHandlers'
 import { loadExclusions, isCategoryExcluded, isFileExcluded } from '../../services/cleaner/exclusionsService'
 import { scanTempFiles } from '../../services/cleaner/tempCleaner'
@@ -13,10 +15,11 @@ import {
   scanDeliveryOptimization,
 } from '../../services/cleaner/cacheCleaner'
 import { getRecycleBinInfo, emptyRecycleBin } from '../../services/cleaner/recycleCleaner'
-import { cleanFiles } from '../../services/cleaner/cleanupService'
+import { cleanFiles, cleanPermissionDeniedBatch } from '../../services/cleaner/cleanupService'
 import { createReport, type CleanupReport } from '../../services/cleaner/cleanupReport'
 import type { ScannedFile } from '../../services/cleaner/scannerService'
 import { loadSettings } from '../../services/maintenance/automationStore'
+import { isProtectedPath } from '../../services/cleaner/pathGuard'
 
 // ── Category definitions ───────────────────────────────────────────────────
 
@@ -43,6 +46,37 @@ export const CATEGORY_DEFS: CategoryDef[] = [
 // ── In-memory scan cache (keeps file paths server-side) ───────────────────
 
 const scanCache = new Map<string, ScannedFile[]>()
+const permissionBatches = new Map<string, { files: ScannedFile[]; categories: string[] }>()
+
+async function validatePermissionBatch(files: ScannedFile[]): Promise<{
+  eligible: ScannedFile[]
+  skipped: { path: string; reason: string }[]
+}> {
+  const eligible: ScannedFile[] = []
+  const skipped: { path: string; reason: string }[] = []
+  for (const file of files) {
+    try {
+      const stat = await fs.lstat(file.path)
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        skipped.push({ path: file.path, reason: 'File is no longer a regular file' })
+        continue
+      }
+      const resolved = await fs.realpath(file.path)
+      if (path.resolve(resolved).toLowerCase() !== path.resolve(file.path).toLowerCase()) {
+        skipped.push({ path: file.path, reason: 'File resolves through a link or reparse point' })
+        continue
+      }
+      if (isProtectedPath(file.path)) {
+        skipped.push({ path: file.path, reason: 'Path is protected by Cleaner safety rules' })
+        continue
+      }
+      eligible.push(file)
+    } catch {
+      skipped.push({ path: file.path, reason: 'File is no longer available' })
+    }
+  }
+  return { eligible, skipped }
+}
 
 export interface CategorySummary {
   id: string
@@ -175,6 +209,7 @@ export function setupCleanerIPC(): void {
 
       const totalFiles = allFiles.length
       const allErrors: { path: string; reason: string }[] = []
+      let permissionFiles: ScannedFile[] = []
 
       // Clean regular files
       if (allFiles.length > 0) {
@@ -192,6 +227,7 @@ export function setupCleanerIPC(): void {
         totalRemoved += stats.removed
         totalErrors += stats.errors
         if (stats.errorDetails) allErrors.push(...stats.errorDetails)
+        permissionFiles = stats.permissionDenied
       }
 
       // Empty recycle bin if selected
@@ -204,6 +240,16 @@ export function setupCleanerIPC(): void {
         if (recycleStats.errorDetails) allErrors.push(...recycleStats.errorDetails)
       }
 
+      let permissionBatchToken: string | undefined
+      let permissionDeniedCount = 0
+      if (allFiles.length > 0) {
+        if (permissionFiles.length > 0) {
+          permissionBatchToken = `clean_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+          permissionBatches.set(permissionBatchToken, { files: permissionFiles, categories: categoryIds })
+          permissionDeniedCount = permissionFiles.length
+        }
+      }
+
       // Clear cache for cleaned categories
       for (const id of categoryIds) scanCache.delete(id)
 
@@ -213,6 +259,10 @@ export function setupCleanerIPC(): void {
         filesRemoved: totalRemoved,
         errors: totalErrors,
         errorDetails: allErrors,
+        filesSkipped: 0,
+        permissionDeniedCount,
+        permissionBatchToken,
+        permissionDeniedPaths: permissionFiles.map(file => file.path),
         durationMs: Date.now() - startTime,
         categories: categoryIds,
       })
@@ -221,6 +271,32 @@ export function setupCleanerIPC(): void {
       return report
     },
   )
+
+  ipcMain.handle('cleaner:clean-admin', async (_event, token: string): Promise<CleanupReport> => {
+    const pending = permissionBatches.get(token)
+    if (!pending) throw new Error('Permission batch is no longer available')
+    permissionBatches.delete(token)
+    const startTime = Date.now()
+    const validation = await validatePermissionBatch(pending.files)
+    const stats = await cleanPermissionDeniedBatch(validation.eligible)
+    const validationErrors = validation.skipped
+    const errorDetails = [...validationErrors, ...stats.errorDetails]
+    return createReport({
+      timestamp: Date.now(),
+      totalFreed: stats.freed,
+      filesRemoved: stats.removed,
+      errors: errorDetails.length,
+      errorDetails,
+      filesSkipped: errorDetails.length,
+      permissionDeniedPaths: validation.eligible.map(file => file.path),
+      durationMs: Date.now() - startTime,
+      categories: pending.categories,
+    })
+  })
+
+  ipcMain.handle('cleaner:discard-admin-batch', async (_event, token: string): Promise<void> => {
+    permissionBatches.delete(token)
+  })
 
   // ── Recycle bin info only ─────────────────────────────────────────────
   ipcMain.handle('cleaner:recycle-info', async () => {
