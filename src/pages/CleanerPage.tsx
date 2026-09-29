@@ -16,7 +16,7 @@ import {
   Clock,
   Files,
   BarChart3,
-  Sparkles,
+  CheckCircle2,
   History,
   Shield,
   RotateCcw,
@@ -245,7 +245,7 @@ const CleanupReportCard: React.FC<{
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-500/15 to-teal-500/10 p-5 flex items-center gap-4">
         <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center shadow-glow-sm">
-          <Sparkles className="w-6 h-6 text-emerald-400" />
+          <CheckCircle2 className="w-6 h-6 text-emerald-400" />
         </div>
         <div>
           <p className="text-base font-bold text-emerald-400">
@@ -306,11 +306,11 @@ const CleanupReportCard: React.FC<{
         </div>
       )}
 
-      {(report.filesSkipped ?? 0) > 0 && (
+      {(report.adminRequiredSkipped ?? 0) > 0 && (
         <div className="px-5 pb-3">
           <p className="text-xs text-text-muted flex items-center gap-1.5">
             <Shield className="w-3 h-3 text-amber-400" />
-            {report.filesSkipped} files skipped because administrator permission was required.
+            {report.adminRequiredSkipped} files skipped because administrator permission was required.
           </p>
         </div>
       )}
@@ -644,6 +644,7 @@ export const CleanerPage: React.FC = () => {
     let finalReport: CleanupReport = {
       ...firstPass,
       filesSkipped: action === "skip" ? permissionBatch.count : 0,
+      adminRequiredSkipped: action === "skip" ? permissionBatch.count : 0,
     };
     if (action === "continue") {
       try {
@@ -657,10 +658,12 @@ export const CleanerPage: React.FC = () => {
             error => !(firstPass.permissionDeniedPaths ?? []).includes(error.path),
           ).concat(elevated.errorDetails ?? []),
           filesSkipped: elevated.filesSkipped ?? elevated.errors,
+          adminRequiredSkipped: elevated.adminRequiredSkipped ?? 0,
           permissionDeniedPaths: [],
         };
       } catch {
         finalReport.filesSkipped = permissionBatch.count;
+        finalReport.adminRequiredSkipped = permissionBatch.count;
       }
     }
     setReport(finalReport);

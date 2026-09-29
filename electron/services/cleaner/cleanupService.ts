@@ -167,10 +167,13 @@ export async function cleanPermissionDeniedBatch(files: ScannedFile[]): Promise<
     }
     const reason = result?.reason || 'Unknown error'
     const kind = result?.kind ?? classifyFailure({ message: reason })
+    if (kind === 'missing') {
+      // The file was already removed between the normal pass and elevation.
+      continue
+    }
     errorDetails.push({ path: file.path, reason })
     if (kind === 'permission-denied') permissionDenied.push(file)
     if (kind === 'locked') locked.push({ path: file.path, reason })
-    if (kind === 'missing') missing.push({ path: file.path, reason })
   }
   return { freed, removed, errors: errorDetails.length, errorDetails, permissionDenied, locked, missing }
 }

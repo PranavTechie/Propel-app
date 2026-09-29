@@ -6,6 +6,7 @@ export interface CleanupReport {
   errors: number
   errorDetails?: { path: string; reason: string }[]
   filesSkipped?: number
+  adminRequiredSkipped?: number
   cancelled?: boolean
   permissionDeniedCount?: number
   permissionBatchToken?: string

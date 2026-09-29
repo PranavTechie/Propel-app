@@ -288,6 +288,7 @@ export function setupCleanerIPC(): void {
       errors: errorDetails.length,
       errorDetails,
       filesSkipped: errorDetails.length,
+      adminRequiredSkipped: stats.permissionDenied.length,
       permissionDeniedPaths: validation.eligible.map(file => file.path),
       durationMs: Date.now() - startTime,
       categories: pending.categories,
