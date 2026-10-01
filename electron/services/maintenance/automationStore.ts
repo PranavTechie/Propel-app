@@ -31,6 +31,7 @@ export interface MaintenanceSettings {
   startupAlertsEnabled:       boolean
   permissionAlertsEnabled:    boolean
   updateNotificationsEnabled: boolean
+  runInBackground:             boolean
 
   // Safe cleaning
   safeCleaningMode:           boolean
@@ -59,6 +60,7 @@ const DEFAULTS: MaintenanceSettings = {
   startupAlertsEnabled:       false,
   permissionAlertsEnabled:    false,
   updateNotificationsEnabled: true,
+  runInBackground:             false,
   safeCleaningMode:           true,
   lastCleanupAt:              null,
 }

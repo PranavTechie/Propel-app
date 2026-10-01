@@ -1,4 +1,8 @@
-import { app, BrowserWindow, ipcMain, shell, nativeTheme } from "electron";
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, Tray, Menu } from "electron";
+
+// Acquire the process-wide lock before any app, window, tray, renderer, or
+// background-service initialization. A second launch exits without startup.
+
 import path from "path";
 import fs from "fs";
 import { setupIPC } from "../ipc/handlers";
@@ -51,16 +55,24 @@ async function cleanupOrphanedGameMode() {
   }
 }
 
-import { startScheduler } from "../services/maintenance/schedulerService";
-import { startNotificationService } from "../services/maintenance/notificationService";
+import { startScheduler, stopScheduler } from "../services/maintenance/schedulerService";
+import { loadSettingsSync } from "../services/maintenance/automationStore";
+import { startNotificationService, stopNotificationService } from "../services/maintenance/notificationService";
 import {
   initMainTelemetry,
   setTelemetryEnabled,
   captureMainError,
 } from "../services/telemetry/mainTelemetry";
 import { verifyIntegrity } from "../security/integrityVerifier";
+import { getAppIconPath } from "./icon";
 
-// ── Init telemetry FIRST — before any window or IPC setup ─────────────────
+// Acquire the process-wide lock before any Electron app initialization.
+const isPrimaryInstance = app.requestSingleInstanceLock();
+if (!isPrimaryInstance) {
+  app.quit();
+} else {
+
+// ── Init telemetry FIRST — before any window or IPC setup ─────────
 initMainTelemetry();
 
 // Maintain backwards compatibility with existing user data/licenses
@@ -75,13 +87,21 @@ const __dirname = path
   .dirname(new URL(import.meta.url).pathname)
   .replace(/^\/([A-Z]:)/, "$1");
 
+
 nativeTheme.themeSource = "dark";
-
-import { getAppIconPath } from "./icon";
-
 let mainWindow: BrowserWindow | null = null;
 let rendererReady = false;
 let splashReady = false;
+let tray: Tray | null = null;
+let isQuitting = false;
+let shutdownCleanedUp = false;
+
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  if (!mainWindow.isVisible()) mainWindow.show();
+  mainWindow.focus();
+}
 
 function showMainWindowWhenReady(): void {
   if (!mainWindow || !rendererReady || !splashReady) return;
@@ -89,11 +109,68 @@ function showMainWindowWhenReady(): void {
   mainWindow.focus();
 }
 
+app.on("second-instance", (_event, commandLine) => {
+  focusMainWindow();
+
+  // Preserve the existing deep-link handoff without reloading the renderer.
+  const url = commandLine.find((arg) => arg.startsWith("propel://"));
+  if (url && mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("auth:callback", url);
+  }
+});
+
 ipcMain.on("splash:ready", (event) => {
   if (event.sender !== mainWindow?.webContents) return;
   splashReady = true;
   showMainWindowWhenReady();
 });
+
+function createTray(): void {
+  if (tray) return; // avoid duplicate tray instance
+  const iconPath = getAppIconPath();
+  if (!iconPath) return;
+  try {
+    tray = new Tray(iconPath);
+    const contextMenu = Menu.buildFromTemplate([
+      { label: "Open Propel", click: focusMainWindow },
+      { type: "separator" },
+      { label: "Quit Propel", click: quitPropel },
+    ]);
+    tray.setToolTip("Propel");
+    tray.setContextMenu(contextMenu);
+    tray.on("double-click", focusMainWindow);
+  } catch (err) {
+    console.error("[Tray] Failed to create tray icon:", err);
+  }
+}
+
+function destroyTray(): void {
+  if (tray) {
+    try { tray.destroy(); } catch { /* already destroyed */ }
+    tray = null;
+  }
+}
+
+function cleanupBeforeQuit(): void {
+  if (shutdownCleanedUp) return;
+  shutdownCleanedUp = true;
+  stopNotificationService();
+  stopScheduler();
+  destroyTray();
+}
+
+function destroyApplicationWindows(): void {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) window.destroy();
+  }
+}
+
+function quitPropel(): void {
+  isQuitting = true;
+  cleanupBeforeQuit();
+  destroyApplicationWindows();
+  app.quit();
+}
 
 function createWindow(): void {
   // Create the main window
@@ -140,6 +217,17 @@ function createWindow(): void {
     mainWindow = null;
   });
 
+  // Prevent app quit when user clicks X — hide window instead for background mode
+  mainWindow.on("close", (event) => {
+    if (isQuitting) return; // allow actual quit to proceed
+    if (!loadSettingsSync().runInBackground) {
+      quitPropel();
+      return;
+    }
+    event.preventDefault();
+    mainWindow?.hide();
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     // Handle external links
     shell.openExternal(url);
@@ -165,8 +253,23 @@ ipcMain.on("window:maximize", () => {
 });
 ipcMain.on("window:close", () => mainWindow?.close()); // Close the window
 
+// tray / background cleanup on actual quit
+app.on("before-quit", () => {
+  isQuitting = true;
+  cleanupBeforeQuit();
+  destroyApplicationWindows();
+});
+
+app.on("will-quit", () => {
+  // Keep cleanup idempotent and ensure no application-owned resources remain
+  // when the main process is about to terminate.
+  cleanupBeforeQuit();
+});
+
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  // With tray background mode, keep the app alive on Windows
+  // so notifications continue when the window is hidden.
+  if (process.platform === "darwin") app.quit();
 });
 
 // ── Global uncaught/unhandled handlers (belt + suspenders over Sentry) ────
@@ -181,7 +284,7 @@ process.on("unhandledRejection", (reason) => {
   console.error("[main] Unhandled rejection:", reason);
 });
 
-// ── Telemetry opt-out IPC ─────────────────────────────────────────────────
+// ── Telemetry opt-out IPC ─────────────────────────────────────────
 ipcMain.handle("telemetry:set-enabled", (_event, enabled: boolean) => {
   setTelemetryEnabled(enabled);
   return { ok: true };
@@ -214,6 +317,7 @@ app.whenReady().then(async () => {
   startScheduler();
   startNotificationService();
   createWindow();
+  createTray();
 
   app.on("activate", () => {
     // When the app is activated
@@ -232,29 +336,6 @@ if (process.defaultApp) {
   app.setAsDefaultProtocolClient("propel");
 }
 
-if (!app.requestSingleInstanceLock()) {
-  // If another instance is already running
-  app.quit();
-}
-
-app.on("second-instance", (event, commandLine, workingDirectory) => {
-  // When another instance is launched
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
-
-    // Windows/Linux deep linking
-    const url = commandLine.find((arg) => arg.startsWith("propel://"));
-    if (url) {
-      console.log("[AUTH] Deep link received (second-instance)");
-      const hasCode = url.includes("code=");
-      console.log(`[AUTH] Code extracted: ${hasCode}`);
-      console.log("[AUTH] Sending code to renderer");
-      mainWindow.webContents.send("auth:callback", url);
-    }
-  }
-});
-
 app.on("open-url", (event, url) => {
   // macOS deep linking
   event.preventDefault();
@@ -270,3 +351,4 @@ app.on("open-url", (event, url) => {
     }
   }
 });
+}

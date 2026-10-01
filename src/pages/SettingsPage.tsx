@@ -23,10 +23,7 @@ import {
   Radio,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
-import {
-  useSettingsStore,
-  type ToastPosition,
-} from "@/store/settingsStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { THEMES, type ThemeId } from "@/theme/themes";
 import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabase";
@@ -125,9 +122,6 @@ export const SettingsPage: React.FC = () => {
   const {
     soundEnabled,
     setSoundEnabled, // sound enabled state
-    toastPosition,
-    setToastPosition, // toast position state
-
     crashReporting,
     setCrashReporting, // crash reporting state
   } = useSettingsStore();
@@ -440,53 +434,22 @@ export const SettingsPage: React.FC = () => {
                       />
                     </div>
                   </div>
+
+                  <div className="flex items-center justify-between py-2.5 mb-4 border-b border-border/40 pb-4">
+                    <div>
+                      <p className="text-sm text-text-primary">Run in Background</p>
+                      <p className="text-xs text-text-muted mt-0.5">
+                        Keep Propel running in the system tray when you close the window, so alerts and scheduled maintenance can continue.
+                      </p>
+                    </div>
+                    <Toggle
+                      checked={maintenanceSettings.runInBackground ?? false}
+                      onChange={(v) => handleMaintenanceToggle("runInBackground", v)}
+                    />
+                  </div>
                 </>
               )}
 
-              <SectionTitle
-                icon={<Bell className="w-3.5 h-3.5" />}
-                label="Notification Position"
-              />
-              <div className="grid grid-cols-3 gap-2">
-                {(
-                  [
-                    {
-                      id: "bottom-right",
-                      label: "Bottom Right",
-                      desc: "Default",
-                    },
-                    {
-                      id: "top-right",
-                      label: "Top Right",
-                      desc: "= Bottom Left",
-                    },
-                    {
-                      id: "system-default",
-                      label: "System Default",
-                      desc: "= Bottom Right",
-                    },
-                  ] as { id: ToastPosition; label: string; desc: string }[]
-                ).map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setToastPosition(opt.id)}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all duration-200",
-                      toastPosition === opt.id
-                        ? "border-[rgb(var(--c-accent)/0.4)] bg-[rgb(var(--c-accent)/0.06)] text-text-primary"
-                        : "border-border/40 text-text-muted hover:border-white/10 hover:bg-white/[0.03]",
-                    )}
-                  >
-                    {toastPosition === opt.id && (
-                      <Check className="w-3 h-3 text-[rgb(var(--c-accent))]" />
-                    )}
-                    <span className="text-xs font-medium">{opt.label}</span>
-                    {opt.desc && (
-                      <span className="text-2xs opacity-50">{opt.desc}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
             </CardContent>
           </MotionCard>
         </motion.div>

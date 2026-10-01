@@ -2,19 +2,15 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { applyTheme, type ThemeId } from '@/theme/themes'
 
-export type ToastPosition = 'bottom-right' | 'top-right' | 'system-default'
-
 // ── Store ─────────────────────────────────────────────────────────────────
 interface SettingsState {
   soundEnabled:   boolean
-  toastPosition:  ToastPosition
 
   themeId:        ThemeId
   // Crash reporting — default ON in production, OFF in dev
   crashReporting: boolean
   aiAdvisorConsent: boolean
   setSoundEnabled:     (v: boolean)       => void
-  setToastPosition:    (p: ToastPosition) => void
 
   setThemeId:          (t: ThemeId)       => void
   setCrashReporting:   (v: boolean)       => void
@@ -25,14 +21,12 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       soundEnabled:   false,
-      toastPosition:  'bottom-right',
 
       themeId:        'light',
       // Default ON in production, OFF in dev so engineers aren't tracked during development
       crashReporting: import.meta.env.PROD ?? true,
       aiAdvisorConsent: false,
       setSoundEnabled:   (v) => set({ soundEnabled: v }),
-      setToastPosition:  (p) => set({ toastPosition: p }),
       setAiAdvisorConsent: (v) => set({ aiAdvisorConsent: v }),
 
       setThemeId:        (t) => {

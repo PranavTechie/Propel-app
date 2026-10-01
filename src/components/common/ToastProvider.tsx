@@ -2,7 +2,6 @@ import React, { memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, XCircle, AlertTriangle, Info, X } from 'lucide-react'
 import { useAppStore, selectToasts } from '@/store/appStore'
-import { useSettingsStore } from '@/store/settingsStore'
 import type { ToastMessage } from '@/types'
 import { cn } from '@/utils/cn'
 
@@ -56,14 +55,9 @@ const ToastItem: React.FC<{ toast: ToastMessage }> = ({ toast }) => {
 
 export const ToastProvider: React.FC = () => {
   const toasts       = useAppStore(selectToasts)
-  const position     = useSettingsStore(s => s.toastPosition)
-
-  const posClass = position === 'top-right'
-    ? 'top-5 right-5'
-    : 'bottom-5 right-5'  // bottom-right + system-default both = bottom-right
 
   return (
-    <div className={cn('fixed z-[9999] flex flex-col gap-2 pointer-events-none', posClass)}>
+    <div className={cn('fixed z-[9999] bottom-5 right-5 flex flex-col gap-2 pointer-events-none')}>
       <AnimatePresence mode="popLayout">
         {toasts.map(toast => (
           <div key={toast.id} className="pointer-events-auto">
