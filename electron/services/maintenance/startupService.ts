@@ -4,7 +4,10 @@ const LOGIN_ITEM_NAME = 'Propel'
 
 export function setStartupEnabled(enabled: boolean): void {
   try {
-    app.setLoginItemSettings({ openAtLogin: enabled })
+    app.setLoginItemSettings({
+      openAtLogin: enabled,
+      args: ['--hidden']
+    })
   } catch { /* non-fatal — may fail in sandboxed environments */ }
 }
 

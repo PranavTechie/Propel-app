@@ -8,8 +8,6 @@ import {
   Files,
   Activity,
   Cpu,
-  MemoryStick,
-  HardDrive,
   Clock,
   CheckCircle,
   AlertTriangle,
@@ -234,7 +232,7 @@ const SmartBoostSection: React.FC = () => {
       const fresh = await window.propel.ai.smartBoostAnalyze();
       setAnalysis(fresh);
     } catch {
-      setError("Optimization failed.");
+      setError("Optimization failed. Some processes or files could not be cleared safely.");
       setProgress(null);
     } finally {
       setOptimizing(false);
@@ -243,223 +241,94 @@ const SmartBoostSection: React.FC = () => {
   }, [analysis]);
 
   return (
-    <div className="grid grid-cols-[1.2fr_1fr] max-[900px]:grid-cols-1 gap-6 items-start">
-      {/* -- Left Column: Main Feature Info -- */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center border border-brand-primary/20">
-            <Brain className="w-6 h-6 text-brand-primary" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-text-primary">
-              Quick Boost
-            </h2>
-            <p className="text-sm text-text-muted mt-0.5">
-              One-click RAM + temp file cleanup
-            </p>
-          </div>
-        </div>
-
-        <div className="text-sm text-text-secondary leading-relaxed space-y-4">
-          <p>
-            Analyze your system and identify safe performance improvements to
-            reclaim resources and maximize responsiveness.
-          </p>
-          <p className="font-semibold text-text-primary mb-2">Analysis:</p>
-          <ul className="space-y-2 mb-4">
-            <li className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-brand-primary" /> Startup load
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-brand-primary" /> Background process count
-            </li>
-          </ul>
-          <p className="font-semibold text-text-primary mb-2">Optimization:</p>
-          <ul className="space-y-2">
-            <li className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-brand-primary" /> Memory pressure (Working Set trim)
-            </li>
-            <li className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-brand-primary" /> Temporary system data cleanup
-            </li>
-          </ul>
-        </div>
-
-        {/* Action Button */}
-        <div className="pt-2">
-          <button
-            onClick={analysis ? runOptimize : runAnalysis}
-            disabled={analyzing || optimizing}
-            className={cn(
-              "w-full sm:w-auto px-6 py-3 rounded-xl text-sm font-bold transition-all duration-200",
-              analyzing || optimizing
-                ? "bg-white/[0.06] text-text-muted cursor-not-allowed border border-white/10"
-                : "bg-brand-primary text-white shadow-glow-sm hover:shadow-glow-md hover:scale-[1.02]"
-            )}
-          >
-            {analyzing ? (
-              <span className="flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin" /> Analyzing...
-              </span>
-            ) : optimizing ? (
-              <span className="flex items-center justify-center gap-2">
-                <RefreshCw className="w-4 h-4 animate-spin" /> Optimizing...
-              </span>
-            ) : analysis ? (
-              <span className="flex items-center justify-center gap-2">
-                <Zap className="w-4 h-4" /> Apply AI Optimizations
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <Scan className="w-4 h-4" /> Analyze & Boost
-              </span>
-            )}
-          </button>
-
-          {error && (
-            <div className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0" /> {error}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* -- Right Column: Status Panel -- */}
-      <div className="glass rounded-2xl p-5 border border-white/5 space-y-4 flex flex-col min-h-[300px]">
-        <h3 className="text-sm font-semibold text-text-primary border-b border-white/5 pb-3">
-          System Optimization
-        </h3>
-
-        {!analysis && !analyzing && (
-          <div className="flex flex-col items-center justify-center flex-1 py-8 text-center">
-            <Brain className="w-10 h-10 text-brand-primary/40 mb-3" />
-            <p className="text-sm font-semibold text-text-primary">
-              Ready to analyze
-            </p>
-            <p className="text-xs text-text-muted mt-1 max-w-[200px]">
-              Run an analysis to see system health and actionable recommendations.
-            </p>
-          </div>
-        )}
-
-        {analyzing && (
-          <div className="flex flex-col items-center justify-center flex-1 py-8 text-center">
-            <div className="relative w-12 h-12 mb-3">
-              <div className="absolute inset-0 rounded-full border-2 border-brand-primary/20 animate-spin border-t-brand-primary" />
-              <Brain className="w-5 h-5 text-brand-primary absolute inset-0 m-auto" />
-            </div>
-            <p className="text-sm font-semibold text-text-primary">
-              Analyzing system...
-            </p>
-            <p className="text-xs text-text-muted mt-1 max-w-[200px]">
-              Scanning processes, RAM, disk, temp files
-            </p>
-          </div>
-        )}
-
-        {analysis && !analyzing && (
+    <div className="flex flex-col items-center w-full max-w-2xl mx-auto py-12 text-center">
+      <AnimatePresence mode="wait">
+        {!optimizing && !result && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col h-full"
+            key="hero"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="flex flex-col items-center"
           >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="shrink-0 scale-75 origin-left -my-4">
-                <HealthRing score={analysis.health.overall} />
-              </div>
-              <div className="flex-1 grid grid-cols-2 gap-2">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-2xs text-text-muted uppercase tracking-wider">RAM</span>
-                  <span className="text-sm font-bold text-text-primary">{analysis.systemData.ramPressure}%</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-2xs text-text-muted uppercase tracking-wider">CPU</span>
-                  <span className="text-sm font-bold text-text-primary">{analysis.systemData.cpuLoad}%</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-2xs text-text-muted uppercase tracking-wider">Bkgnd</span>
-                  <span className="text-sm font-bold text-text-primary">{analysis.systemData.backgroundProcessCount}</span>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-2xs text-text-muted uppercase tracking-wider">Junk</span>
-                  <span className="text-sm font-bold text-text-primary">{formatBytes(analysis.systemData.tempJunkBytes)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Reclaimable summary */}
-            <div className="grid grid-cols-2 gap-3 mb-4">
-              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                <div className="text-2xs text-text-muted mb-1 flex items-center gap-1.5">
-                  <MemoryStick className="w-3 h-3 text-brand-primary" />
-                  Reclaimable RAM
-                </div>
-                <div className="text-lg font-black text-brand-primary">
-                  {formatBytes(analysis.reclaimableRam)}
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                <div className="text-2xs text-text-muted mb-1 flex items-center gap-1.5">
-                  <HardDrive className="w-3 h-3 text-brand-primary" />
-                  Reclaimable Disk
-                </div>
-                <div className="text-lg font-black text-brand-primary">
-                  {formatBytes(analysis.reclaimableStorage)}
-                </div>
-              </div>
-            </div>
-
-            <AnimatePresence mode="wait">
-              {progress && (
-                <motion.div
-                  key="progress"
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="overflow-hidden"
-                >
-                  <div className="pt-2">
-                    <ProgressStep step={progress.step} pct={progress.pct} />
-                  </div>
-                </motion.div>
+            <h2 className="text-3xl font-black text-text-primary tracking-tight">Quick Boost</h2>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-text-secondary">
+              Optimize your PC with one quick scan.<br />
+              Safely improve system responsiveness by cleaning temporary files and optimizing memory.
+            </p>
+            <Zap className="mt-8 h-10 w-10 text-[#5AA63C]" strokeWidth={1.8} />
+            <button
+              onClick={analysis ? runOptimize : runAnalysis}
+              disabled={analyzing}
+              className={cn(
+                "mt-7 inline-flex items-center gap-2 px-7 py-3 rounded-lg text-base font-bold text-white transition-all duration-200",
+                analyzing
+                  ? "bg-white/[0.08] text-text-muted cursor-not-allowed"
+                  : "bg-[#5AA63C] hover:bg-[#4f9635] hover:-translate-y-0.5 active:translate-y-0"
               )}
-            </AnimatePresence>
-
-            {result && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-auto p-3 rounded-xl bg-brand-primary/10 border border-brand-primary/20 space-y-2"
-              >
-                <div className="flex items-center gap-2 text-brand-primary font-bold text-sm">
-                  <CheckCircle className="w-4 h-4" /> Optimization Complete
-                </div>
-                <div className="text-xs text-brand-primary/80 space-y-1 mt-1">
-                  {result.actionsApplied.map((action, i) => (
-                    <div key={i} className="flex items-center gap-1.5">
-                      <span className="w-1 h-1 rounded-full bg-brand-primary/60 shrink-0" />
-                      {action}
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-
-            {analysis.recommendations.length > 0 && !result && (
-              <div className="mt-auto space-y-2">
-                {analysis.recommendations.slice(0, 2).map((rec) => (
-                  <div key={rec.id} className="flex items-start gap-2 p-2 rounded-lg bg-white/[0.02] border border-white/[0.04]">
-                    <AlertTriangle className={cn("w-3.5 h-3.5 mt-0.5", priorityColor(rec.priority).split(' ')[0])} />
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold">{rec.title}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            >
+              {analyzing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
+              {analyzing ? "Scanning..." : "Scan & Boost"}
+            </button>
           </motion.div>
         )}
-      </div>
+
+        {optimizing && (
+          <motion.div
+            key="optimizing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex flex-col items-center"
+          >
+            <RefreshCw className="h-8 w-8 text-[#5AA63C] animate-spin" />
+            <p className="mt-4 text-base font-semibold text-text-primary">Optimizing your PC...</p>
+            <div className="mt-4 h-1 w-40 overflow-hidden rounded-full bg-white/[0.08]">
+              <motion.div
+                className="h-full w-1/3 rounded-full bg-[#5AA63C]"
+                animate={{ x: ["-100%", "300%"] }}
+                transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+              />
+            </div>
+          </motion.div>
+        )}
+
+        {result && (
+          <motion.div
+            key="result"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center"
+          >
+            <CheckCircle className="h-9 w-9 text-[#5AA63C]" strokeWidth={1.8} />
+            <h2 className="mt-4 text-2xl font-black text-text-primary">Boost Complete</h2>
+            <div className="mt-5 space-y-1 text-sm text-text-secondary">
+              <p>Memory recovered: <span className="font-semibold text-text-primary">{formatBytes(result.ramFreedBytes)}</span></p>
+              <p>Storage cleaned: <span className="font-semibold text-text-primary">{formatBytes(result.storageFreedBytes)}</span></p>
+              <p>Processes optimized: <span className="font-semibold text-text-primary">{result.processesOptimized}</span></p>
+            </div>
+            <button
+              onClick={() => setResult(null)}
+              className="mt-7 rounded-lg bg-white/[0.06] px-5 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-white/[0.1]"
+            >
+              Done
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {error && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="mt-8 max-w-md text-xs text-red-400"
+          >
+            {error}
+          </motion.p>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -1136,6 +1005,126 @@ const DuplicateFinderSection: React.FC = () => {
 };
 
 // =========================================================================
+const StartupManagerPremium: React.FC = () => {
+  const { suAnalysis: analysis, suEntries: entries } = useSessionStore(s => s.ai) as { suAnalysis: StartupAnalysis | null; suEntries: StartupEntry[] };
+  const setAi = useSessionStore(s => s.setAi);
+  const [loading, setLoading] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const runAnalysis = useCallback(async () => {
+    setLoading(true); setError(null);
+    try {
+      const data = await window.propel.ai.analyzeStartup();
+      setAi({ suAnalysis: data, suEntries: data.entries });
+    } catch { setError("Startup analysis failed. Please try again."); }
+    finally { setLoading(false); }
+  }, [setAi]);
+
+  const toggleEntry = useCallback(async (entry: StartupEntry) => {
+    setTogglingId(entry.id); setError(null);
+    try {
+      await window.propel.ai.setStartupEntryEnabled(entry, !entry.enabled);
+      setAi(s => ({ suEntries: s.suEntries.map(item => item.id === entry.id ? { ...item, enabled: !item.enabled } : item) }));
+    } catch (err: any) {
+      setError(err?.message === "RequiresAdmin" ? "This item requires administrator privileges to modify." : "Failed to modify startup entry.");
+    } finally { setTogglingId(null); }
+  }, [setAi]);
+
+  const enabledCount = entries.filter(entry => entry.enabled).length;
+  const impact = analysis ? `${analysis.totalEstimatedDelaySec.toFixed(1)}s` : "Not scanned";
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between border-b border-white/[0.06] pb-4">
+        <div>
+          <h2 className="text-xl font-bold text-text-primary">Startup Manager</h2>
+          <p className="text-xs text-text-muted mt-1">Windows startup entries &amp; estimated impact</p>
+        </div>
+        <button onClick={runAnalysis} disabled={loading} className="flex items-center gap-2 rounded-lg bg-[#5AA63C] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#4f9635] disabled:cursor-not-allowed disabled:opacity-60">
+          <Scan className={cn("w-3.5 h-3.5", loading && "animate-spin")} />
+          {loading ? "Scanning..." : "Scan Startup"}
+        </button>
+      </div>
+
+      {analysis && !loading && (
+        <div className="grid grid-cols-4 gap-3 max-[760px]:grid-cols-2">
+          {[
+            ["Startup Items", entries.length],
+            ["Enabled", enabledCount],
+            ["Disabled", entries.length - enabledCount],
+            ["Estimated Impact", impact],
+          ].map(([label, value]) => <div key={label} className="border border-border/50 bg-white/[0.025] px-4 py-3 rounded-xl"><p className="text-2xs text-text-muted">{label}</p><p className="mt-1 text-lg font-bold text-text-primary">{value}</p></div>)}
+        </div>
+      )}
+
+      {error && <div className="flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-300"><AlertCircle className="h-4 w-4" />{error}</div>}
+
+      {!analysis && !loading && (
+        <div className="border border-border/60 bg-white/[0.025] rounded-2xl p-7">
+          <div className="flex items-start gap-4">
+            <Rocket className="mt-1 h-7 w-7 text-brand-primary" />
+            <div><h3 className="text-base font-bold text-text-primary">Startup Health</h3><p className="mt-1 text-xs text-text-muted">Keep your Windows startup lean and responsive.</p><p className="mt-5 text-sm font-semibold text-text-primary">No startup analysis yet</p><p className="mt-1 max-w-xl text-xs leading-relaxed text-text-muted">Scan your startup entries to see which applications launch with Windows and identify entries with higher estimated impact.</p><button onClick={runAnalysis} className="mt-5 rounded-lg bg-[#5AA63C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4f9635]">Scan Startup</button></div>
+          </div>
+          <div className="mt-7 grid grid-cols-3 gap-3 border-t border-border/40 pt-4 text-xs text-text-muted"><span>Startup applications</span><span>Estimated impact</span><span>Enable / disable controls</span></div>
+        </div>
+      )}
+
+      {loading && <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-white/[0.025] p-5 text-sm text-text-secondary"><RefreshCw className="h-4 w-4 animate-spin text-brand-primary" />Scanning startup entries...</div>}
+
+      {analysis && !loading && (entries.length === 0 ? <div className="flex flex-col items-center rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-10 text-center"><CheckCircle className="h-8 w-8 text-emerald-400" /><h3 className="mt-3 text-base font-bold text-text-primary">Your startup is clean</h3></div> : <div className="space-y-3"><h3 className="text-sm font-bold text-text-primary">Startup Applications</h3><div className="overflow-hidden rounded-xl border border-border/50 divide-y divide-border/40">{entries.map(entry => <div key={entry.id} className="grid grid-cols-[minmax(0,1fr)_100px_110px] items-center gap-4 p-4 hover:bg-white/[0.025]"><div className="min-w-0"><p className="truncate text-sm font-semibold text-text-primary">{entry.displayName}</p><p className="truncate text-2xs text-text-muted">{entry.publisher || entry.location}</p></div><div><span className={cn("text-2xs font-semibold", entry.enabled ? "text-emerald-400" : "text-text-muted")}>{entry.enabled ? "Enabled" : "Disabled"}</span><p className={cn("text-2xs mt-1", impactColor(entry.impact))}>{entry.impactLabel}</p></div><button onClick={() => toggleEntry(entry)} disabled={togglingId === entry.id} className={cn("justify-self-end rounded-lg border px-2.5 py-1.5 text-2xs font-semibold", entry.enabled ? "border-red-500/20 text-red-300 hover:bg-red-500/10" : "border-emerald-500/20 text-emerald-300 hover:bg-emerald-500/10")}>{togglingId === entry.id ? "Saving..." : entry.enabled ? "Disable" : "Enable"}</button></div>)}</div></div>)}
+    </div>
+  );
+};
+
+const DuplicateFinderPremium: React.FC = () => {
+  const { dupScanResult: scanResult, dupProgress: progress, dupSelected: selected, dupExpandedGroups: expandedGroups, dupDeleteResult: deleteResult, dupFilterCategory: filterCategory } = useSessionStore(s => s.ai) as { dupScanResult: DuplicateScanResult | null; dupProgress: DuplicateScanProgress | null; dupSelected: Set<string>; dupExpandedGroups: Set<string>; dupDeleteResult: { freedBytes: number; deletedCount: number } | null; dupFilterCategory: string };
+  const setAi = useSessionStore(s => s.setAi); const [scanning, setScanning] = useState(false); const [deleting, setDeleting] = useState(false);
+  const startScan = useCallback(async () => { setScanning(true); setAi({ dupScanResult: null, dupSelected: new Set(), dupDeleteResult: null, dupProgress: { phase: "scanning", scannedFiles: 0, hashedFiles: 0, totalFiles: 0, currentPath: "", duplicatesFound: 0 } }); window.propel.ai.onDuplicateScanProgress(p => setAi({ dupProgress: p })); try { setAi({ dupScanResult: await window.propel.ai.scanDuplicates(null, []) }); } finally { setScanning(false); setAi({ dupProgress: null }); window.propel.ai.removeListeners(); } }, [setAi]);
+  const toggleGroup = (hash: string) => setAi(s => { const next = new Set<string>(s.dupExpandedGroups); next.has(hash) ? next.delete(hash) : next.add(hash); return { dupExpandedGroups: next }; });
+  const selectFiles = (paths: string[]) => setAi(s => { const next = new Set<string>(s.dupSelected); paths.forEach(path => next.has(path) ? next.delete(path) : next.add(path)); return { dupSelected: next }; });
+  const deleteSelected = useCallback(async () => { if (!selected.size) return; setDeleting(true); try { const res = await window.propel.ai.deleteDuplicates([...selected]); setAi(s => ({ dupDeleteResult: { freedBytes: res.freedBytes, deletedCount: res.deletedCount }, dupSelected: new Set<string>(), dupScanResult: s.dupScanResult ? { ...s.dupScanResult, groups: s.dupScanResult.groups.map((g: DuplicateGroup) => ({ ...g, files: g.files.filter(f => !selected.has(f.path)) })).filter((g: DuplicateGroup) => g.files.length > 1) } : null })); } finally { setDeleting(false); } }, [selected, setAi]);
+  useEffect(() => {
+    const onDeleteSelected = () => { void deleteSelected(); };
+    window.addEventListener("propel:duplicate-delete-selected", onDeleteSelected);
+    return () => window.removeEventListener("propel:duplicate-delete-selected", onDeleteSelected);
+  }, [deleteSelected]);
+  const selectedSpace = scanResult?.groups.flatMap(group => group.files).filter(file => selected.has(file.path)).reduce((total, file) => total + file.size, 0) ?? 0;
+  const groups = scanResult?.groups.filter(g => filterCategory === "all" || g.category === filterCategory) ?? [];
+  return <div className="space-y-5"><div className="flex items-center justify-between border-b border-white/[0.06] pb-4"><div><h2 className="text-xl font-bold text-text-primary">AI Duplicate Finder</h2><p className="text-xs text-text-muted mt-1">Hash-based duplicate detection &amp; safe removal</p></div><button onClick={startScan} disabled={scanning} className="flex items-center gap-2 rounded-lg bg-[#5AA63C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4f9635] disabled:opacity-60"><Scan className={cn("h-3.5 w-3.5", scanning && "animate-spin")} />{scanning ? "Scanning..." : "Scan Files"}</button></div>{!scanResult && !scanning && <div className="grid gap-5 rounded-2xl border border-border/60 bg-white/[0.025] p-7 md:grid-cols-[1.3fr_1fr]"><div><h3 className="text-lg font-bold text-text-primary">Find duplicate files safely</h3><p className="mt-2 text-sm text-text-secondary">Scan selected locations for identical files using hash-based detection.</p><p className="mt-5 text-xs text-text-muted">Files are only removed after review.</p><button onClick={startScan} className="mt-5 rounded-lg bg-[#5AA63C] px-4 py-2 text-sm font-semibold text-white hover:bg-[#4f9635]">Scan Files</button></div><div className="border-l border-border/40 pl-5 text-xs text-text-muted"><p className="font-semibold text-text-primary">How it works</p><div className="mt-4 space-y-4"><p><b className="mr-2 text-brand-primary">01</b>Scan<br /><span className="ml-7">Find potential duplicate files.</span></p><p><b className="mr-2 text-brand-primary">02</b>Review<br /><span className="ml-7">Compare duplicate groups and choose what to keep.</span></p><p><b className="mr-2 text-brand-primary">03</b>Clean<br /><span className="ml-7">Safely remove selected duplicates.</span></p></div></div></div>}{scanning && progress && <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-white/[0.025] p-5 text-sm text-text-secondary"><RefreshCw className="h-4 w-4 animate-spin text-brand-primary" />{progress.phase === "hashing" ? "Hashing files..." : "Scanning files..."}</div>}{scanResult && !scanning && <div className="space-y-4"><div className="grid grid-cols-3 gap-3">{[["Duplicate Groups", scanResult.groups.length], ["Duplicate Files", scanResult.totalDuplicates], ["Recoverable Space", formatBytes(scanResult.totalWastedBytes)]].map(([label, value]) => <div key={label} className="rounded-xl border border-border/50 bg-white/[0.025] p-3"><p className="text-2xs text-text-muted">{label}</p><p className="mt-1 text-lg font-bold text-text-primary">{value}</p></div>)}</div>{deleteResult && <p className="text-xs text-emerald-400">Removed {deleteResult.deletedCount} files and freed {formatBytes(deleteResult.freedBytes)}.</p>}{groups.length === 0 ? <div className="flex flex-col items-center rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-10 text-center"><CheckCircle className="h-8 w-8 text-emerald-400" /><h3 className="mt-3 text-base font-bold text-text-primary">No duplicates found</h3><p className="mt-1 text-xs text-text-muted">Your selected locations don't contain identical files.</p></div> : <><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-sm font-bold text-text-primary">Duplicate Groups</h3><span className="text-xs text-text-muted">Selected: {selected.size} files · Potential space: {formatBytes([...selected].reduce((sum, path) => sum + (scanResult.groups.flatMap(g => g.files).find(f => f.path === path)?.size ?? 0), 0))}</span></div><div className="overflow-hidden rounded-xl border border-border/50 divide-y divide-border/40">{groups.map(group => { const duplicates = group.files.filter(f => !f.isOriginal); const allSelected = duplicates.every(f => selected.has(f.path)); return <div key={group.hash}><div className="flex items-center gap-3 p-4 hover:bg-white/[0.025]"><input type="checkbox" checked={allSelected} onChange={() => selectFiles(duplicates.map(f => f.path))} className="accent-[rgb(var(--c-accent))]" /><button onClick={() => toggleGroup(group.hash)} className="flex min-w-0 flex-1 items-center gap-3 text-left"><Files className="h-4 w-4 shrink-0 text-brand-primary" /><span className="truncate text-sm font-semibold text-text-primary">{group.files[0]?.name}</span><span className="text-2xs text-text-muted">{group.count} copies · {formatBytes(group.size)} each</span><ChevronRight className={cn("ml-auto h-4 w-4 text-text-muted", expandedGroups.has(group.hash) && "rotate-90")} /></button></div>{expandedGroups.has(group.hash) && <div className="border-t border-border/40 bg-white/[0.015] px-4 py-2">{group.files.map(file => <div key={file.path} className="flex items-center gap-3 py-2 text-xs"><span className="w-4 shrink-0">{file.isOriginal ? <Shield className="h-3.5 w-3.5 text-emerald-400" /> : <input type="checkbox" checked={selected.has(file.path)} onChange={() => selectFiles([file.path])} className="accent-[rgb(var(--c-accent))]" />}</span><span className="min-w-0 flex-1 truncate text-text-secondary" title={file.path}>{file.path}</span><span className="shrink-0 text-text-muted">{formatBytes(file.size)}</span></div>)}</div>}</div>})}</div>{selected.size > 0 && <button onClick={deleteSelected} disabled={deleting} className="rounded-lg bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/25 disabled:opacity-60">{deleting ? "Deleting..." : `Delete ${selected.size} selected`}</button>}</>}</div>}</div>;
+};
+
+const DuplicateSelectionBar: React.FC = () => {
+  const { dupScanResult, dupSelected } = useSessionStore(s => s.ai);
+  const setAi = useSessionStore(s => s.setAi);
+  const selectedSpace = dupScanResult?.groups.flatMap((group: DuplicateGroup) => group.files)
+    .filter((file: { path: string; size: number }) => dupSelected.has(file.path))
+    .reduce((total: number, file: { path: string; size: number }) => total + file.size, 0) ?? 0;
+
+  if (dupSelected.size === 0) return null;
+
+  return (
+    <div className="fixed bottom-5 left-1/2 z-40 flex w-[min(100%-2rem,42rem)] -translate-x-1/2 items-center gap-4 rounded-xl border border-border/70 bg-bg-elevated/95 px-4 py-3 shadow-xl backdrop-blur-md">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-text-primary">{dupSelected.size} files selected</p>
+        <p className="text-xs text-text-muted">Recoverable space: {formatBytes(selectedSpace)}</p>
+      </div>
+      <button
+        onClick={() => setAi({ dupSelected: new Set<string>() })}
+        className="text-xs font-semibold text-text-muted hover:text-text-primary"
+      >
+        Clear Selection
+      </button>
+      <button
+        onClick={() => window.dispatchEvent(new Event("propel:duplicate-delete-selected"))}
+        className="rounded-lg bg-[#5AA63C] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#4f9635]"
+      >
+        Delete Selected
+      </button>
+    </div>
+  );
+};
+
 // MAIN PAGE
 // =========================================================================
 type Tab = "advisor" | "boost" | "startup" | "duplicates";
@@ -1270,7 +1259,7 @@ export const AIFeaturesPage: React.FC = () => {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.15 }}
               >
-                <StartupAnalyzerSection />
+                <StartupManagerPremium />
               </motion.div>
             )}
             {activeTab === "duplicates" && (
@@ -1281,12 +1270,13 @@ export const AIFeaturesPage: React.FC = () => {
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.15 }}
               >
-                <DuplicateFinderSection />
+                <DuplicateFinderPremium />
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
+      {activeTab === "duplicates" && <DuplicateSelectionBar />}
     </div>
   );
 };

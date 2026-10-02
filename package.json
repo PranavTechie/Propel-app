@@ -124,7 +124,10 @@
       "createStartMenuShortcut": true,
       "shortcutName": "Propel",
       "displayLanguageSelector": false,
-      "perMachine": false
+      "perMachine": false,
+      "warningsAsErrors": false,
+      "installerSidebar": "resources/installerSidebar.bmp",
+      "include": "resources/customWelcome.nsh"
     },
     "directories": {
       "output": "release",

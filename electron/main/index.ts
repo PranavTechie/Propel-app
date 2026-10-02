@@ -95,9 +95,16 @@ let splashReady = false;
 let tray: Tray | null = null;
 let isQuitting = false;
 let shutdownCleanedUp = false;
+let isHiddenStartup = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
 
 function focusMainWindow(): void {
+  isHiddenStartup = false; // User manually requested the window
   if (!mainWindow || mainWindow.isDestroyed()) return;
+  
+  // If the renderer/splash isn't ready yet, returning here is safe because
+  // clearing isHiddenStartup guarantees showMainWindowWhenReady() will show it later.
+  if (!rendererReady || !splashReady) return;
+  
   if (mainWindow.isMinimized()) mainWindow.restore();
   if (!mainWindow.isVisible()) mainWindow.show();
   mainWindow.focus();
@@ -105,6 +112,8 @@ function focusMainWindow(): void {
 
 function showMainWindowWhenReady(): void {
   if (!mainWindow || !rendererReady || !splashReady) return;
+  if (isHiddenStartup) return;
+  
   mainWindow.show();
   mainWindow.focus();
 }
