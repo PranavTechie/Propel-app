@@ -3,6 +3,7 @@ import {
   runSmartBoostAnalysis,
   runSmartBoostOptimize,
 } from '../../services/ai/smartBoostService'
+import { getPCAdvisorDiagnosis } from '../../services/ai/pcAdvisorService'
 
 import {
   analyzeStartup,
@@ -18,6 +19,10 @@ export function setupAIIPC(): void {
   // ── Smart Boost ────────────────────────────────────────────────────────
   ipcMain.handle('ai:smart-boost-analyze', async () => {
     return runSmartBoostAnalysis()
+  })
+
+  ipcMain.handle('ai:get-pc-advisor-diagnosis', async (_event, payload: any, token: string) => {
+    return getPCAdvisorDiagnosis(payload, token)
   })
 
   ipcMain.handle('ai:smart-boost-optimize', async (event: IpcMainInvokeEvent) => {

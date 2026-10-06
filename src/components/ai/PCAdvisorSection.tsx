@@ -81,23 +81,8 @@ export const PCAdvisorSection: React.FC = () => {
     };
 
     try {
-      const API_URL = import.meta.env.VITE_API_BASE_URL || 'https://cleanmasterpro-backend-server.onrender.com';
-
-      const res = await fetch(`${API_URL}/api/ai/diagnose`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Include auth headers if existing system uses them
-          'Authorization': `Bearer ${session?.access_token || ''}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!res.ok) {
-        throw new Error('Unable to reach PC Advisor right now. Check your connection and try again.');
-      }
-
-      const data = await res.json();
+      const token = session?.access_token || '';
+      const data = await window.propel.ai.getPCAdvisorDiagnosis(payload, token);
       setResult(data);
     } catch (err: any) {
       setError(err.message || 'An error occurred during analysis.');

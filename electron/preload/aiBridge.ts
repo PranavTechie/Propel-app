@@ -8,6 +8,9 @@ export const aiBridge = {
   smartBoostAnalyze: (): Promise<SmartBoostAnalysis> =>
     ipcRenderer.invoke('ai:smart-boost-analyze'),
 
+  getPCAdvisorDiagnosis: (payload: any, token: string): Promise<any> =>
+    ipcRenderer.invoke('ai:get-pc-advisor-diagnosis', payload, token),
+
   smartBoostOptimize: (): Promise<SmartBoostResult> =>
     ipcRenderer.invoke('ai:smart-boost-optimize'),
 
