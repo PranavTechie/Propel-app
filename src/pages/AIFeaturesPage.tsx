@@ -1185,12 +1185,14 @@ export const AIFeaturesPage: React.FC = () => {
                 Real intelligent system analysis & optimization
               </p>
             </div>
-            <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-primary/15 border border-brand-primary/25">
-              <div className="w-1.5 h-1.5 rounded-full bg-brand-primary animate-pulse" />
-              <span className="text-xs font-bold text-brand-primary tracking-wider">
-                PREMIUM
-              </span>
-            </div>
+            {activeTab === "advisor" && (
+              <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-primary/15 border border-brand-primary/25">
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-primary animate-pulse" />
+                <span className="text-xs font-bold text-brand-primary tracking-wider">
+                  PREMIUM
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Horizontal Selector */}

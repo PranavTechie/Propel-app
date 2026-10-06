@@ -55,7 +55,7 @@ async function cleanupOrphanedGameMode() {
   }
 }
 
-import { startScheduler, stopScheduler } from "../services/maintenance/schedulerService";
+import { runScheduledIfDue, syncWindowsTask } from "../services/maintenance/schedulerService";
 import { loadSettingsSync } from "../services/maintenance/automationStore";
 import { startNotificationService, stopNotificationService } from "../services/maintenance/notificationService";
 import {
@@ -66,9 +66,18 @@ import {
 import { verifyIntegrity } from "../security/integrityVerifier";
 import { getAppIconPath } from "./icon";
 
+// Detect scheduled maintenance launch — must happen BEFORE the single-instance
+// lock so we can hand off to a running primary instance if one exists.
+const isScheduledRun = process.argv.includes('--scheduled-maintenance');
+
 // Acquire the process-wide lock before any Electron app initialization.
+// For --scheduled-maintenance: if Propel is already running, the new process
+// exits immediately and the primary instance receives the args via second-instance.
 const isPrimaryInstance = app.requestSingleInstanceLock();
 if (!isPrimaryInstance) {
+  // Another Propel instance is already running.
+  // The second-instance event on the primary will handle the --scheduled-maintenance
+  // flag and call runScheduledIfDue() there — no duplicate cleanup will occur.
   app.quit();
 } else {
 
@@ -119,6 +128,17 @@ function showMainWindowWhenReady(): void {
 }
 
 app.on("second-instance", (_event, commandLine) => {
+  // ── Scheduled-maintenance handoff ─────────────────────────────────────
+  // When the Windows Task Scheduler fires Propel.exe --scheduled-maintenance
+  // and Propel is ALREADY running, the new process exits immediately and we
+  // arrive here. Run the due-check in the existing primary process — this
+  // guarantees exactly ONE cleanup execution, no duplicate process spawned.
+  if (commandLine.includes('--scheduled-maintenance')) {
+    runScheduledIfDue().catch(() => {})
+    return // do NOT focus the window for a scheduled background run
+  }
+
+  // Normal second-instance: focus the existing window.
   focusMainWindow();
 
   // Preserve the existing deep-link handoff without reloading the renderer.
@@ -164,7 +184,6 @@ function cleanupBeforeQuit(): void {
   if (shutdownCleanedUp) return;
   shutdownCleanedUp = true;
   stopNotificationService();
-  stopScheduler();
   destroyTray();
 }
 
@@ -300,11 +319,29 @@ ipcMain.handle("telemetry:set-enabled", (_event, enabled: boolean) => {
 });
 
 app.whenReady().then(async () => {
-  // When the app is ready
   // ── INTEGRITY CHECK: must run before ANY window or service setup ────────
   // No-op in dev (app.isPackaged === false). Exits with code 1 if tampered.
   await verifyIntegrity();
 
+  // ── Scheduled-maintenance hidden launch ──────────────────────────────────
+  // When launched by Windows Task Scheduler with --scheduled-maintenance:
+  //   1. No window, no tray, no splash is created.
+  //   2. Run the double-protected due-check (scheduleEnabled + rolling interval).
+  //   3. Exit cleanly whether or not cleanup ran.
+  // This path only reaches here if no other Propel instance was running —
+  // the single-instance lock above already handled the handoff case.
+  if (isScheduledRun) {
+    // Still need IPC + maintenance handlers in case runAutoClean() needs them,
+    // but we deliberately skip window, tray, and notification service.
+    setupMaintenanceIPC();
+    try {
+      await runScheduledIfDue();
+    } catch { /* non-fatal — log silently */ }
+    app.quit();
+    return;
+  }
+
+  // ── Normal interactive launch ────────────────────────────────────────────
   // Run Game Mode legacy cleanup before UI loads
   await cleanupOrphanedGameMode();
 
@@ -323,13 +360,20 @@ app.whenReady().then(async () => {
   setupSystemCheckIPC();
   setupPermissionsIPC();
   setupExclusionsIPC();
-  startScheduler();
+
+  // ── Sync Windows Task Scheduler on every normal launch ──────────────────
+  // This is idempotent (/f flag) — safe to call every time. It ensures:
+  //   - Task is created if scheduleEnabled=true and task was missing
+  //     (e.g., after a fresh install or update).
+  //   - Task is removed if scheduleEnabled=false.
+  //   - Executable path in the task stays current after updates.
+  syncWindowsTask(app.getPath('exe')).catch(() => {});
+
   startNotificationService();
   createWindow();
   createTray();
 
   app.on("activate", () => {
-    // When the app is activated
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });

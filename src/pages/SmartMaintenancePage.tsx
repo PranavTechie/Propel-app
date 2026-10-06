@@ -316,7 +316,7 @@ export const SmartMaintenancePage: React.FC = () => {
 
             <ControlRow
               label="Auto Empty Recycle Bin"
-              sublabel="Cleared after each cleanup run"
+              sublabel="Automatically empty the Recycle Bin after each cleanup run."
             >
               <Toggle
                 checked={settings.recycleBinEnabled}
@@ -326,7 +326,7 @@ export const SmartMaintenancePage: React.FC = () => {
 
             <ControlRow
               label="Protect Downloads Folder"
-              sublabel="Never scan or delete Downloads"
+              sublabel="Never scan or delete items in your Downloads folder"
             >
               <Toggle
                 checked={settings.ignoreDownloads}

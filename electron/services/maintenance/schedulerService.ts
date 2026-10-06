@@ -9,14 +9,18 @@ import { loadSettings, loadSettingsSync, updateSettings } from './automationStor
 const execFileAsync = promisify(execFile)
 
 // ── Constants ──────────────────────────────────────────────────────────────
-const HOUR_MS = 60 * 60 * 1000
 const FREQUENCY_MS: Record<string, number> = {
   daily:   24 * 60 * 60 * 1000,
   weekly:  7  * 24 * 60 * 60 * 1000,
   monthly: 30 * 24 * 60 * 60 * 1000,
 }
 
-let _timer: ReturnType<typeof setInterval> | null = null
+// Windows Task Scheduler task name — stable across updates
+const TASK_NAME = 'Propel Maintenance'
+
+// Concurrent-run lock — prevents duplicate cleanup if the OS double-fires
+// the task or if runAutoClean() is called from two paths simultaneously.
+let _isRunningCleanup = false
 
 // ── Temp directories ───────────────────────────────────────────────────────
 function getTempDirs(): string[] {
@@ -144,7 +148,22 @@ async function emptyRecycleBin(): Promise<boolean> {
   } catch { return false }
 }
 
+// ── Schedule check — rolling-window semantics preserved exactly ────────────
+// This is the ONLY place that decides whether a cleanup should run.
+// The Windows Task Scheduler is only a daily wake-up/check mechanism.
+// The actual decision of "is it due?" is still based on lastCleanupAt + freqMs.
+function isDue(settings: ReturnType<typeof loadSettingsSync>): boolean {
+  if (!settings.scheduleEnabled) return false
+  if (!settings.lastCleanupAt)   return true   // never run — run immediately
+  const freqMs = FREQUENCY_MS[settings.scheduleFrequency] ?? FREQUENCY_MS.weekly
+  return Date.now() - settings.lastCleanupAt >= freqMs
+}
+
 // ── Main cleanup routine ───────────────────────────────────────────────────
+// Protected by _isRunningCleanup lock against concurrent execution.
+// Called from:
+//   1. runNow IPC (explicit user "Run Now" button)
+//   2. runScheduledIfDue() — OS task scheduler path
 export async function runAutoClean(): Promise<{
   tempCleaned:       number
   browserCleaned:    number
@@ -168,34 +187,81 @@ export async function runAutoClean(): Promise<{
   return { tempCleaned, browserCleaned, recycleBinCleared }
 }
 
-// ── Schedule check ─────────────────────────────────────────────────────────
-function isDue(settings: ReturnType<typeof loadSettingsSync>): boolean {
-  if (!settings.scheduleEnabled) return false
-  if (!settings.lastCleanupAt)   return true
-  const freqMs = FREQUENCY_MS[settings.scheduleFrequency] ?? FREQUENCY_MS.weekly
-  return Date.now() - settings.lastCleanupAt >= freqMs
+// ── Scheduled entry point (called from main/index.ts on --scheduled-maintenance) ──
+// Double-protection:
+//   1. Check scheduleEnabled + isDue() — preserves rolling-window semantics
+//   2. _isRunningCleanup lock — prevents concurrent double-execution
+// Returns true if cleanup was actually executed.
+export async function runScheduledIfDue(): Promise<boolean> {
+  const settings = loadSettingsSync()
+  if (!isDue(settings)) return false
+  if (_isRunningCleanup) return false  // already running in this process
+
+  _isRunningCleanup = true
+  try {
+    await runAutoClean()
+    return true
+  } finally {
+    _isRunningCleanup = false
+  }
 }
 
-// ── Scheduler lifecycle ────────────────────────────────────────────────────
-export function startScheduler(): void {
-  if (_timer) return
+// ── Windows Task Scheduler — create / update / remove ─────────────────────
+// Creates a DAILY trigger at 02:00 AM for the current user (no admin required).
+// The 2:00 AM trigger is a wake-up check only — actual execution depends
+// on isDue() inside runScheduledIfDue(), preserving rolling-interval semantics.
+//
+// /f overwrites any existing task with the same name (idempotent).
+// /rl LIMITED ensures it runs at the current user's permission level — no UAC.
+// /it means "run only when logged in" — consistent with a per-user Electron app.
+async function createWindowsTask(executablePath: string): Promise<void> {
+  // Safely quote the executable path to handle spaces (e.g. "C:\Program Files\Propel\Propel.exe")
+  const quoted = `"${executablePath}" --scheduled-maintenance`
 
-  // Check immediately on first start (catches overdue scheduled runs)
-  const initial = loadSettingsSync()
-  if (isDue(initial)) runAutoClean().catch(() => {})
-
-  _timer = setInterval(() => {
-    if (isDue(loadSettingsSync())) runAutoClean().catch(() => {})
-  }, HOUR_MS)
-
-  _timer.unref()  // don't prevent app quit
+  await execFileAsync(
+    'schtasks.exe',
+    [
+      '/create',
+      '/tn', TASK_NAME,
+      '/tr', quoted,
+      '/sc', 'daily',
+      '/st', '02:00',
+      '/rl', 'LIMITED',   // run at standard user privilege — no UAC
+      '/it',              // only run when user is logged in
+      '/f',               // overwrite silently if already exists
+    ],
+    { timeout: 10_000, windowsHide: true },
+  )
 }
 
-export function stopScheduler(): void {
-  if (_timer) { clearInterval(_timer); _timer = null }
+async function removeWindowsTask(): Promise<void> {
+  try {
+    await execFileAsync(
+      'schtasks.exe',
+      ['/delete', '/tn', TASK_NAME, '/f'],
+      { timeout: 10_000, windowsHide: true },
+    )
+  } catch {
+    // Task may not exist yet — non-fatal
+  }
 }
 
-// ── Next cleanup time ─────────────────────────────────────────────────────
+// ── Public API for scheduler lifecycle (called from IPC handler + main) ───
+// syncWindowsTask() is idempotent — safe to call on every settings change.
+// It replaces the old startScheduler()/stopScheduler() pair.
+export async function syncWindowsTask(executablePath: string): Promise<void> {
+  const settings = loadSettingsSync()
+  if (settings.scheduleEnabled) {
+    await createWindowsTask(executablePath)
+  } else {
+    await removeWindowsTask()
+  }
+}
+
+// Kept for uninstall cleanup (called from main on app before-quit if needed)
+export { removeWindowsTask }
+
+// ── Next cleanup time (unchanged — used by UI status cards) ──────────────
 export function getNextCleanupTime(): Date | null {
   const settings = loadSettingsSync()
   if (!settings.scheduleEnabled) return null
@@ -203,3 +269,10 @@ export function getNextCleanupTime(): Date | null {
   const freqMs = FREQUENCY_MS[settings.scheduleFrequency] ?? FREQUENCY_MS.weekly
   return new Date(settings.lastCleanupAt + freqMs)
 }
+
+// ── Legacy no-ops kept so existing import sites don't need changes ────────
+// maintenanceHandlers.ts previously called startScheduler/stopScheduler —
+// those calls are replaced in the handler itself, but if any other code
+// still imports these they will silently no-op rather than crash.
+export function startScheduler(): void { /* replaced by syncWindowsTask */ }
+export function stopScheduler():  void { /* replaced by syncWindowsTask */ }

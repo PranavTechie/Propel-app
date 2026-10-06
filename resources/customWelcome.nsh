@@ -63,3 +63,13 @@ Function un.propelInstallModeShow
 FunctionEnd
 
 
+; ── Uninstall: remove the Windows Task Scheduler entry ─────────────────────
+; Fires ONLY during a full uninstall, NOT during app updates.
+; electron-builder updates go through the installer path and never invoke
+; the uninstaller, so the scheduled task survives across updates.
+; /F makes deletion silent — non-fatal if the task does not exist.
+!macro customRemoveFiles
+  nsExec::ExecToLog 'schtasks.exe /delete /tn "Propel Maintenance" /f'
+!macroend
+
+

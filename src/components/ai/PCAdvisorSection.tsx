@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, Shield, AlertTriangle, AlertCircle, CheckCircle, ChevronRight, Play, Loader2, ArrowRight, Info } from 'lucide-react';
+import { Brain, Shield, AlertTriangle, AlertCircle, CheckCircle, ChevronRight, Play, Loader2, ArrowRight, Info, Cpu, Activity, HardDrive, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAppStore } from '@/store/appStore';
@@ -134,31 +134,77 @@ export const PCAdvisorSection: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-2xl bg-surface-card border border-white/[0.05]">
-        <div>
-          <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
-            <Brain className="w-5 h-5 text-brand-primary" />
-            PC Advisor
-          </h2>
-          <p className="text-sm text-text-secondary mt-1">
-            Get an AI-powered explanation of your PC's health and performance.
-          </p>
-        </div>
-        <button
-          onClick={handleAnalyze}
-          disabled={loading}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-glow-sm"
-        >
-          {loading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Play className="w-4 h-4" />
-          )}
-          Explain my PC's health
-        </button>
+    <div className="space-y-6 pt-4">
+      {/* Persistent Header */}
+      <div className="flex flex-col gap-1.5">
+        <h2 className="text-2xl font-black text-text-primary flex items-center gap-2">
+          <Brain className="w-6 h-6 text-brand-primary" />
+          PC Advisor
+        </h2>
+        <p className="text-sm text-text-secondary max-w-2xl leading-relaxed">
+          Analyzes your current system metrics and explains important health and performance issues.
+        </p>
       </div>
+
+      {/* Initial / Empty State */}
+      {!result && !loading && !error && (
+        <motion.div
+          key="hero"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="p-6 md:p-8 rounded-2xl bg-surface-card border border-white/[0.05]"
+        >
+          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-5">
+            Diagnostic Scope
+          </h3>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
+            {/* CPU */}
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+              <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
+                <Cpu className="w-4 h-4 text-text-secondary" />
+              </div>
+              <span className="text-sm font-semibold text-text-primary">CPU</span>
+            </div>
+            {/* Memory */}
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+              <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
+                <Activity className="w-4 h-4 text-text-secondary" />
+              </div>
+              <span className="text-sm font-semibold text-text-primary">Memory</span>
+            </div>
+            {/* Disk */}
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+              <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
+                <HardDrive className="w-4 h-4 text-text-secondary" />
+              </div>
+              <span className="text-sm font-semibold text-text-primary">Disk</span>
+            </div>
+            {/* Security */}
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+              <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
+                <Shield className="w-4 h-4 text-text-secondary" />
+              </div>
+              <span className="text-sm font-semibold text-text-primary">Security</span>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center pt-8 border-t border-white/[0.05]">
+            <button
+              onClick={handleAnalyze}
+              className="group flex items-center gap-2 px-8 py-3.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold transition-all hover:-translate-y-0.5 shadow-glow-sm"
+            >
+              Explain my PC's health <ArrowRight className="w-4 h-4 opacity-70 group-hover:translate-x-1 transition-transform" />
+            </button>
+            
+            <p className="mt-4 text-[11px] text-text-muted/60 flex items-center gap-1.5">
+              <Lock className="w-3 h-3 opacity-70" />
+              Uses your current system metrics • No files or personal content
+            </p>
+          </div>
+        </motion.div>
+      )}
 
       {/* Error State */}
       <AnimatePresence>
@@ -180,14 +226,19 @@ export const PCAdvisorSection: React.FC = () => {
 
       {/* Loading State */}
       {loading && !result && (
-        <div className="p-12 flex flex-col items-center justify-center text-center rounded-2xl bg-surface-card border border-white/[0.05]">
-          <div className="relative w-16 h-16 mb-6">
-            <div className="absolute inset-0 rounded-full border-2 border-brand-primary/20" />
-            <div className="absolute inset-0 rounded-full border-2 border-brand-primary border-t-transparent animate-spin" />
-            <Brain className="absolute inset-0 m-auto w-6 h-6 text-brand-primary animate-pulse" />
+        <div className="p-12 md:p-16 mt-4 flex flex-col items-center justify-center text-center rounded-3xl bg-brand-primary/[0.02] border border-brand-primary/[0.1] relative overflow-hidden shadow-[0_8px_32px_-12px_rgba(90,166,60,0.1)]">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-brand-primary/10 rounded-full blur-[80px] pointer-events-none animate-pulse" />
+          
+          <div className="relative z-10 w-20 h-20 mb-8">
+            <div className="absolute inset-0 rounded-full border-[3px] border-brand-primary/10" />
+            <div className="absolute inset-0 rounded-full border-[3px] border-brand-primary border-t-transparent animate-spin" />
+            <div className="absolute inset-2 rounded-full border-[2px] border-brand-primary/40 border-r-transparent border-l-transparent animate-[spin_2s_linear_reverse_infinite]" />
+            <Brain className="absolute inset-0 m-auto w-8 h-8 text-brand-primary animate-pulse" />
           </div>
-          <h3 className="text-lg font-bold text-text-primary mb-2">Analyzing System Diagnostics</h3>
-          <p className="text-sm text-text-muted">PC Advisor is evaluating your CPU, Memory, and background processes...</p>
+          <h3 className="relative z-10 text-xl font-black text-text-primary mb-3">Analyzing System Diagnostics...</h3>
+          <p className="relative z-10 text-base text-text-secondary max-w-md">
+            PC Advisor is evaluating your CPU, Memory, Disk, and background processes using AI.
+          </p>
         </div>
       )}
 
@@ -243,6 +294,15 @@ export const PCAdvisorSection: React.FC = () => {
                   </div>
                 </div>
               ))}
+            </div>
+            
+            <div className="flex justify-center mt-6">
+              <button
+                onClick={() => setResult(null)}
+                className="rounded-lg bg-white/[0.06] px-5 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-white/[0.1]"
+              >
+                Done
+              </button>
             </div>
           </motion.div>
         )}
