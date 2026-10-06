@@ -136,6 +136,7 @@ export interface MaintenanceSettings {
   startupAlertsEnabled:       boolean
   permissionAlertsEnabled:    boolean
   updateNotificationsEnabled: boolean
+  runInBackground:            boolean
   safeCleaningMode:           boolean
   lastCleanupAt:              number | null
 }

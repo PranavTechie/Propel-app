@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, Shield, AlertTriangle, AlertCircle, CheckCircle, ChevronRight, Play, Loader2, ArrowRight, Info, Cpu, Activity, HardDrive, Lock } from 'lucide-react';
+import { Brain, Shield, AlertTriangle, AlertCircle, CheckCircle, ChevronRight, Play, Loader2, ArrowRight, Info, Cpu, Activity, HardDrive, Lock, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAppStore } from '@/store/appStore';
@@ -17,6 +17,31 @@ interface DiagnosisResult {
   overallAssessment: string;
   healthImpact: 'critical' | 'moderate' | 'minor';
   actions: Action[];
+}
+
+function HealthRing({ score }: { score: number }) {
+  const r = 40;
+  const circ = 2 * Math.PI * r;
+  const fill = circ * (score / 100);
+  const color = score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg width="100" height="100" className="-rotate-90">
+        <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="6" />
+        <motion.circle 
+          cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" 
+          strokeDasharray={circ} initial={{ strokeDashoffset: circ }} 
+          animate={{ strokeDashoffset: circ - fill }} 
+          transition={{ duration: 1.2, ease: "easeOut" }} 
+          style={{ filter: `drop-shadow(0 0 8px ${color})` }} 
+        />
+      </svg>
+      <div className="absolute text-center flex flex-col items-center">
+        <div className="text-2xl font-black text-text-primary leading-none tracking-tighter">{score}</div>
+      </div>
+    </div>
+  );
 }
 
 export const PCAdvisorSection: React.FC = () => {
@@ -86,16 +111,31 @@ export const PCAdvisorSection: React.FC = () => {
       case 'critical': return 'text-red-400 bg-red-400/10 border-red-400/20';
       case 'moderate': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
       case 'minor': return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
-      default: return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+      default: return 'text-brand-primary bg-brand-primary/10 border-brand-primary/20';
     }
+  };
+
+  const getCardBgColor = (impact: string) => {
+    switch (impact) {
+      case 'critical': return 'bg-red-500/[0.03] border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.05)]';
+      case 'moderate': return 'bg-amber-500/[0.03] border-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.05)]';
+      case 'minor': return 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.05)]';
+      default: return 'bg-brand-primary/[0.03] border-brand-primary/20 shadow-[0_0_30px_rgba(90,166,60,0.05)]';
+    }
+  };
+
+  const getPriorityColor = (priority: number) => {
+    if (priority === 1) return 'bg-red-500 text-red-500';
+    if (priority === 2) return 'bg-amber-500 text-amber-500';
+    return 'bg-brand-primary text-brand-primary';
   };
 
   const getImpactIcon = (impact: string) => {
     switch (impact) {
-      case 'critical': return <AlertCircle className="w-5 h-5 text-red-400" />;
-      case 'moderate': return <AlertTriangle className="w-5 h-5 text-amber-400" />;
-      case 'minor': return <CheckCircle className="w-5 h-5 text-emerald-400" />;
-      default: return <Info className="w-5 h-5 text-blue-400" />;
+      case 'critical': return <AlertCircle className="w-6 h-6 text-red-400" />;
+      case 'moderate': return <AlertTriangle className="w-6 h-6 text-amber-400" />;
+      case 'minor': return <CheckCircle className="w-6 h-6 text-emerald-400" />;
+      default: return <Info className="w-6 h-6 text-brand-primary" />;
     }
   };
 
@@ -248,58 +288,72 @@ export const PCAdvisorSection: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+            className="space-y-8"
           >
             {/* Overall Assessment */}
-            <div className="p-6 rounded-2xl bg-surface-card border border-white/[0.05] relative overflow-hidden">
-              <div className="flex items-start gap-4 relative z-10">
-                <div className={cn("p-3 rounded-xl border", getImpactColor(result.healthImpact))}>
-                  {getImpactIcon(result.healthImpact)}
+            <div className={cn("p-6 md:p-8 rounded-2xl border relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8", getCardBgColor(result.healthImpact))}>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/10 rounded-full blur-[80px] pointer-events-none" />
+              <Sparkles className="absolute top-4 right-4 w-5 h-5 text-brand-primary/40 pointer-events-none" />
+
+              <div className="shrink-0">
+                <HealthRing score={stats ? getHealthScore(stats.cpu, stats.ram.percent, stats.disk.percent) : 0} />
+              </div>
+
+              <div className="flex-1 relative z-10 text-center md:text-left pt-2">
+                <div className="flex items-center justify-center md:justify-start gap-3 mb-3">
+                  <div className={cn("p-2 rounded-xl border", getImpactColor(result.healthImpact))}>
+                    {getImpactIcon(result.healthImpact)}
+                  </div>
+                  <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Overall Assessment</h3>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-2">Overall Assessment</h3>
-                  <p className="text-lg text-text-primary leading-relaxed">
-                    {result.overallAssessment}
-                  </p>
-                </div>
+                <p className="text-[17px] text-text-primary leading-relaxed font-medium">
+                  {result.overallAssessment}
+                </p>
               </div>
             </div>
 
             {/* Prioritized Actions */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider pl-2">Prioritized Action Plan</h3>
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider pl-2 flex items-center gap-2">
+                <Brain className="w-4 h-4 text-brand-primary" /> Prioritized Action Plan
+              </h3>
               {result.actions.map((action, idx) => (
-                <div key={idx} className="flex gap-4 p-5 rounded-2xl bg-surface-card border border-white/[0.02] hover:border-white/[0.08] transition-colors group">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white/[0.05] flex items-center justify-center font-black text-text-secondary group-hover:text-brand-primary transition-colors">
+                <div key={idx} className="flex gap-4 p-5 rounded-2xl bg-surface-card border border-white/[0.04] hover:border-white/[0.1] shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
+                  <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 opacity-80", getPriorityColor(action.priority).split(' ')[0])} />
+                  
+                  <div className={cn("flex-shrink-0 w-10 h-10 rounded-full bg-white/[0.03] border border-white/[0.05] flex items-center justify-center font-black text-lg", getPriorityColor(action.priority).split(' ')[1])}>
                     {action.priority || idx + 1}
                   </div>
-                  <div className="flex-1">
-                    <h4 className="text-base font-bold text-text-primary mb-1">{action.title}</h4>
-                    <p className="text-sm text-text-secondary mb-3">{action.detail}</p>
-                    {action.relatedMetric && (
-                      <div className="inline-block px-2.5 py-1 rounded-lg bg-white/[0.04] text-xs font-medium text-text-muted mb-4">
-                        Metric: {action.relatedMetric}
-                      </div>
-                    )}
-                    {getRouteForMetric(action.relatedMetric) && (
-                      <div>
+                  
+                  <div className="flex-1 flex flex-col">
+                    <h4 className="text-base font-bold text-text-primary mb-1.5">{action.title}</h4>
+                    <p className="text-sm text-text-secondary mb-4 leading-relaxed">{action.detail}</p>
+                    
+                    <div className="flex items-center justify-between mt-auto pt-1">
+                      {action.relatedMetric ? (
+                        <div className="inline-block px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.05] text-xs font-semibold text-text-muted">
+                          {action.relatedMetric}
+                        </div>
+                      ) : <div />}
+                      
+                      {getRouteForMetric(action.relatedMetric) && (
                         <button 
                           onClick={() => setActivePage(getRouteForMetric(action.relatedMetric))}
-                          className="flex items-center gap-1.5 text-xs font-bold text-brand-primary hover:text-brand-secondary transition-colors"
+                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-brand-primary/10 text-brand-primary hover:bg-brand-primary hover:text-white text-xs font-bold transition-colors"
                         >
-                          Resolve Issue <ArrowRight className="w-3 h-3" />
+                          Resolve Issue <ArrowRight className="w-3.5 h-3.5" />
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
             
-            <div className="flex justify-center mt-6">
+            <div className="flex justify-center mt-8">
               <button
                 onClick={() => setResult(null)}
-                className="rounded-lg bg-white/[0.06] px-5 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-white/[0.1]"
+                className="rounded-lg bg-white/[0.06] px-8 py-2.5 text-sm font-semibold text-text-primary transition-colors hover:bg-white/[0.1]"
               >
                 Done
               </button>

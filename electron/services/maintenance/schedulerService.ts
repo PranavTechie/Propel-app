@@ -141,11 +141,17 @@ async function emptyRecycleBin(): Promise<boolean> {
   try {
     await execFileAsync(
       'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-Command', 'Clear-RecycleBin -Force -ErrorAction SilentlyContinue'],
+      ['-NoProfile', '-NonInteractive', '-Command', 'Clear-RecycleBin -Force'],
       { timeout: 15_000, windowsHide: true },
     )
     return true
-  } catch { return false }
+  } catch (err: any) {
+    const msg = String(err?.message || err?.stderr || '')
+    if (msg.includes('cannot find the path specified') || msg.includes('No items to delete')) {
+      return true
+    }
+    return false
+  }
 }
 
 // ── Schedule check — rolling-window semantics preserved exactly ────────────

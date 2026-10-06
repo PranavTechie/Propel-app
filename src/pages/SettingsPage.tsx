@@ -434,19 +434,6 @@ export const SettingsPage: React.FC = () => {
                       />
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between py-2.5 mb-4 border-b border-border/40 pb-4">
-                    <div>
-                      <p className="text-sm text-text-primary">Run in Background</p>
-                      <p className="text-xs text-text-muted mt-0.5">
-                        Keep Propel running in the system tray when you close the window, so alerts and scheduled maintenance can continue.
-                      </p>
-                    </div>
-                    <Toggle
-                      checked={maintenanceSettings.runInBackground ?? false}
-                      onChange={(v) => handleMaintenanceToggle("runInBackground", v)}
-                    />
-                  </div>
                 </>
               )}
 

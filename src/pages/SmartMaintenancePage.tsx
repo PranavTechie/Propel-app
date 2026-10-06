@@ -159,6 +159,7 @@ const DEFAULT_SETTINGS: MaintenanceSettings = {
   startupAlertsEnabled: false,
   permissionAlertsEnabled: false,
   updateNotificationsEnabled: true,
+  runInBackground: false,
   safeCleaningMode: true,
   lastCleanupAt: null,
 };
@@ -351,6 +352,34 @@ export const SmartMaintenancePage: React.FC = () => {
             title="Alerts &amp; Notifications"
             subtitle="Native desktop notifications"
           >
+            <AnimatePresence initial={false}>
+              {(settings.ramAlertsEnabled || settings.diskAlertsEnabled || settings.junkAlertsEnabled || settings.startupAlertsEnabled || settings.permissionAlertsEnabled) && !settings.runInBackground && (
+                <motion.div
+                  key="alerts-bg-banner"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="mb-1 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                    <p className="text-xs text-amber-400 font-medium flex items-start gap-1.5 leading-snug">
+                      <AlertTriangle className="w-4 h-4 shrink-0 -mt-0.5" />
+                      <span>
+                        Alerts require Propel to keep running in the background to work when the app window is closed.{" "}
+                        <button 
+                          onClick={() => toggle("runInBackground", true)}
+                          className="font-bold underline underline-offset-2 hover:text-amber-300 transition-colors"
+                        >
+                          Enable Run in Background
+                        </button>
+                      </span>
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <ControlRow
               label="High RAM Usage Alerts"
               sublabel={`Alert when RAM exceeds ${settings.ramAlertThreshold ?? 85}% (5 min cooldown)`}
@@ -415,6 +444,16 @@ export const SmartMaintenancePage: React.FC = () => {
               <Toggle
                 checked={settings.startupEnabled}
                 onChange={(v) => toggle("startupEnabled", v)}
+              />
+            </ControlRow>
+
+            <ControlRow
+              label="Run in Background"
+              sublabel="Keep Propel running in the system tray when you close the window, so alerts and scheduled maintenance can continue."
+            >
+              <Toggle
+                checked={settings.runInBackground}
+                onChange={(v) => toggle("runInBackground", v)}
               />
             </ControlRow>
           </SectionCard>
