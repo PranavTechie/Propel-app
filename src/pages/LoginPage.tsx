@@ -64,6 +64,7 @@ export const LoginPage: React.FC = () => {
             trial_expires_at: result.data.trial_expires_at,
             subscription_status: result.data.subscription_status,
           });
+          
           setPhase("main");
         } else {
           setError(result.message || "Failed to fetch account status.");

@@ -98,7 +98,7 @@ export interface ToastMessage {
   duration?: number
 }
 
-export type AppPhase = 'splash' | 'no_internet' | 'login' | 'main'
+export type AppPhase = 'splash' | 'no_internet' | 'login' | 'main' | 'device_limit'
 
 export interface ChartDataPoint {
   time: string

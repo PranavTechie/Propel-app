@@ -10,6 +10,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { useSystemStats } from "@/hooks/useSystemStats";
 import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import { usePerformanceProfile } from "@/hooks/usePerformanceProfile";
+import { useDevicePing } from "@/hooks/useDevicePing";
 import { pageVariants } from "@/animations/variants";
 import { Dashboard } from "@/pages/Dashboard";
 const CleanerPage = lazy(() =>
@@ -79,6 +80,8 @@ export const AppLayout: React.FC = () => {
     handleRetry,
   } = useUpdateCheck();
   const perfProfile = usePerformanceProfile();
+  
+  useDevicePing();
 
   const ActivePage = PAGE_MAP[activePage];
   return (

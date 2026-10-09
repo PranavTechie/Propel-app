@@ -32,6 +32,10 @@ const api = {
     getHWID: (): Promise<string> => ipcRenderer.invoke("system:get-hwid"),
     getFingerprint: (): Promise<string> =>
       ipcRenderer.invoke("system:get-fingerprint"),
+    getDeviceUUID: (): Promise<{ device_id: string; registered_at?: string }> =>
+      ipcRenderer.invoke("system:get-device-uuid"),
+    markDeviceRegistered: (): Promise<void> =>
+      ipcRenderer.invoke("system:mark-device-registered"),
     isAdmin: (): Promise<boolean> => ipcRenderer.invoke("system:is-admin"),
     optimizeDrive: (driveLetter?: string): Promise<{ success: boolean; message?: string; error?: string }> =>
       ipcRenderer.invoke("system:optimize-drive", driveLetter),

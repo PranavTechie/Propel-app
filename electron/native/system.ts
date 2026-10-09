@@ -5,6 +5,40 @@ import * as path from 'path'
 import * as crypto from 'crypto'
 import si from 'systeminformation'
 
+export function getDeviceUUID(): { device_id: string; registered_at?: string } {
+  const userData = process.env.APPDATA ?? os.homedir()
+  const storePath = path.join(userData, 'cm_device_id.json')
+  try {
+    const raw = fs.readFileSync(storePath, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (parsed.device_id) return { device_id: parsed.device_id, registered_at: parsed.registered_at }
+  } catch {
+    // not found or invalid
+  }
+  const newId = crypto.randomUUID()
+  try {
+    fs.writeFileSync(storePath, JSON.stringify({ device_id: newId, created_at: new Date().toISOString() }))
+  } catch {
+    // ignore
+  }
+  return { device_id: newId }
+}
+
+export function markDeviceRegistered(): void {
+  const userData = process.env.APPDATA ?? os.homedir()
+  const storePath = path.join(userData, 'cm_device_id.json')
+  try {
+    const raw = fs.readFileSync(storePath, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (!parsed.registered_at) {
+      parsed.registered_at = new Date().toISOString()
+      fs.writeFileSync(storePath, JSON.stringify(parsed))
+    }
+  } catch {
+    // ignore
+  }
+}
+
 export interface SystemStats {
   cpu: number
   ram: { used: number; total: number; free: number; percent: number }

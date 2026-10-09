@@ -4,6 +4,7 @@ import { useAppStore } from '@/store/appStore'
 import { SplashScreen }      from '@/pages/SplashScreen'
 import { NoInternetScreen }  from '@/pages/NoInternetScreen'
 import { LoginPage }         from '@/pages/LoginPage'
+import { DeviceLimitScreen } from '@/pages/DeviceLimitScreen'
 import { AppLayout }         from '@/components/layout/AppLayout'
 import { OverlayApp }        from '@/components/overlay/OverlayApp'
 
@@ -32,6 +33,12 @@ const MainApp: React.FC = () => { // Main app component
       {phase === 'login' && (
         <motion.div key="login" {...FADE} className="fixed inset-0 z-40">
           <LoginPage />
+        </motion.div>
+      )}
+
+      {phase === 'device_limit' && (
+        <motion.div key="device_limit" {...FADE} className="fixed inset-0 z-40">
+          <DeviceLimitScreen />
         </motion.div>
       )}
 
