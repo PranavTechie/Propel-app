@@ -158,6 +158,29 @@ export const SettingsPage: React.FC = () => {
     }
     setSigningOut(true);
     try {
+      try {
+        const { device_id } = await window.electronAPI.system.getDeviceUUID();
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
+        if (token && device_id) {
+          const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000/api";
+          await fetch(`${API_BASE}/devices/${device_id}`, {
+            method: "DELETE",
+            headers: {
+              "Authorization": `Bearer ${token}`
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("Best-effort device deletion failed:", e);
+      }
+      
+      try {
+        await window.electronAPI.system.clearDeviceRegistration();
+      } catch (e) {
+        console.warn("Failed to clear local device registration:", e);
+      }
+
       // Clear local state immediately to ensure no stale token or user state remains,
       // even if the network request to Supabase fails.
       resetUserSession();

@@ -28,7 +28,7 @@ export function testMessage(): void {
 export function rendererCrash(): string {
   // Direct Sentry call — no wrappers, no guards
   const eventId = Sentry.captureException(
-    new Error('[TEST] Renderer crash — CM HARD TEST ERROR'),
+    new Error('[TEST] Renderer crash — Propel HARD TEST ERROR'),
     { tags: { test: 'true', layer: 'renderer', source: 'telemetryTestUtils' } },
   )
   logError('renderer', '[TEST] rendererCrash() triggered from DevTools')
@@ -39,7 +39,7 @@ export function rendererCrash(): string {
 export function unhandledPromise(): void {
   // Triggers real browser unhandledrejection event
   // → captured by installCrashHandlers → Sentry.captureException
-  Promise.reject(new Error('[TEST] CM PROMISE TEST — unhandled rejection'))
+  Promise.reject(new Error('[TEST] Propel PROMISE TEST — unhandled rejection'))
   console.log('[telemetry-test] ✅ Unhandled promise rejection triggered')
 }
 
@@ -54,10 +54,10 @@ export function ipcFailure(): void {
  * If this DOES appear, the problem was in the wrapper layer (now fixed).
  */
 export function hardTest(): string {
-  const err = new Error('CM HARD TEST ERROR — direct raw captureException')
+  const err = new Error('Propel HARD TEST ERROR — direct raw captureException')
   const eventId = Sentry.captureException(err)
   console.log('[telemetry-test] 🔴 HARD TEST sent. Event ID:', eventId)
-  console.log('[telemetry-test] 🔴 Check GlitchTip Issues tab for "CM HARD TEST ERROR"')
+  console.log('[telemetry-test] 🔴 Check GlitchTip Issues tab for "Propel HARD TEST ERROR"')
   return eventId
 }
 

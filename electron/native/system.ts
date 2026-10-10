@@ -7,7 +7,7 @@ import si from 'systeminformation'
 
 export function getDeviceUUID(): { device_id: string; registered_at?: string } {
   const userData = process.env.APPDATA ?? os.homedir()
-  const storePath = path.join(userData, 'cm_device_id.json')
+  const storePath = path.join(userData, 'propel_device_id.json')
   try {
     const raw = fs.readFileSync(storePath, 'utf8')
     const parsed = JSON.parse(raw)
@@ -26,12 +26,27 @@ export function getDeviceUUID(): { device_id: string; registered_at?: string } {
 
 export function markDeviceRegistered(): void {
   const userData = process.env.APPDATA ?? os.homedir()
-  const storePath = path.join(userData, 'cm_device_id.json')
+  const storePath = path.join(userData, 'propel_device_id.json')
   try {
     const raw = fs.readFileSync(storePath, 'utf8')
     const parsed = JSON.parse(raw)
     if (!parsed.registered_at) {
       parsed.registered_at = new Date().toISOString()
+      fs.writeFileSync(storePath, JSON.stringify(parsed))
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function clearDeviceRegistration(): void {
+  const userData = process.env.APPDATA ?? os.homedir()
+  const storePath = path.join(userData, 'propel_device_id.json')
+  try {
+    const raw = fs.readFileSync(storePath, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (parsed.registered_at) {
+      delete parsed.registered_at
       fs.writeFileSync(storePath, JSON.stringify(parsed))
     }
   } catch {
@@ -234,7 +249,7 @@ export function getFingerprint(): string {
 
 export function getLicenseStorePath(): string {
   const userData = process.env.APPDATA ?? os.homedir()
-  return path.join(userData, 'cm_license.json')
+  return path.join(userData, 'propel_license.json')
 }
 
 export function saveLicenseKey(key: string): void {

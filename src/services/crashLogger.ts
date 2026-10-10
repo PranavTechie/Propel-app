@@ -1,5 +1,5 @@
 const MAX_ENTRIES = 100
-const STORAGE_KEY = 'cm_crash_log'
+const STORAGE_KEY = 'propel_crash_log'
 
 export type LogLevel    = 'error' | 'warning' | 'info'
 export type LogCategory = 'renderer' | 'cleaner' | 'memory' | 'activation' | 'general'

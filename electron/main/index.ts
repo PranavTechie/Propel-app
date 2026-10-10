@@ -85,12 +85,12 @@ if (!isPrimaryInstance) {
 initMainTelemetry();
 
 // Maintain backwards compatibility with existing user data/licenses
-// stored in the "cleanmaster-pro" folder on Windows AppData.
-app.setPath("userData", path.join(app.getPath("appData"), "cleanmaster-pro"));
+// stored in the "propel" folder on Windows AppData.
+app.setPath("userData", path.join(app.getPath("appData"), "propel"));
 
 // Set AppUserModelID before app is ready — required for correct taskbar grouping,
 // Alt+Tab identity, and notification icon on Windows.
-app.setAppUserModelId("com.cleanmasterpro.desktop");
+app.setAppUserModelId("com.propel.desktop");
 
 const __dirname = path
   .dirname(new URL(import.meta.url).pathname)

@@ -18,7 +18,7 @@ export interface ExclusionsConfig {
   entries: ExclusionEntry[]
 }
 
-const EXCLUSIONS_PATH = path.join(os.homedir(), 'AppData', 'Roaming', 'cm_exclusions.json')
+const EXCLUSIONS_PATH = path.join(os.homedir(), 'AppData', 'Roaming', 'propel_exclusions.json')
 
 export async function loadExclusions(): Promise<ExclusionsConfig> {
   try {

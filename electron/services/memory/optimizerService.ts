@@ -58,7 +58,7 @@ export async function runSafeOptimization(
   onProgress: OptimizeProgressCallback,
 ): Promise<OptimizationResult> {
   const startTime = Date.now()
-  const tmpFile = path.join(os.tmpdir(), `cm_opt_${Date.now()}.ps1`)
+  const tmpFile = path.join(os.tmpdir(), `propel_opt_${Date.now()}.ps1`)
 
   onProgress({ step: 'Optimizing memory…', processed: 0, total: 1 })
 

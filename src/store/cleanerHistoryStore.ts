@@ -20,6 +20,6 @@ export const useCleanerHistoryStore = create<CleanerHistoryStore>()(
         })),
       clearHistory: () => set({ history: [] }),
     }),
-    { name: 'cm-cleaner-history' },
+    { name: 'propel-cleaner-history' },
   ),
 )

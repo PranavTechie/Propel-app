@@ -36,6 +36,8 @@ const api = {
       ipcRenderer.invoke("system:get-device-uuid"),
     markDeviceRegistered: (): Promise<void> =>
       ipcRenderer.invoke("system:mark-device-registered"),
+    clearDeviceRegistration: (): Promise<void> =>
+      ipcRenderer.invoke("system:clear-device-registration"),
     isAdmin: (): Promise<boolean> => ipcRenderer.invoke("system:is-admin"),
     optimizeDrive: (driveLetter?: string): Promise<{ success: boolean; message?: string; error?: string }> =>
       ipcRenderer.invoke("system:optimize-drive", driveLetter),

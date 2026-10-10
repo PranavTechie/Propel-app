@@ -41,7 +41,7 @@ export const DeviceLimitScreen: React.FC = () => {
         <div className="space-y-4">
           <Button 
             className="w-full bg-red-600 hover:bg-red-700 text-white border-none shadow-[0_4px_14px_rgba(239,68,68,0.3)]"
-            onClick={() => window.electronAPI.shell.openExternal('https://cleanmasterpro.in/dashboard')}
+            onClick={() => window.electronAPI.shell.openExternal('https://cleanmasterpro.in/dashboard#devices')}
           >
             Manage Devices
           </Button>

@@ -46,7 +46,7 @@ export const useSettingsStore = create<SettingsState>()(
       },
     }),
     { 
-      name: 'cm-settings',
+      name: 'propel-settings',
       version: 2, // bump to migrate away from removed 'pure-black' theme
       migrate: (persisted: unknown, version: number) => {
         const state = (persisted ?? {}) as Record<string, unknown>

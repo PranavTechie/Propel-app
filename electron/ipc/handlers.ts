@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron'
-import { getSystemStats, getHWID, getFingerprint, isAdmin, optimizeDrive, getDeviceUUID, markDeviceRegistered } from '../native/system'
+import { getSystemStats, getHWID, getFingerprint, isAdmin, optimizeDrive, getDeviceUUID, markDeviceRegistered, clearDeviceRegistration } from '../native/system'
 
 const APP_VERSION = '1.4'
 
@@ -12,6 +12,7 @@ export function setupIPC(): void {
   ipcMain.handle('system:get-fingerprint', () => getFingerprint())
   ipcMain.handle('system:get-device-uuid', () => getDeviceUUID())
   ipcMain.handle('system:mark-device-registered', () => markDeviceRegistered())
+  ipcMain.handle('system:clear-device-registration', () => clearDeviceRegistration())
 
   ipcMain.handle('system:is-admin', async () => {
     return await isAdmin()

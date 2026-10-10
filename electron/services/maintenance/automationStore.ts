@@ -67,7 +67,7 @@ const DEFAULTS: MaintenanceSettings = {
 
 function getStorePath(): string {
   const base = process.env.APPDATA ?? os.homedir()
-  return path.join(base, 'cm_maintenance.json')
+  return path.join(base, 'propel_maintenance.json')
 }
 
 export async function loadSettings(): Promise<MaintenanceSettings> {
