@@ -14,6 +14,31 @@ import {
 import { useAppStore } from "@/store/appStore";
 import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabase";
+function base64UrlEncode(buffer: ArrayBuffer | Uint8Array): string {
+  const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+function generateCodeVerifier(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes);
+}
+
+async function computeCodeChallenge(verifier: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return base64UrlEncode(hash);
+}
+
 export const LoginPage: React.FC = () => {
   const setPhase = useAppStore((s) => s.setPhase);
   const setSession = useAppStore((s) => s.setSession);
@@ -22,6 +47,7 @@ export const LoginPage: React.FC = () => {
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pendingStateRef = React.useRef<string | null>(null);
+  const pendingVerifierRef = React.useRef<string | null>(null);
   const timeoutTimerRef = React.useRef<any>(null);
 
   // Clean up timer on unmount
@@ -49,6 +75,7 @@ export const LoginPage: React.FC = () => {
       setWaiting(false);
       setLoading(false);
       pendingStateRef.current = null;
+      pendingVerifierRef.current = null;
       setError("Sign-in session timed out after 5 minutes. Please try again.");
     }, 5 * 60 * 1000);
   };
@@ -59,6 +86,7 @@ export const LoginPage: React.FC = () => {
       timeoutTimerRef.current = null;
     }
     pendingStateRef.current = null;
+    pendingVerifierRef.current = null;
     setWaiting(false);
     setError(null);
   };
@@ -87,13 +115,16 @@ export const LoginPage: React.FC = () => {
           throw new Error("Security verification failed: state parameter mismatch. Please try signing in again.");
         }
 
-        // Consume pending state
+        // Consume pending state and verifier
         const stateToExchange = expectedState || returnedState || undefined;
+        const verifierToExchange = pendingVerifierRef.current || undefined;
         pendingStateRef.current = null;
+        pendingVerifierRef.current = null;
 
         const data = await (window as any).electronAPI.auth.exchangeAuthCode(
           code,
-          stateToExchange
+          stateToExchange,
+          verifierToExchange
         );
         if (!data.ok || !data.session) {
           throw new Error(
@@ -151,30 +182,46 @@ export const LoginPage: React.FC = () => {
     });
   }, [setPhase, setSession, setEntitlementStatus]);
 
-  const logIn = () => {
+  const logIn = async () => {
     setError(null);
     setWaiting(true);
     const state = generateStateNonce();
+    const verifier = generateCodeVerifier();
     pendingStateRef.current = state;
+    pendingVerifierRef.current = verifier;
     startWaitingTimeout();
 
-    const baseUrl = "https://cleanmasterpro.in/login";
-    window.electronAPI.shell.openExternal(
-      `${baseUrl}?source=desktop&state=${encodeURIComponent(state)}`,
-    );
+    try {
+      const challenge = await computeCodeChallenge(verifier);
+      const baseUrl = "https://cleanmasterpro.in/login";
+      window.electronAPI.shell.openExternal(
+        `${baseUrl}?source=desktop&state=${encodeURIComponent(state)}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`,
+      );
+    } catch {
+      cancelWaiting();
+      setError("Failed to generate secure authentication challenge. Please try again.");
+    }
   };
 
-  const signUp = () => {
+  const signUp = async () => {
     setError(null);
     setWaiting(true);
     const state = generateStateNonce();
+    const verifier = generateCodeVerifier();
     pendingStateRef.current = state;
+    pendingVerifierRef.current = verifier;
     startWaitingTimeout();
 
-    const baseUrl = "https://cleanmasterpro.in/signup";
-    window.electronAPI.shell.openExternal(
-      `${baseUrl}?source=desktop&state=${encodeURIComponent(state)}`,
-    );
+    try {
+      const challenge = await computeCodeChallenge(verifier);
+      const baseUrl = "https://cleanmasterpro.in/signup";
+      window.electronAPI.shell.openExternal(
+        `${baseUrl}?source=desktop&state=${encodeURIComponent(state)}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`,
+      );
+    } catch {
+      cancelWaiting();
+      setError("Failed to generate secure authentication challenge. Please try again.");
+    }
   };
   return (
     <div className="fixed inset-0 z-40 grid grid-cols-[1.1fr_.9fr] overflow-hidden bg-bg-base max-[900px]:grid-cols-1">

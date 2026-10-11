@@ -1,8 +1,8 @@
 {
   "version": "1.4",
-  "builtAt": "2026-10-11T15:24:55.693Z",
+  "builtAt": "2026-10-11T16:07:29.816Z",
   "files": {
-    "out/main/index.js": "c4433dec98ffa5792b900aebbed2219a37d2b1ccf754d0d0954f6f7894e78ea3",
+    "out/main/index.js": "d1b844ac505647ac46e98ea20a02d9d44886cdb90771f09513261846d5470181",
     "out/preload/index.js": "2cfc2dfe30d4bc5ef5170fd39c2b737485a44068b9c7e8fbba59a501134af1bd",
     "out/renderer/assets/AboutPage-CSX9MJ9D.js": "5cd6b6d3a25f9232996c56ba18da417da05a98f73dc3d5d91b95d913ecf17b23",
     "out/renderer/assets/AIFeaturesPage-FxDsFGb1.js": "205ddd87b43572b9ef548ae51117bbc931f36c1c91d44b41af1bcac3f525e779",
@@ -25,5 +25,5 @@
     "out/renderer/assets/SmartMaintenancePage-BKrHRyqJ.js": "604990679853df9b84dc337ce15c038e11bec1dfae7490b2c2d0f93fb4ea6323",
     "out/renderer/assets/SystemCheckPage-D5afad-Y.js": "c970efa7dd85aba72e31064f87a3af3abb5d003e4c081662c2409c630e602dc4"
   },
-  "signature": "f1a5ef8f6c4a4a30d75dea9d2fba0fc4d46b9bf3b3db31f21a4ddb821e2840cd"
+  "signature": "cb683699474a1c9a464ab5abc083797df188c4a7d724a5da0703588e8e5494c2"
 }
