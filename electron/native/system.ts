@@ -4,10 +4,12 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
 import si from 'systeminformation'
+import { getDeviceIdFilePath, getLicenseFilePath, getUserDataDir } from '../utils/userData'
+
+export { getUserDataDir }
 
 export function getDeviceUUID(): { device_id: string; registered_at?: string } {
-  const userData = process.env.APPDATA ?? os.homedir()
-  const storePath = path.join(userData, 'propel_device_id.json')
+  const storePath = getDeviceIdFilePath()
   try {
     const raw = fs.readFileSync(storePath, 'utf8')
     const parsed = JSON.parse(raw)
@@ -18,15 +20,14 @@ export function getDeviceUUID(): { device_id: string; registered_at?: string } {
   const newId = crypto.randomUUID()
   try {
     fs.writeFileSync(storePath, JSON.stringify({ device_id: newId, created_at: new Date().toISOString() }))
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn('[STORAGE] Failed to write device ID to', storePath, err)
   }
   return { device_id: newId }
 }
 
 export function markDeviceRegistered(): void {
-  const userData = process.env.APPDATA ?? os.homedir()
-  const storePath = path.join(userData, 'propel_device_id.json')
+  const storePath = getDeviceIdFilePath()
   try {
     const raw = fs.readFileSync(storePath, 'utf8')
     const parsed = JSON.parse(raw)
@@ -34,14 +35,13 @@ export function markDeviceRegistered(): void {
       parsed.registered_at = new Date().toISOString()
       fs.writeFileSync(storePath, JSON.stringify(parsed))
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn('[STORAGE] Failed to update device registration in', storePath, err)
   }
 }
 
 export function clearDeviceRegistration(): void {
-  const userData = process.env.APPDATA ?? os.homedir()
-  const storePath = path.join(userData, 'propel_device_id.json')
+  const storePath = getDeviceIdFilePath()
   try {
     const raw = fs.readFileSync(storePath, 'utf8')
     const parsed = JSON.parse(raw)
@@ -49,8 +49,8 @@ export function clearDeviceRegistration(): void {
       delete parsed.registered_at
       fs.writeFileSync(storePath, JSON.stringify(parsed))
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn('[STORAGE] Failed to clear device registration in', storePath, err)
   }
 }
 
@@ -248,8 +248,7 @@ export function getFingerprint(): string {
 
 
 export function getLicenseStorePath(): string {
-  const userData = process.env.APPDATA ?? os.homedir()
-  return path.join(userData, 'propel_license.json')
+  return getLicenseFilePath()
 }
 
 export function saveLicenseKey(key: string): void {

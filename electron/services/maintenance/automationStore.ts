@@ -1,7 +1,6 @@
 import fs from 'fs/promises'
 import fsSync from 'fs'
-import path from 'path'
-import os from 'os'
+import { getMaintenanceFilePath } from '../../utils/userData'
 
 // ── Settings shape ─────────────────────────────────────────────────────────
 export interface MaintenanceSettings {
@@ -65,9 +64,8 @@ const DEFAULTS: MaintenanceSettings = {
   lastCleanupAt:              null,
 }
 
-function getStorePath(): string {
-  const base = process.env.APPDATA ?? os.homedir()
-  return path.join(base, 'propel_maintenance.json')
+export function getStorePath(): string {
+  return getMaintenanceFilePath()
 }
 
 export async function loadSettings(): Promise<MaintenanceSettings> {

@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
-import os from 'os'
 import crypto from 'crypto'
+import { getExclusionsFilePath } from '../../utils/userData'
 
 export type ExclusionType = 'folder' | 'file' | 'extension' | 'browser' | 'category'
 
@@ -18,11 +18,13 @@ export interface ExclusionsConfig {
   entries: ExclusionEntry[]
 }
 
-const EXCLUSIONS_PATH = path.join(os.homedir(), 'AppData', 'Roaming', 'propel_exclusions.json')
+export function getExclusionsPath(): string {
+  return getExclusionsFilePath()
+}
 
 export async function loadExclusions(): Promise<ExclusionsConfig> {
   try {
-    const raw = await fs.readFile(EXCLUSIONS_PATH, 'utf-8')
+    const raw = await fs.readFile(getExclusionsFilePath(), 'utf-8')
     const parsed = JSON.parse(raw) as Partial<ExclusionsConfig>
     return {
       version: 1,
@@ -34,7 +36,7 @@ export async function loadExclusions(): Promise<ExclusionsConfig> {
 }
 
 export async function saveExclusions(config: ExclusionsConfig): Promise<void> {
-  await fs.writeFile(EXCLUSIONS_PATH, JSON.stringify(config, null, 2), 'utf-8')
+  await fs.writeFile(getExclusionsFilePath(), JSON.stringify(config, null, 2), 'utf-8')
 }
 
 export function buildEntry(entry: Omit<ExclusionEntry, 'id' | 'addedAt'>): ExclusionEntry {

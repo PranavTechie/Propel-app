@@ -65,6 +65,7 @@ import {
 } from "../services/telemetry/mainTelemetry";
 import { verifyIntegrity } from "../security/integrityVerifier";
 import { getAppIconPath } from "./icon";
+import { migrateLegacyAppDataFiles, logStartupStoragePaths } from "../utils/userData";
 
 // Detect scheduled maintenance launch — must happen BEFORE the single-instance
 // lock so we can hand off to a running primary instance if one exists.
@@ -327,6 +328,10 @@ ipcMain.handle("telemetry:set-enabled", (_event, enabled: boolean) => {
 });
 
 app.whenReady().then(async () => {
+  // Storage initialization: migrate legacy files and log storage paths
+  migrateLegacyAppDataFiles();
+  logStartupStoragePaths();
+
   // ── INTEGRITY CHECK: must run before ANY window or service setup ────────
   // No-op in dev (app.isPackaged === false). Exits with code 1 if tampered.
   await verifyIntegrity();
