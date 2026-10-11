@@ -163,8 +163,9 @@ export const SettingsPage: React.FC = () => {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData?.session?.access_token;
         if (token && device_id) {
-          const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000/api";
-          await fetch(`${API_BASE}/devices/${device_id}`, {
+          const rawBase = import.meta.env.VITE_API_BASE_URL || "https://cleanmasterpro-backend-server.onrender.com";
+          const apiBase = rawBase.endsWith('/api') ? rawBase : `${rawBase.replace(/\/$/, '')}/api`;
+          await fetch(`${apiBase}/devices/${device_id}`, {
             method: "DELETE",
             headers: {
               "Authorization": `Bearer ${token}`

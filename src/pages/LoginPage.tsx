@@ -21,23 +21,89 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const pendingStateRef = React.useRef<string | null>(null);
+  const timeoutTimerRef = React.useRef<any>(null);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutTimerRef.current) {
+        clearTimeout(timeoutTimerRef.current);
+        timeoutTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const generateStateNonce = () => {
+    return typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+  };
+
+  const startWaitingTimeout = () => {
+    if (timeoutTimerRef.current) {
+      clearTimeout(timeoutTimerRef.current);
+    }
+    // 5-minute timeout (300,000 ms)
+    timeoutTimerRef.current = setTimeout(() => {
+      setWaiting(false);
+      setLoading(false);
+      pendingStateRef.current = null;
+      setError("Sign-in session timed out after 5 minutes. Please try again.");
+    }, 5 * 60 * 1000);
+  };
+
+  const cancelWaiting = () => {
+    if (timeoutTimerRef.current) {
+      clearTimeout(timeoutTimerRef.current);
+      timeoutTimerRef.current = null;
+    }
+    pendingStateRef.current = null;
+    setWaiting(false);
+    setError(null);
+  };
+
   useEffect(() => {
     window.electronAPI.auth.onCallback(async (url: string) => {
       try {
         setLoading(true);
         setError(null);
         setWaiting(false);
-        const code = new URL(url).searchParams.get("code");
+
+        if (timeoutTimerRef.current) {
+          clearTimeout(timeoutTimerRef.current);
+          timeoutTimerRef.current = null;
+        }
+
+        const parsedUrl = new URL(url);
+        const code = parsedUrl.searchParams.get("code");
+        const returnedState = parsedUrl.searchParams.get("state");
+
         if (!code) throw new Error("Authentication code not found.");
+
+        // Security check: verify state/nonce binding if desktop app generated one
+        const expectedState = pendingStateRef.current;
+        if (expectedState && returnedState && expectedState !== returnedState) {
+          throw new Error("Security verification failed: state parameter mismatch. Please try signing in again.");
+        }
+
+        // Consume pending state
+        const stateToExchange = expectedState || returnedState || undefined;
+        pendingStateRef.current = null;
+
         const data = await (window as any).electronAPI.auth.exchangeAuthCode(
           code,
+          stateToExchange
         );
-        if (!data.ok || !data.session)
+        if (!data.ok || !data.session) {
           throw new Error(
-            data.status
-              ? `Authentication exchange failed (HTTP ${data.status})`
-              : "Unable to reach authentication server",
+            data.message ||
+              (data.status
+                ? `Authentication exchange failed (HTTP ${data.status})`
+                : "Unable to reach authentication server. Please check your network and try again.")
           );
+        }
+
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: data.session.access_token,
           refresh_token: data.session.refresh_token,
@@ -84,17 +150,30 @@ export const LoginPage: React.FC = () => {
       }
     });
   }, [setPhase, setSession, setEntitlementStatus]);
+
   const logIn = () => {
     setError(null);
     setWaiting(true);
+    const state = generateStateNonce();
+    pendingStateRef.current = state;
+    startWaitingTimeout();
+
+    const baseUrl = "https://cleanmasterpro.in/login";
     window.electronAPI.shell.openExternal(
-      "https://cleanmasterpro.in/auth/desktop",
+      `${baseUrl}?source=desktop&state=${encodeURIComponent(state)}`,
     );
   };
+
   const signUp = () => {
     setError(null);
+    setWaiting(true);
+    const state = generateStateNonce();
+    pendingStateRef.current = state;
+    startWaitingTimeout();
+
+    const baseUrl = "https://cleanmasterpro.in/signup";
     window.electronAPI.shell.openExternal(
-      "https://cleanmasterpro.in/signup?source=desktop",
+      `${baseUrl}?source=desktop&state=${encodeURIComponent(state)}`,
     );
   };
   return (
@@ -185,14 +264,10 @@ export const LoginPage: React.FC = () => {
                   <p className="mt-2 text-sm leading-5 text-text-secondary">
                     Complete sign in there. This window will continue
                     automatically.
-                  </p>
-                  <div className="mt-6 grid grid-cols-2 gap-2">
+                  </p>                    <div className="mt-6 grid grid-cols-2 gap-2">
                     <Button
                       variant="ghost"
-                      onClick={() => {
-                        setWaiting(false);
-                        setError(null);
-                      }}
+                      onClick={cancelWaiting}
                       icon={<X className="h-4 w-4" />}
                     >
                       Cancel
@@ -223,7 +298,7 @@ export const LoginPage: React.FC = () => {
                       )
                     }
                   >
-                    Log in securely
+                    {error ? "Retry sign in" : "Log in securely"}
                   </Button>
                   <Button
                     id="desktop-signup-btn"
@@ -245,7 +320,6 @@ export const LoginPage: React.FC = () => {
                 role="alert"
                 className="mt-4 rounded-lg border border-red-500/20 bg-red-500/[.07] px-3 py-2.5 text-xs leading-5 text-red-600"
               >
-                {error}
               </motion.div>
             )}
           </div>

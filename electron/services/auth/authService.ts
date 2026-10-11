@@ -15,11 +15,11 @@ export type ExchangeResult =
   | { ok: true; session: ExchangeResponse['session'] }
   | { ok: false; success: false; status: number | null; message: string; stage: string }
 
-export async function exchangeAuthCode(code: string): Promise<ExchangeResult> {
+export async function exchangeAuthCode(code: string, state?: string): Promise<ExchangeResult> {
   const targetUrl = `${API_BASE}/api/auth/exchange`
   console.log(`[AUTH IPC] Target URL: ${targetUrl}`)
   try {
-    const res = await axios.post<ExchangeResponse>(targetUrl, { code }, {
+    const res = await axios.post<ExchangeResponse>(targetUrl, { code, state }, {
       timeout: 14000
     })
 

@@ -76,8 +76,8 @@ const api = {
       ipcRenderer.removeAllListeners("auth:callback");
       ipcRenderer.on("auth:callback", (_, url) => callback(url));
     },
-    exchangeAuthCode: (code: string) =>
-      ipcRenderer.invoke("propel:auth:exchange", code),
+    exchangeAuthCode: (code: string, state?: string) =>
+      ipcRenderer.invoke("propel:auth:exchange", code, state),
   },
 };
 

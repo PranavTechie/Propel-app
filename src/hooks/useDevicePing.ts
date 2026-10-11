@@ -25,8 +25,8 @@ export function useDevicePing() {
         const { device_id: deviceId, registered_at } = await window.electronAPI.system.getDeviceUUID()
         const isNewLogin = !registered_at
         
-        // Use localhost in dev if you want, but for now fallback to Render backend
-        const baseUrl = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:5000/api' : API_BASE
+        const rawBase = import.meta.env.VITE_API_BASE_URL || "https://cleanmasterpro-backend-server.onrender.com";
+        const baseUrl = rawBase.endsWith('/api') ? rawBase : `${rawBase.replace(/\/$/, '')}/api`;
 
         const response = await fetch(`${baseUrl}/devices/ping`, {
           method: 'POST',
