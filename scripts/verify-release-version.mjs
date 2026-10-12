@@ -19,7 +19,7 @@ import {
   ROOT_APP,
   ROOT_WORKSPACE,
   BACKEND_BUILDS_PATH,
-  WEBSITE_CONSTANTS_PATH,
+  WEBSITE_RELEASE_HOOK_PATH,
   WEBSITE_ROBOTS_PATH,
   assertLegacyBackendRecords,
   parseReleaseVersion,
@@ -166,44 +166,46 @@ try {
   addCheck('upload-sourcemaps.mjs', 'File read error', false, err.message)
 }
 
-// ── 12. propel-website site-constants.ts ──────────────────────────────────
+// ── 12. propel-website Dynamic Release Resolution Hook ─────────────────────
 try {
-  const content = readFileSync(WEBSITE_CONSTANTS_PATH, 'utf8')
-  const vMatch = content.includes(`export const APP_VERSION = "${displayVersion}";`)
-  const fMatch = content.includes(`export const DOWNLOAD_FILENAME = "${installerName}";`)
-  const pMatch = content.includes(`export const DOWNLOAD_PATH = "${downloadPath}";`)
-  addCheck('propel-website site-constants.ts', `APP_VERSION, DOWNLOAD_FILENAME, DOWNLOAD_PATH match target`, vMatch && fMatch && pMatch)
+  const content = readFileSync(WEBSITE_RELEASE_HOOK_PATH, 'utf8')
+  const repoMatch = content.includes('pranavop45/propel-releases')
+  const assetMatch = content.includes('INSTALLER_NAME') && content.includes('/^Propel-Setup-.+\\.exe$/i')
+  addCheck(
+    'propel-website use-github-release.ts',
+    'Configured for pranavop45/propel-releases dynamic resolution',
+    repoMatch && assetMatch,
+  )
 } catch (err) {
-  addCheck('propel-website site-constants.ts', 'File read error', false, err.message)
+  addCheck('propel-website use-github-release.ts', 'File read error', false, err.message)
 }
 
 // ── 13. propel-website robots.txt ─────────────────────────────────────────
 try {
   const content = readFileSync(WEBSITE_ROBOTS_PATH, 'utf8')
-  const pass = content.includes(`Disallow: ${downloadPath}`)
-  addCheck('propel-website robots.txt', `Disallow directive matches "${downloadPath}"`, pass)
+  const pass = content.includes('Disallow: /*.exe$')
+  addCheck('propel-website robots.txt', 'Disallow wildcard directive matches "/*.exe$"', pass)
 } catch (err) {
   addCheck('propel-website robots.txt', 'File read error', false, err.message)
 }
 
-// ── 14. propel-website overview.tsx & Navbar.tsx ──────────────────────────
+// ── 14. propel-website routes (No hardcoded legacy installer paths) ───────
 const overviewPath = resolve(ROOT_WORKSPACE, 'propel-website', 'app', 'routes', 'overview.tsx')
-const navbarPath   = resolve(ROOT_WORKSPACE, 'propel-website', 'app', 'components', 'Navbar.tsx')
+const downloadsPath = resolve(ROOT_WORKSPACE, 'propel-website', 'app', 'routes', 'downloads.tsx')
 try {
   const oContent = readFileSync(overviewPath, 'utf8')
-  const nContent = readFileSync(navbarPath, 'utf8')
-  const oClean = oContent.includes('DOWNLOAD_PATH') && !oContent.includes('/Propel-Setup-')
-  const nClean = nContent.includes('DOWNLOAD_PATH') && !nContent.includes('/Propel-Setup-')
-  addCheck('propel-website overview.tsx', 'Uses site-constants (no hardcoded .exe)', oClean)
-  addCheck('propel-website Navbar.tsx', 'Uses site-constants (no hardcoded .exe)', nClean)
+  const dContent = readFileSync(downloadsPath, 'utf8')
+  const oClean = !oContent.includes('/Propel-Setup-')
+  const dClean = !dContent.includes('/Propel-Setup-')
+  addCheck('propel-website routes', 'Uses dynamic hooks (no hardcoded /Propel-Setup-*.exe links)', oClean && dClean)
 } catch (err) {
-  addCheck('propel-website routes/components', 'File read error', false, err.message)
+  addCheck('propel-website routes', 'File read error', false, err.message)
 }
 
 // ── 15. propel-backend Historical Records Protection ──────────────────────
 try {
   assertLegacyBackendRecords()
-  addCheck('propel-backend official-builds.json', 'Historical 1.2, 1.2.0, 1.3, 1.3.0 records are 100% intact', true)
+  addCheck('propel-backend official-builds.json', 'Historical 1.2, 1.2.0, 1.3, 1.3.0, 1.4, 1.4.0 records are 100% intact', true)
 } catch (err) {
   addCheck('propel-backend official-builds.json', 'Historical records integrity check', false, err.message)
 }

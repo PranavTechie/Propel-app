@@ -13,8 +13,9 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 export const ROOT_APP = resolve(__dirname, '..')
 export const ROOT_WORKSPACE = resolve(ROOT_APP, '..')
 export const BACKEND_BUILDS_PATH = resolve(ROOT_WORKSPACE, 'propel-backend', 'services', 'official-builds.json')
-export const WEBSITE_CONSTANTS_PATH = resolve(ROOT_WORKSPACE, 'propel-website', 'app', 'lib', 'site-constants.ts')
-export const WEBSITE_ROBOTS_PATH = resolve(ROOT_WORKSPACE, 'propel-website', 'public', 'robots.txt')
+export const WEBSITE_DIR = resolve(ROOT_WORKSPACE, 'propel-website')
+export const WEBSITE_RELEASE_HOOK_PATH = resolve(WEBSITE_DIR, 'app', 'hooks', 'use-github-release.ts')
+export const WEBSITE_ROBOTS_PATH = resolve(WEBSITE_DIR, 'public', 'robots.txt')
 
 /**
  * Immutable historical production signatures.
@@ -44,6 +45,18 @@ export const LEGACY_PRODUCTION_RECORDS = Object.freeze({
     releaseChannel: 'stable',
     releasedAt: '2026-09-18',
     notes: 'Propel release 1.3.0',
+  },
+  '1.4': {
+    buildSignature: '3c77454dd31cfa0b8e9091f87aeabfd18db09df7220129a29aaafa209e7dcfc8',
+    releaseChannel: 'stable',
+    releasedAt: '2026-09-20',
+    notes: 'Propel release 1.4',
+  },
+  '1.4.0': {
+    buildSignature: '3c77454dd31cfa0b8e9091f87aeabfd18db09df7220129a29aaafa209e7dcfc8',
+    releaseChannel: 'stable',
+    releasedAt: '2026-09-20',
+    notes: 'Propel release 1.4.0',
   },
 })
 

@@ -59,24 +59,10 @@ export function initMainTelemetry(): void {
       // Debug logging visible in terminal during dev — remove in production
       debug: !app.isPackaged,
 
-      // Privacy: strip user identifiers from all events
+      // Privacy: strip user identifiers and scrub sensitive paths/stack traces
       beforeSend(event) {
         if (!_telemetryEnabled) return null
-
-        // Strip any accidentally captured breadcrumbs with file paths or keys.
-        // In @sentry/core v8, event.breadcrumbs is Breadcrumb[] — map it directly.
-        if (event.breadcrumbs) {
-          event.breadcrumbs = event.breadcrumbs.map((b: Breadcrumb) => ({
-            ...b,
-            message: sanitizeMessage(b.message ?? ''),
-            data: undefined,
-          }))
-        }
-
-        // Remove user context if accidentally set
-        delete event.user
-
-        return event
+        return scrubTelemetryEvent(event)
       },
 
       // Ignore noisy/expected errors
@@ -113,7 +99,7 @@ export function initMainTelemetry(): void {
 }
 
 
-// ── Scrub sensitive data from messages ───────────────────────────────────
+// ── Scrub sensitive data from messages and stack traces ──────────────────────
 const PATH_PATTERNS = [
   /[A-Za-z]:\\[^"'\s,]+/g,                  // Windows paths
   /\/[a-zA-Z0-9._/-]{10,}/g,                // Unix paths
@@ -122,12 +108,140 @@ const PATH_PATTERNS = [
   /ghp_[A-Za-z0-9]{36}/g,                   // GitHub tokens
 ]
 
-function sanitizeMessage(msg: string): string {
+function getSafeUsername(): string {
+  try {
+    return os.userInfo().username || ''
+  } catch {
+    return ''
+  }
+}
+
+function getSafeHomedir(): string {
+  try {
+    return os.homedir() || ''
+  } catch {
+    return ''
+  }
+}
+
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+export function sanitizeMessage(msg: string, customUsername?: string, customHomedir?: string): string {
+  if (typeof msg !== 'string' || !msg) return msg
   let out = msg
+
+  // 1. Scrub Windows home directory (case-insensitive, both slash styles)
+  const homedir = customHomedir || getSafeHomedir()
+  if (homedir) {
+    const homedirPattern = homedir.split(/[\\/]/).map(escapeRegex).join('[\\\\/]')
+    out = out.replace(new RegExp(homedirPattern, 'gi'), '<user>')
+  }
+
+  // 2. Scrub any C:\Users\<name> or C:/Users/<name> pattern
+  out = out.replace(/[A-Za-z]:[\\/]Users[\\/][^\\/"'\s,;<>]+/gi, '<user>')
+
+  // 3. Scrub Windows username (case-insensitive)
+  const username = customUsername || getSafeUsername()
+  if (username && username.length >= 2) {
+    out = out.replace(new RegExp(escapeRegex(username), 'gi'), '<user>')
+  }
+
+  // 4. Scrub other sensitive tokens and generic paths
   for (const pat of PATH_PATTERNS) {
     out = out.replace(pat, '[REDACTED]')
   }
+
   return out
+}
+
+export function scrubStackFrame(filename: string, customUsername?: string): string {
+  if (!filename || typeof filename !== 'string') return filename
+  let out = filename
+
+  // 1. Keep from app directory onward if app marker is present (Propel, app.asar, resources, etc.)
+  const appMatch = out.match(/.*?[\\/](Propel[\\/].*|app\.asar[\\/].*|resources[\\/].*|propel-app[\\/].*|electron[\\/].*|src[\\/].*)/i)
+  if (appMatch) {
+    out = appMatch[1]
+  } else {
+    // 2. Remove any C:\Users\<name>\ prefix (both slash styles)
+    out = out
+      .replace(/^[A-Za-z]:[\\/]Users[\\/][^\\/]+[\\/](?:AppData[\\/]Local[\\/]Programs[\\/])?/i, '')
+      .replace(/^[A-Za-z]:[\\/]Users[\\/][^\\/]+[\\/]/i, '')
+  }
+
+  // 3. Ensure any username/path traces in frame filename are scrubbed
+  return sanitizeMessage(out, customUsername)
+}
+
+export function scrubTelemetryEvent(event: any, customUsername?: string, customHomedir?: string): any {
+  if (!event) return event
+
+  // 1. Scrub breadcrumbs
+  if (event.breadcrumbs) {
+    event.breadcrumbs = event.breadcrumbs.map((b: Breadcrumb) => ({
+      ...b,
+      message: b.message ? sanitizeMessage(b.message, customUsername, customHomedir) : b.message,
+      data: undefined,
+    }))
+  }
+
+  // 2. Scrub top-level message
+  if (event.message) {
+    event.message = sanitizeMessage(event.message, customUsername, customHomedir)
+  }
+
+  // 3. Scrub exceptions and stack frames
+  if (event.exception?.values) {
+    for (const ex of event.exception.values) {
+      if (ex.value) ex.value = sanitizeMessage(ex.value, customUsername, customHomedir)
+      if (ex.type) ex.type = sanitizeMessage(ex.type, customUsername, customHomedir)
+      if (ex.stacktrace?.frames) {
+        for (const frame of ex.stacktrace.frames) {
+          if (frame.filename) {
+            frame.filename = scrubStackFrame(frame.filename, customUsername)
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Scrub threads if present
+  if (event.threads?.values) {
+    for (const th of event.threads.values) {
+      if (th.stacktrace?.frames) {
+        for (const frame of th.stacktrace.frames) {
+          if (frame.filename) {
+            frame.filename = scrubStackFrame(frame.filename, customUsername)
+          }
+        }
+      }
+    }
+  }
+
+  // 5. Scrub tags
+  if (event.tags) {
+    for (const [k, v] of Object.entries(event.tags)) {
+      if (typeof v === 'string') {
+        event.tags[k] = sanitizeMessage(v, customUsername, customHomedir)
+      }
+    }
+  }
+
+  // 6. Scrub extra
+  if (event.extra) {
+    for (const [k, v] of Object.entries(event.extra)) {
+      if (typeof v === 'string') {
+        event.extra[k] = sanitizeMessage(v, customUsername, customHomedir)
+      }
+    }
+  }
+
+  // 7. Remove user identifier
+  delete event.user
+
+  return event
 }
 
 // ── Capture helpers (safe wrappers) ──────────────────────────────────────

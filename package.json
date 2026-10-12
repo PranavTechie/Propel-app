@@ -17,11 +17,14 @@
     "sourcemaps:upload": "node scripts/upload-sourcemaps.mjs",
     "generate:manifest": "node scripts/generate-integrity-manifest.mjs",
     "verify:integrity": "node scripts/verify-integrity.mjs",
+    "verify:build-signature": "node scripts/verify-build-signature.mjs",
     "build:signature": "node scripts/get-build-signature.mjs",
+    "package:win": "electron-builder --win",
     "release:prepare": "node scripts/release-prepare.mjs",
     "release:verify": "node scripts/verify-release-version.mjs",
     "release:register": "node scripts/register-backend-build.mjs",
-    "build:release": "electron-vite build && node scripts/generate-integrity-manifest.mjs && node scripts/upload-sourcemaps.mjs && electron-builder --win"
+    "release:publish": "node scripts/release-publish.mjs",
+    "test:release": "node scripts/test-release-infrastructure.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",

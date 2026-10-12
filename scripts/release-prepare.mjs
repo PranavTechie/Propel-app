@@ -19,8 +19,6 @@ import {
   ROOT_APP,
   ROOT_WORKSPACE,
   BACKEND_BUILDS_PATH,
-  WEBSITE_CONSTANTS_PATH,
-  WEBSITE_ROBOTS_PATH,
   assertLegacyBackendRecords,
   parseReleaseVersion,
   compareSemver,
@@ -62,7 +60,7 @@ console.log('═'.repeat(60))
 // ── 2. Safety Assertion on Backend Historical Records ─────────────────────
 try {
   assertLegacyBackendRecords()
-  console.log('🛡️  Legacy backend records verified: 1.2, 1.2.0, 1.3, 1.3.0 are intact.')
+  console.log('🛡️  Legacy backend records verified: 1.2, 1.2.0, 1.3, 1.3.0, 1.4, 1.4.0 are intact.')
 } catch (err) {
   console.error(`\n❌ PRE-CHECK FAILED: ${err.message}\n`)
   process.exit(1)
@@ -215,39 +213,6 @@ const targetFiles = [
     },
     verify: (content) => content.includes(`process.env.VITE_APP_VERSION ?? '${displayVersion}'`),
   },
-  {
-    name: 'propel-website site-constants.ts (Website Constants)',
-    path: WEBSITE_CONSTANTS_PATH,
-    transform: (content) => {
-      let updated = content
-      const verPattern = /export const APP_VERSION = "[^"]+";/
-      const namePattern = /export const DOWNLOAD_FILENAME = "[^"]+";/
-      const pathPattern = /export const DOWNLOAD_PATH = "[^"]+";/
-
-      if (!verPattern.test(updated)) throw new Error('site-constants APP_VERSION pattern not found')
-      if (!namePattern.test(updated)) throw new Error('site-constants DOWNLOAD_FILENAME pattern not found')
-      if (!pathPattern.test(updated)) throw new Error('site-constants DOWNLOAD_PATH pattern not found')
-
-      updated = updated.replace(verPattern, `export const APP_VERSION = "${displayVersion}";`)
-      updated = updated.replace(namePattern, `export const DOWNLOAD_FILENAME = "${installerName}";`)
-      updated = updated.replace(pathPattern, `export const DOWNLOAD_PATH = "${downloadPath}";`)
-      return updated
-    },
-    verify: (content) =>
-      content.includes(`export const APP_VERSION = "${displayVersion}";`) &&
-      content.includes(`export const DOWNLOAD_FILENAME = "${installerName}";`) &&
-      content.includes(`export const DOWNLOAD_PATH = "${downloadPath}";`),
-  },
-  {
-    name: 'propel-website robots.txt (Crawler Disallow)',
-    path: WEBSITE_ROBOTS_PATH,
-    transform: (content) => {
-      const pattern = /Disallow: \/Propel-Setup-[^ \r\n]+\.exe/
-      if (!pattern.test(content)) throw new Error('robots.txt installer Disallow pattern not found')
-      return content.replace(pattern, `Disallow: ${downloadPath}`)
-    },
-    verify: (content) => content.includes(`Disallow: ${downloadPath}`),
-  },
 ]
 
 // ── 5. In-Memory Atomic Transformation Test ────────────────────────────────
@@ -287,7 +252,7 @@ for (const targetFile of targetFiles) {
 
 // ── 6. Execute Writes (or Dry Run) ─────────────────────────────────────────
 if (isDryRun) {
-  console.log('\n[DRY RUN] All 12 files verified and ready for atomic update. No changes written.')
+  console.log('\n[DRY RUN] All 10 desktop app files verified and ready for atomic update. No changes written.')
   process.exit(0)
 }
 
@@ -319,5 +284,7 @@ console.log('   1. npm run release:verify')
 console.log('   2. npm run build')
 console.log('   3. npm run generate:manifest')
 console.log('   4. npm run release:register')
-console.log('   5. npm run build:win')
-console.log('   6. npx electron-builder --win --publish always\n')
+console.log('   5. npm run verify:build-signature')
+console.log('   6. npm run package:win')
+console.log('   7. Deploy backend (commit official-builds.json and deploy)')
+console.log('   8. npm run publish:win (or npx electron-builder --win --publish always)\n')
