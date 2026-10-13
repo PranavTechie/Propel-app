@@ -1180,8 +1180,8 @@ async function main() {
         assertLegacyBackendRecords()
         const backendBuilds = JSON.parse(readFileSync(BACKEND_BUILDS_PATH, 'utf8'))
         console.log(`   Registry additions in ${BACKEND_BUILDS_PATH}:`)
-        console.log(`     ✔ "${displayVersion}": "${backendBuilds[displayVersion]}"`)
-        console.log(`     ✔ "${fullVersion}": "${backendBuilds[fullVersion]}"`)
+        console.log(`     ✔ "${displayVersion}": "${backendBuilds[displayVersion]?.buildSignature || backendBuilds[displayVersion]}"`)
+        console.log(`     ✔ "${fullVersion}": "${backendBuilds[fullVersion]?.buildSignature || backendBuilds[fullVersion]}"`)
       }
       console.log('   ✔ Historical records 1.2, 1.2.0, 1.3, 1.3.0, 1.4, 1.4.0 verified unchanged.')
     } catch (err) {
