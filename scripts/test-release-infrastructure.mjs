@@ -43,6 +43,15 @@ import {
   promptSecret,
   validateGitHubToken,
   ensureGitHubToken,
+  CHECKPOINT_FILE,
+  loadCheckpoint,
+  saveCheckpoint,
+  clearCheckpoint,
+  checkRemoteTag,
+  checkRemoteRelease,
+  verifyStepOutputs,
+  determineResumeStep,
+  haltOnFailure,
 } from "./release-orchestrator.mjs";
 
 console.log("\n🧪 Propel Release Infrastructure — Hardened Safety Test Suite");
@@ -620,44 +629,52 @@ runTest('release-orchestrator.mjs dry-run executes cleanly across all 16 steps w
 })
 
 runTest('release-orchestrator.mjs production mode strictly requires step confirmation before proceeding', () => {
-  // Test 1: Using PROPEL_MOCK_CONFIRM='NO'
-  const output = execSync(
-    'node scripts/release-orchestrator.mjs 1.5.0',
-    {
-      cwd: ROOT_APP,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        PROPEL_RELEASE_ORCHESTRATING: '1',
-        PROPEL_MOCK_CONFIRM: 'NO',
+  if (existsSync(CHECKPOINT_FILE)) unlinkSync(CHECKPOINT_FILE)
+  try {
+    // Test 1: Using PROPEL_MOCK_CONFIRM='NO'
+    const output = execSync(
+      'node scripts/release-orchestrator.mjs 1.5.0',
+      {
+        cwd: ROOT_APP,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PROPEL_RELEASE_ORCHESTRATING: '1',
+          PROPEL_MOCK_CONFIRM: 'NO',
+        },
       },
-    },
-  )
-  if (!output.includes('Stopped after Step 1 by user')) {
-    throw new Error('Production mode must stop after Step 1 when confirmation is not granted')
-  }
-  if (!output.includes('Remaining Steps:') || !output.includes('Step 2: Release dry-run')) {
-    throw new Error('Production mode must show remaining steps when stopped')
-  }
-  if (output.includes('STEP 2/16')) {
-    throw new Error('Production mode must not execute Step 2 when Step 1 confirmation is NO')
-  }
+    )
+    if (!output.includes('Stopped after Step 1 by user')) {
+      throw new Error('Production mode must stop after Step 1 when confirmation is not granted')
+    }
+    if (!output.includes('Remaining Steps:') || !output.includes('Step 2: Release dry-run')) {
+      throw new Error('Production mode must show remaining steps when stopped')
+    }
+    if (output.includes('STEP 2/16')) {
+      throw new Error('Production mode must not execute Step 2 when Step 1 confirmation is NO')
+    }
 
-  // Test 2: Piped 'NO' via stdin without mock confirmation variable
-  const envNoMock = { ...process.env, PROPEL_RELEASE_ORCHESTRATING: '1' }
-  delete envNoMock.PROPEL_MOCK_CONFIRM
-  delete envNoMock.PROPEL_AUTO_CONFIRM
-  const pipedOutput = execSync(
-    'node scripts/release-orchestrator.mjs 1.5.0',
-    {
-      cwd: ROOT_APP,
-      encoding: 'utf8',
-      input: 'NO\n',
-      env: envNoMock,
-    },
-  )
-  if (!pipedOutput.includes('Stopped after Step 1 by user')) {
-    throw new Error('Production mode must stop when stdin inputs NO')
+    // Clean up checkpoint before Test 2
+    if (existsSync(CHECKPOINT_FILE)) unlinkSync(CHECKPOINT_FILE)
+
+    // Test 2: Piped 'NO' via stdin without mock confirmation variable
+    const envNoMock = { ...process.env, PROPEL_RELEASE_ORCHESTRATING: '1' }
+    delete envNoMock.PROPEL_MOCK_CONFIRM
+    delete envNoMock.PROPEL_AUTO_CONFIRM
+    const pipedOutput = execSync(
+      'node scripts/release-orchestrator.mjs 1.5.0',
+      {
+        cwd: ROOT_APP,
+        encoding: 'utf8',
+        input: 'NO\n',
+        env: envNoMock,
+      },
+    )
+    if (!pipedOutput.includes('Stopped after Step 1 by user')) {
+      throw new Error('Production mode must stop when stdin inputs NO')
+    }
+  } finally {
+    if (existsSync(CHECKPOINT_FILE)) unlinkSync(CHECKPOINT_FILE)
   }
 })
 
@@ -849,6 +866,220 @@ await runTest('ensureGitHubToken resumes workflow after successful token input',
   delete process.env.PROPEL_MOCK_GH_TOKEN
   delete process.env.PROPEL_MOCK_TOKEN_VALID
 })
+
+// ──────────────────────────────────────────────────────────────────────────
+// Suite 9: Error Handling, Safe Resumption, Duplicate Protection & Checkpoints
+// ──────────────────────────────────────────────────────────────────────────
+console.log("\n[Suite 9] Error Handling, Safe Resumption & Checkpoints");
+
+await runTest('loadCheckpoint returns null for non-existent, corrupted, or mismatched files', () => {
+  const tmpCheckPath = join(ROOT_APP, '.tmp-test-checkpoint.json')
+  try {
+    if (existsSync(tmpCheckPath)) unlinkSync(tmpCheckPath)
+    if (loadCheckpoint('1.5.0', tmpCheckPath) !== null) {
+      throw new Error('Should return null for non-existent checkpoint')
+    }
+
+    writeFileSync(tmpCheckPath, '{ malformed json: true', 'utf8')
+    if (loadCheckpoint('1.5.0', tmpCheckPath) !== null) {
+      throw new Error('Should return null for corrupted checkpoint')
+    }
+
+    writeFileSync(tmpCheckPath, JSON.stringify({ version: '1.4.0', lastCompletedStep: 3 }), 'utf8')
+    if (loadCheckpoint('1.5.0', tmpCheckPath) !== null) {
+      throw new Error('Should return null for checkpoint with different version')
+    }
+
+    writeFileSync(tmpCheckPath, JSON.stringify({ version: '1.5.0', lastCompletedStep: 4, completedStepNumbers: [1, 2, 3, 4] }), 'utf8')
+    const loaded = loadCheckpoint('1.5.0', tmpCheckPath)
+    if (!loaded || loaded.lastCompletedStep !== 4) {
+      throw new Error('Should return parsed checkpoint for matching version')
+    }
+  } finally {
+    if (existsSync(tmpCheckPath)) unlinkSync(tmpCheckPath)
+  }
+})
+
+await runTest('saveCheckpoint writes and updates stage progress', () => {
+  const tmpCheckPath = join(ROOT_APP, '.tmp-test-checkpoint-save.json')
+  try {
+    if (existsSync(tmpCheckPath)) unlinkSync(tmpCheckPath)
+    const saved1 = saveCheckpoint('1.5.0', 3, { note: 'step 3 done' }, tmpCheckPath)
+    if (!saved1 || saved1.lastCompletedStep !== 3 || !saved1.completedStepNumbers.includes(3)) {
+      throw new Error('saveCheckpoint failed to write step 3')
+    }
+
+    const saved2 = saveCheckpoint('1.5.0', 5, { note: 'step 5 done' }, tmpCheckPath)
+    if (!saved2 || saved2.lastCompletedStep !== 5 || !saved2.completedStepNumbers.includes(5) || !saved2.completedStepNumbers.includes(3)) {
+      throw new Error('saveCheckpoint failed to accumulate steps')
+    }
+
+    const onDisk = JSON.parse(readFileSync(tmpCheckPath, 'utf8'))
+    if (onDisk.lastCompletedStep !== 5 || onDisk.version !== '1.5.0') {
+      throw new Error('on-disk checkpoint mismatch')
+    }
+  } finally {
+    if (existsSync(tmpCheckPath)) unlinkSync(tmpCheckPath)
+  }
+})
+
+await runTest('clearCheckpoint safely removes checkpoint file', () => {
+  const tmpCheckPath = join(ROOT_APP, '.tmp-test-checkpoint-clear.json')
+  try {
+    writeFileSync(tmpCheckPath, JSON.stringify({ version: '1.5.0' }), 'utf8')
+    if (!existsSync(tmpCheckPath)) throw new Error('File should exist before clear')
+    clearCheckpoint(tmpCheckPath)
+    if (existsSync(tmpCheckPath)) throw new Error('File should not exist after clearCheckpoint')
+  } finally {
+    if (existsSync(tmpCheckPath)) unlinkSync(tmpCheckPath)
+  }
+})
+
+await runTest('verifyStepOutputs passes step 1 on valid workspace', async () => {
+  const target = parseReleaseVersion('1.5.0')
+  const res = await verifyStepOutputs(1, target)
+  if (!res.valid) {
+    throw new Error(`Step 1 output verification should pass: ${res.reason}`)
+  }
+})
+
+await runTest('verifyStepOutputs detects missing installer binary for step 7', async () => {
+  const target = parseReleaseVersion('1.5.0')
+  const res = await verifyStepOutputs(7, target)
+  // release/Propel-Setup-1.5.0.exe does not exist in release/
+  if (res.valid) {
+    throw new Error('Step 7 output verification should fail when installer binary is missing')
+  }
+  if (!res.reason.includes('Missing installer')) {
+    throw new Error(`Unexpected reason: ${res.reason}`)
+  }
+})
+
+await runTest('determineResumeStep returns step 1 when no checkpoint exists', async () => {
+  const target = parseReleaseVersion('1.5.0')
+  const step = await determineResumeStep(target, null)
+  if (step !== 1) throw new Error(`Expected step 1, got ${step}`)
+})
+
+await runTest('determineResumeStep rolls back to earliest stage when earlier outputs are missing', async () => {
+  const target = parseReleaseVersion('1.5.0')
+  // Checkpoint claims step 6 was completed, but step 3 version files are 1.4.0 (not 1.5.0)
+  const checkpoint = {
+    version: '1.5.0',
+    lastCompletedStep: 6,
+    completedStepNumbers: [1, 2, 3, 4, 5, 6],
+  }
+  const step = await determineResumeStep(target, checkpoint)
+  // Step 3 output verification failed because files are currently 1.4.0
+  if (step > 3) {
+    throw new Error(`Should roll back to earliest invalid stage (<=3), but resumed from step ${step}`)
+  }
+})
+
+await runTest('verifyStepOutputs detects conflicting remote tag and returns fatal error', async () => {
+  const target = parseReleaseVersion('1.5.0')
+  process.env.PROPEL_MOCK_REMOTE_TAG_EXISTS = '1'
+  process.env.PROPEL_MOCK_REMOTE_TAG_COMMIT = 'mismatched-foreign-commit-sha-99999'
+
+  try {
+    const res = await verifyStepOutputs(13, target)
+    if (!res.fatal) {
+      throw new Error(`Expected fatal error on conflicting remote tag, got: ${JSON.stringify(res)}`)
+    }
+  } finally {
+    delete process.env.PROPEL_MOCK_REMOTE_TAG_EXISTS
+    delete process.env.PROPEL_MOCK_REMOTE_TAG_COMMIT
+  }
+})
+
+await runTest('determineResumeStep detects conflicting remote state and halts with fatal error', async () => {
+  const target = parseReleaseVersion('1.5.0')
+  process.env.PROPEL_MOCK_VERIFY_FATAL_STEP = '1'
+
+  let threw = false
+  try {
+    await determineResumeStep(target, {
+      version: '1.5.0',
+      lastCompletedStep: 1,
+      completedStepNumbers: [1],
+    })
+  } catch (err) {
+    threw = true
+    if (!err.message.includes('Ambiguous or Conflicting State')) {
+      throw new Error(`Unexpected error message: ${err.message}`)
+    }
+  } finally {
+    delete process.env.PROPEL_MOCK_VERIFY_FATAL_STEP
+  }
+
+  if (!threw) {
+    throw new Error('Expected determineResumeStep to throw fatal error on conflicting state')
+  }
+})
+
+await runTest('checkRemoteRelease detects complete assets vs partial uploads', async () => {
+  // 1. Not existing
+  process.env.PROPEL_MOCK_REMOTE_RELEASE_EXISTS = '0'
+  const notExist = await checkRemoteRelease('v1.5.0')
+  if (notExist.exists) throw new Error('Expected exists=false')
+
+  // 2. Partial assets (missing blockmap)
+  process.env.PROPEL_MOCK_REMOTE_RELEASE_EXISTS = '1'
+  process.env.PROPEL_MOCK_REMOTE_RELEASE_ASSETS = 'Propel-Setup-1.5.0.exe,latest.yml'
+  const partial = await checkRemoteRelease('v1.5.0')
+  if (!partial.exists || partial.isComplete) {
+    throw new Error('Expected partial release to exist but isComplete=false')
+  }
+  if (!partial.missingAssets.includes('Propel-Setup-1.5.0.exe.blockmap')) {
+    throw new Error('Missing assets should identify .blockmap')
+  }
+
+  // 3. Complete assets
+  process.env.PROPEL_MOCK_REMOTE_RELEASE_ASSETS = 'Propel-Setup-1.5.0.exe,latest.yml,Propel-Setup-1.5.0.exe.blockmap'
+  const complete = await checkRemoteRelease('v1.5.0')
+  if (!complete.exists || !complete.isComplete || complete.missingAssets.length !== 0) {
+    throw new Error('Expected complete release with 0 missing assets')
+  }
+
+  delete process.env.PROPEL_MOCK_REMOTE_RELEASE_EXISTS
+  delete process.env.PROPEL_MOCK_REMOTE_RELEASE_ASSETS
+})
+
+await runTest('haltOnFailure formats rich error report without throwing when PROPEL_TEST_NO_EXIT=1', () => {
+  process.env.PROPEL_TEST_NO_EXIT = '1'
+  let capturedError = null
+  try {
+    haltOnFailure(4, 'Build application', 'Out of memory during compilation', {
+      failedCommand: 'npm run build',
+      recoveryAdvice: 'Increase Node memory or fix TypeScript errors.',
+    })
+  } catch (err) {
+    capturedError = err
+  } finally {
+    delete process.env.PROPEL_TEST_NO_EXIT
+  }
+
+  if (!capturedError) {
+    throw new Error('haltOnFailure should throw in test mode')
+  }
+  if (!capturedError.message.includes('[HALT_STEP_4]')) {
+    throw new Error(`Unexpected haltOnFailure message: ${capturedError.message}`)
+  }
+})
+
+await runTest('dry-run execution does not create or leave checkpoint files', () => {
+  if (existsSync(CHECKPOINT_FILE)) unlinkSync(CHECKPOINT_FILE)
+  execSync('node scripts/release-orchestrator.mjs 1.5.0 --dry-run', {
+    cwd: ROOT_APP,
+    env: { ...process.env, PROPEL_AUTO_CONFIRM: '1', PROPEL_RELEASE_ORCHESTRATING: '1' },
+    stdio: 'pipe',
+  })
+  if (existsSync(CHECKPOINT_FILE)) {
+    unlinkSync(CHECKPOINT_FILE)
+    throw new Error('Dry-run unexpectedly created .release-checkpoint.json!')
+  }
+})
+
 
 // ──────────────────────────────────────────────────────────────────────────
 // Summary

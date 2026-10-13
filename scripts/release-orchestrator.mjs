@@ -42,9 +42,10 @@
  */
 
 import { execSync } from 'child_process'
-import { readFileSync, existsSync, statSync } from 'fs'
+import { readFileSync, writeFileSync, unlinkSync, existsSync, statSync } from 'fs'
 import { join, resolve } from 'path'
 import { fileURLToPath } from 'url'
+import { createHash, createHmac } from 'crypto'
 import * as readline from 'readline'
 import {
   ROOT_APP,
@@ -411,16 +412,437 @@ function printStepSuccess(num, title, summary) {
   completedSteps.push({ num, title, summary })
 }
 
+export const CHECKPOINT_FILE = join(ROOT_APP, '.release-checkpoint.json')
+export let targetVersionGlobal = null
+
+export function setTargetVersionGlobal(v) {
+  targetVersionGlobal = v
+}
+
 /**
- * Halts on failure immediately. Never asks to continue after failure.
+ * Loads release checkpoint if it exists and matches targetVersion.
  */
-function haltOnFailure(num, title, errorMessage, exitCode = 1) {
-  console.error(`\n` + '═'.repeat(70))
+export function loadCheckpoint(targetVersion, checkpointPath = CHECKPOINT_FILE) {
+  if (!existsSync(checkpointPath)) return null
+  try {
+    const raw = readFileSync(checkpointPath, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    if (parsed.version !== targetVersion) {
+      console.log(`   ℹ️  Ignoring checkpoint: belongs to version ${parsed.version}, current target is ${targetVersion}.`)
+      return null
+    }
+    return parsed
+  } catch (err) {
+    console.warn(`   ⚠️  Corrupted checkpoint file at ${checkpointPath} (${err.message}). Starting fresh.`)
+    return null
+  }
+}
+
+/**
+ * Saves stage completion checkpoint. Does nothing in dry-run mode.
+ */
+export function saveCheckpoint(targetVersion, stepNum, data = {}, checkpointPath = CHECKPOINT_FILE) {
+  if (isDryRun) return null
+  try {
+    let current = null
+    if (existsSync(checkpointPath)) {
+      try {
+        current = JSON.parse(readFileSync(checkpointPath, 'utf8'))
+      } catch {
+        current = null
+      }
+    }
+    if (!current || current.version !== targetVersion) {
+      current = {
+        version: targetVersion,
+        created: new Date().toISOString(),
+        completedStepNumbers: [],
+        data: {},
+      }
+    }
+    if (!current.completedStepNumbers.includes(stepNum)) {
+      current.completedStepNumbers.push(stepNum)
+      current.completedStepNumbers.sort((a, b) => a - b)
+    }
+    current.lastCompletedStep = stepNum
+    current.updated = new Date().toISOString()
+    Object.assign(current.data, data)
+    writeFileSync(checkpointPath, JSON.stringify(current, null, 2), 'utf8')
+    return current
+  } catch (err) {
+    console.warn(`   ⚠️  Failed to save checkpoint: ${err.message}`)
+    return null
+  }
+}
+
+/**
+ * Clears checkpoint file upon successful full workflow completion.
+ */
+export function clearCheckpoint(checkpointPath = CHECKPOINT_FILE) {
+  try {
+    if (existsSync(checkpointPath)) {
+      unlinkSync(checkpointPath)
+      console.log('   ✔ Release checkpoint cleared.')
+    }
+  } catch (err) {
+    console.warn(`   ⚠️  Failed to clear checkpoint: ${err.message}`)
+  }
+}
+
+/**
+ * Checks if git tag exists on remote repository without mutating.
+ */
+export function checkRemoteTag(gitTag, remote = 'origin', cwd = ROOT_APP) {
+  if (process.env.PROPEL_MOCK_REMOTE_TAG_EXISTS !== undefined) {
+    const exists = process.env.PROPEL_MOCK_REMOTE_TAG_EXISTS === '1'
+    const commit = process.env.PROPEL_MOCK_REMOTE_TAG_COMMIT || 'mock-remote-commit-sha'
+    return { exists, commit }
+  }
+  try {
+    const out = execSync(`git ls-remote --tags ${remote} refs/tags/${gitTag}`, { cwd, encoding: 'utf8' }).trim()
+    if (!out) return { exists: false, commit: null }
+    const commit = out.split(/\s+/)[0]
+    return { exists: true, commit }
+  } catch (err) {
+    return { exists: false, commit: null, error: err.message }
+  }
+}
+
+/**
+ * Checks if GitHub Release exists and verifies uploaded asset completeness.
+ */
+export async function checkRemoteRelease(gitTag, token = null, repo = 'pranavop45/propel-releases') {
+  if (process.env.PROPEL_MOCK_REMOTE_RELEASE_EXISTS !== undefined) {
+    const exists = process.env.PROPEL_MOCK_REMOTE_RELEASE_EXISTS === '1'
+    if (!exists) return { exists: false }
+    const rawAssets = (process.env.PROPEL_MOCK_REMOTE_RELEASE_ASSETS || '').split(',').map((s) => s.trim()).filter(Boolean)
+    const ver = gitTag.replace(/^v/, '')
+    const instName = `Propel-Setup-${ver}.exe`
+    const required = [instName, 'latest.yml', `${instName}.blockmap`]
+    const missing = required.filter((a) => !rawAssets.includes(a))
+    return {
+      exists: true,
+      release: { tag_name: gitTag, assets: rawAssets.map((name) => ({ name })) },
+      assets: rawAssets,
+      isComplete: missing.length === 0,
+      missingAssets: missing,
+    }
+  }
+
+  const effectiveToken = token || process.env.GH_TOKEN || process.env.GITHUB_TOKEN
+  if (!effectiveToken) {
+    return { exists: false, unauthenticated: true }
+  }
+
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/releases/tags/${gitTag}`, {
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${effectiveToken}`,
+        'User-Agent': 'Propel-Release-Orchestrator',
+      },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.status === 404) return { exists: false }
+    if (!res.ok) return { exists: false, error: `HTTP ${res.status}` }
+    const data = await res.json()
+    const assets = (data.assets || []).map((a) => a.name)
+    const ver = gitTag.replace(/^v/, '')
+    const instName = `Propel-Setup-${ver}.exe`
+    const required = [instName, 'latest.yml', `${instName}.blockmap`]
+    const missing = required.filter((a) => !assets.includes(a))
+    return {
+      exists: true,
+      release: data,
+      assets,
+      isComplete: missing.length === 0,
+      missingAssets: missing,
+    }
+  } catch (err) {
+    return { exists: false, error: err.message }
+  }
+}
+
+/**
+ * Verifies stage prerequisites and expected disk / git outputs before skipping.
+ */
+export async function verifyStepOutputs(stepNum, target) {
+  if (process.env.PROPEL_MOCK_VERIFY_FATAL_STEP === String(stepNum)) {
+    return { valid: false, fatal: true, reason: `Mock conflicting state detected at Step ${stepNum}` }
+  }
+  const { fullVersion, displayVersion, gitTag, installerName } = target
+  switch (stepNum) {
+    case 1: {
+      const nodeMajor = parseInt(process.versions.node.split('.')[0], 10)
+      if (nodeMajor < 18) return { valid: false, reason: 'Node.js version < 18' }
+      try {
+        assertLegacyBackendRecords()
+      } catch (err) {
+        return { valid: false, reason: `Historical backend records error: ${err.message}` }
+      }
+      return { valid: true }
+    }
+    case 2:
+      return { valid: true }
+    case 3: {
+      try {
+        execSync(`node scripts/verify-release-version.mjs ${fullVersion}`, {
+          cwd: ROOT_APP,
+          stdio: 'pipe',
+        })
+        return { valid: true }
+      } catch {
+        return { valid: false, reason: `Version files mismatch or unverified for v${fullVersion}` }
+      }
+    }
+    case 4: {
+      const req = [
+        join(ROOT_APP, 'out', 'main', 'index.js'),
+        join(ROOT_APP, 'out', 'preload', 'index.js'),
+      ]
+      for (const r of req) {
+        if (!existsSync(r)) return { valid: false, reason: `Missing build artifact: ${r}` }
+      }
+      return { valid: true }
+    }
+    case 5: {
+      const mfPath = join(ROOT_APP, 'electron', 'security', 'integrity-manifest.json')
+      if (!existsSync(mfPath)) return { valid: false, reason: 'Missing integrity-manifest.json' }
+      try {
+        const mf = JSON.parse(readFileSync(mfPath, 'utf8'))
+        if (mf.version !== displayVersion && mf.version !== fullVersion) {
+          return { valid: false, reason: `Manifest version ${mf.version} does not match target ${fullVersion}` }
+        }
+        if (!mf.signature || !mf.files) {
+          return { valid: false, reason: 'Manifest missing signature or files map' }
+        }
+        return { valid: true }
+      } catch (err) {
+        return { valid: false, reason: `Manifest parsing error: ${err.message}` }
+      }
+    }
+    case 6: {
+      try {
+        const backendBuilds = JSON.parse(readFileSync(BACKEND_BUILDS_PATH, 'utf8'))
+        if (!backendBuilds[displayVersion] || !backendBuilds[fullVersion]) {
+          return { valid: false, reason: `Backend builds missing registration for ${displayVersion} or ${fullVersion}` }
+        }
+        return { valid: true }
+      } catch (err) {
+        return { valid: false, reason: `Cannot verify backend registry: ${err.message}` }
+      }
+    }
+    case 7: {
+      const instPath = join(ROOT_APP, 'release', installerName)
+      if (!existsSync(instPath)) return { valid: false, reason: `Missing installer at release/${installerName}` }
+      const mfPath = join(ROOT_APP, 'electron', 'security', 'integrity-manifest.json')
+      if (existsSync(mfPath)) {
+        const instMtime = statSync(instPath).mtimeMs
+        const mfMtime = statSync(mfPath).mtimeMs
+        if (instMtime < mfMtime) {
+          return { valid: false, reason: `Installer release/${installerName} is older than integrity manifest` }
+        }
+      }
+      return { valid: true }
+    }
+    case 8: {
+      const ymlPath = join(ROOT_APP, 'release', 'latest.yml')
+      if (!existsSync(ymlPath)) return { valid: false, reason: 'Missing release/latest.yml' }
+      try {
+        const yml = readFileSync(ymlPath, 'utf8')
+        if (!yml.includes(`version: ${fullVersion}`) && !yml.includes(`version: ${displayVersion}`)) {
+          return { valid: false, reason: `latest.yml version does not match ${fullVersion}` }
+        }
+        return { valid: true }
+      } catch (err) {
+        return { valid: false, reason: `Error reading latest.yml: ${err.message}` }
+      }
+    }
+    case 9:
+      return { valid: true }
+    case 10: {
+      const backendDir = resolve(ROOT_WORKSPACE, 'propel-backend')
+      try {
+        const headMsg = execSync('git log -1 --pretty=%B', { cwd: backendDir, encoding: 'utf8' }).trim()
+        const status = execSync('git status --porcelain services/official-builds.json', { cwd: backendDir, encoding: 'utf8' }).trim()
+        if (!status && headMsg.includes(`register official build signature for ${fullVersion}`)) {
+          return { valid: true }
+        }
+        return { valid: false, reason: `Backend commit for ${fullVersion} not found at HEAD` }
+      } catch (err) {
+        return { valid: false, reason: `Cannot verify backend git status: ${err.message}` }
+      }
+    }
+    case 11: {
+      const backendDir = resolve(ROOT_WORKSPACE, 'propel-backend')
+      try {
+        const unpushed = execSync('git log origin/main..HEAD', { cwd: backendDir, encoding: 'utf8' }).trim()
+        if (unpushed) {
+          return { valid: false, reason: 'Backend commit is not pushed to origin/main' }
+        }
+        return { valid: true }
+      } catch (err) {
+        return { valid: false, reason: `Cannot verify backend push status: ${err.message}` }
+      }
+    }
+    case 12: {
+      try {
+        const headMsg = execSync('git log -1 --pretty=%B', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+        if (headMsg.includes(`prepare Propel v${fullVersion}`)) {
+          return { valid: true }
+        }
+        return { valid: false, reason: `Desktop release commit for v${fullVersion} not found at HEAD` }
+      } catch (err) {
+        return { valid: false, reason: `Cannot verify desktop git status: ${err.message}` }
+      }
+    }
+    case 13: {
+      try {
+        const headCommit = execSync('git rev-parse HEAD', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+
+        // Check remote tag first for ambiguous / conflicting state
+        const rTag = checkRemoteTag(gitTag, 'origin', ROOT_APP)
+        if (rTag.exists && rTag.commit && rTag.commit !== headCommit) {
+          return {
+            valid: false,
+            fatal: true,
+            reason: `Remote tag ${gitTag} points to different commit ${rTag.commit.slice(0, 8)} than local HEAD ${headCommit.slice(0, 8)}`,
+          }
+        }
+
+        const tag = execSync(`git tag -l ${gitTag}`, { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+        if (!tag) return { valid: false, reason: `Local tag ${gitTag} does not exist` }
+        const tagCommit = execSync(`git rev-parse ${gitTag}^{commit}`, { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+        if (tagCommit !== headCommit) {
+          return {
+            valid: false,
+            fatal: true,
+            reason: `Local tag ${gitTag} points to commit ${tagCommit.slice(0, 8)}, not current HEAD ${headCommit.slice(0, 8)}`,
+          }
+        }
+        return { valid: true }
+      } catch (err) {
+        return { valid: false, reason: `Error verifying tag: ${err.message}` }
+      }
+    }
+    case 14:
+      return { valid: true }
+    case 15: {
+      const relCheck = await checkRemoteRelease(gitTag)
+      if (relCheck.exists) {
+        if (relCheck.isComplete) {
+          return { valid: true, complete: true }
+        } else {
+          return {
+            valid: false,
+            fatal: true,
+            reason: `Remote GitHub release exists with partial assets (${relCheck.missingAssets.join(', ')} missing)`,
+          }
+        }
+      }
+      return { valid: false, reason: `Remote GitHub Release ${gitTag} does not exist` }
+    }
+    case 16:
+      return { valid: true }
+    default:
+      return { valid: true }
+  }
+}
+
+/**
+ * Evaluates checkpoint validity and verifies outputs from Step 1 onwards.
+ * Returns the earliest step number that needs execution.
+ */
+export async function determineResumeStep(target, checkpoint) {
+  if (!checkpoint || !checkpoint.lastCompletedStep || typeof checkpoint.lastCompletedStep !== 'number') {
+    return 1
+  }
+
+  console.log(`\n🔍 Evaluating checkpoint for v${target.fullVersion} (recorded up to Step ${checkpoint.lastCompletedStep})...`)
+  for (let s = 1; s <= checkpoint.lastCompletedStep; s++) {
+    const stepDef = TOTAL_STEPS.find((t) => t.num === s)
+    const verification = await verifyStepOutputs(s, target)
+    if (verification.fatal) {
+      throw new Error(`Ambiguous or Conflicting State at Step ${s} (${stepDef.title}): ${verification.reason}`)
+    }
+    if (!verification.valid) {
+      console.log(`   ⚠️  Step ${s} (${stepDef.title}) outputs invalid or outdated: ${verification.reason}`)
+      console.log(`   Resuming workflow from earliest unverified stage: Step ${s}\n`)
+      return s
+    }
+    console.log(`   ✔ Step ${s} verified intact: ${stepDef.title}`)
+  }
+
+  const nextStep = checkpoint.lastCompletedStep + 1
+  if (nextStep <= 16) {
+    console.log(`   ✔ All recorded steps 1 through ${checkpoint.lastCompletedStep} verified intact.`)
+    console.log(`   Resuming workflow from Step ${nextStep}: ${TOTAL_STEPS.find((t) => t.num === nextStep)?.title || 'Next Stage'}\n`)
+    return nextStep
+  }
+  return 16
+}
+
+/**
+ * Halts on failure immediately with a rich, user-friendly error report.
+ * Never asks to continue after failure.
+ */
+export function haltOnFailure(num, title, errorMessage, options = {}) {
+  const exitCode = typeof options === 'number' ? options : (options.exitCode ?? 1)
+  const failedCommand = typeof options === 'object' ? options.failedCommand : null
+  const recoveryAdvice = typeof options === 'object' ? options.recoveryAdvice : null
+  const targetVer = targetVersionGlobal || '1.5.0'
+
+  console.error('\n' + '═'.repeat(70))
   console.error(`❌ [FAILED] Step ${num} (${title}) HALTED WITH ERROR!`)
-  console.error(`  Error: ${errorMessage}`)
-  console.error(`  FAIL-CLOSED: Workflow stopped automatically. No further steps executed.`)
-  console.error('═'.repeat(70) + `\n`)
+  console.error('═'.repeat(70))
+  console.error(`Failed Stage:     Step ${num} (${title})`)
+  if (failedCommand) {
+    console.error(`Failed Command:   ${failedCommand}`)
+  }
+  console.error(`Actual Error:     ${errorMessage}`)
+  console.error('─'.repeat(70))
+  console.error('Workflow Progress:')
+  console.error('  Completed Stages:')
+  if (completedSteps.length === 0) {
+    console.error('    (None)')
+  } else {
+    for (const s of completedSteps) {
+      console.error(`    ✔ Step ${s.num}: ${s.title}`)
+      if (s.summary) console.error(`      └─ ${s.summary}`)
+    }
+  }
+
+  const pending = TOTAL_STEPS.filter((t) => !completedSteps.some((c) => c.num === t.num))
+  console.error('  Remaining Stages:')
+  for (const s of pending) {
+    console.error(`    ⏳ Step ${s.num}: ${s.title}`)
+  }
+
+  console.error('─'.repeat(70))
+  console.error('Actionable Recovery Instructions:')
+  if (recoveryAdvice) {
+    console.error(`  ${recoveryAdvice}`)
+  } else {
+    console.error('  1. Review the error details and command output above.')
+    console.error('  2. Manually address the underlying cause.')
+  }
+  console.error(`\nTo safely resume workflow after addressing the issue:`)
+  console.error(`  RELEASE-PROPEL.bat ${targetVer}`)
+  console.error(`  or: npm run release:orchestrate -- ${targetVer}`)
+  console.error(`\nSafe Failure & Resume Guarantees:`)
+  console.error(`  • No automatic destructive rollbacks were performed.`)
+  console.error(`  • Completed git commits, pushes, and tags remain safely intact.`)
+  console.error(`  • The orchestrator will verify all prior stage outputs before resuming`)
+  console.error(`    and will resume from the earliest incomplete or unverified stage.`)
+  console.error('═'.repeat(70) + '\n')
+
   reportMidwayStop(`Step ${num} failed.`)
+
+  if (process.env.PROPEL_TEST_NO_EXIT === '1') {
+    throw new Error(`[HALT_STEP_${num}] ${errorMessage}`)
+  }
+
   process.exit(exitCode)
 }
 
@@ -450,6 +872,7 @@ async function main() {
   }
 
   const { fullVersion, displayVersion, gitTag, installerName, downloadPath } = target
+  setTargetVersionGlobal(fullVersion)
 
   console.log('\n📋 Target Release Configuration:')
   console.log(`   Target Semver (Full):     ${fullVersion}`)
@@ -459,164 +882,235 @@ async function main() {
   console.log(`   Website Download URL:     ${downloadPath}`)
   console.log(`   Workflow Mode:            ${isDryRun ? 'DRY RUN (Simulation only — zero mutations)' : 'PRODUCTION PREPARATION'}`)
 
+  // ── Safe Resume / Checkpoint Evaluation ───────────────────────────────────
+  let resumeStartStep = 1
+  if (!isDryRun) {
+    const existingCheckpoint = loadCheckpoint(fullVersion)
+    if (existingCheckpoint) {
+      try {
+        resumeStartStep = await determineResumeStep(target, existingCheckpoint)
+        for (let s = 1; s < resumeStartStep; s++) {
+          const stepDef = TOTAL_STEPS.find((t) => t.num === s)
+          completedSteps.push({
+            num: s,
+            title: stepDef.title,
+            summary: '(Verified on-disk/remote state from prior run)',
+          })
+        }
+      } catch (resumeErr) {
+        haltOnFailure(
+          existingCheckpoint.lastCompletedStep || 1,
+          TOTAL_STEPS.find((t) => t.num === (existingCheckpoint.lastCompletedStep || 1))?.title || 'Resume Validation',
+          resumeErr.message,
+          {
+            failedCommand: 'Checkpoint State Verification',
+            recoveryAdvice: 'Inspect the conflicting local or remote state. Clear .release-checkpoint.json only if starting completely anew.',
+          }
+        )
+      }
+    }
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 1 — Pre-release inspection
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(1, 'Pre-release inspection', 'Auditing Node, Git, remotes, working trees, and safety tests')
-  try {
-    // 1a. Node.js runtime check
-    const nodeMajor = parseInt(process.versions.node.split('.')[0], 10)
-    if (nodeMajor < 18) {
-      throw new Error(`Node.js version 18+ required (detected v${process.versions.node})`)
-    }
-    console.log(`   ✔ Node.js runtime: v${process.versions.node}`)
-
-    // 1b. Check git and npm
-    execSync('git --version', { stdio: 'pipe' })
-    execSync('npm --version', { stdio: 'pipe' })
-    console.log(`   ✔ Git & npm verified in PATH`)
-
-    // 1c. Inspect branches, remotes, and working trees for all 3 repos
-    const repos = [
-      { name: 'propel-app', dir: ROOT_APP },
-      { name: 'propel-backend', dir: resolve(ROOT_WORKSPACE, 'propel-backend') },
-      { name: 'propel-website', dir: resolve(ROOT_WORKSPACE, 'propel-website') },
-    ]
-
-    console.log('\n   Inspecting repository branches and remotes:')
-    for (const r of repos) {
-      if (existsSync(join(r.dir, '.git'))) {
-        const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: r.dir, encoding: 'utf8' }).trim()
-        const remote = execSync('git remote get-url origin', { cwd: r.dir, encoding: 'utf8' }).trim()
-        const status = execSync('git status --porcelain', { cwd: r.dir, encoding: 'utf8' }).trim()
-        const changedCount = status ? status.split('\n').length : 0
-        console.log(`   • [${r.name}] Branch: ${branch} | Remote: ${remote} | Changes: ${changedCount}`)
-      } else {
-        console.log(`   • [${r.name}] Not a standalone git repo root`)
+  if (resumeStartStep > 1) {
+    console.log(`   ⏩ Skipping Step 1 (${TOTAL_STEPS[0].title}) — verified from prior run.`)
+  } else {
+    try {
+      // 1a. Node.js runtime check
+      const nodeMajor = parseInt(process.versions.node.split('.')[0], 10)
+      if (nodeMajor < 18) {
+        throw new Error(`Node.js version 18+ required (detected v${process.versions.node})`)
       }
-    }
+      console.log(`   ✔ Node.js runtime: v${process.versions.node}`)
 
-    // 1d. Current package version and historical records check
-    const pkg = JSON.parse(readFileSync(join(ROOT_APP, 'package.json'), 'utf8'))
-    console.log(`\n   Current propel-app version: ${pkg.version}`)
-    assertLegacyBackendRecords()
-    console.log('   ✔ Historical production records (1.2, 1.2.0, 1.3, 1.3.0, 1.4, 1.4.0) verified intact.')
+      // 1b. Check git and npm
+      execSync('git --version', { stdio: 'pipe' })
+      execSync('npm --version', { stdio: 'pipe' })
+      console.log(`   ✔ Git & npm verified in PATH`)
 
-    // 1e. Run safety test suite
-    if (process.env.PROPEL_RELEASE_ORCHESTRATING === '1') {
-      console.log('   ℹ️  Invoked from release test runner (PROPEL_RELEASE_ORCHESTRATING=1); skipping nested test suite execution.')
-    } else {
-      console.log('\n   Running automated release safety tests...')
-      execSync('node scripts/test-release-infrastructure.mjs', {
-        cwd: ROOT_APP,
-        stdio: 'inherit',
-        env: { ...process.env, PROPEL_RELEASE_ORCHESTRATING: '1' },
+      // 1c. Inspect branches, remotes, and working trees for all 3 repos
+      const repos = [
+        { name: 'propel-app', dir: ROOT_APP },
+        { name: 'propel-backend', dir: resolve(ROOT_WORKSPACE, 'propel-backend') },
+        { name: 'propel-website', dir: resolve(ROOT_WORKSPACE, 'propel-website') },
+      ]
+
+      console.log('\n   Inspecting repository branches and remotes:')
+      for (const r of repos) {
+        if (existsSync(join(r.dir, '.git'))) {
+          const branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: r.dir, encoding: 'utf8' }).trim()
+          const remote = execSync('git remote get-url origin', { cwd: r.dir, encoding: 'utf8' }).trim()
+          const status = execSync('git status --porcelain', { cwd: r.dir, encoding: 'utf8' }).trim()
+          const changedCount = status ? status.split('\n').length : 0
+          console.log(`   • [${r.name}] Branch: ${branch} | Remote: ${remote} | Changes: ${changedCount}`)
+        } else {
+          console.log(`   • [${r.name}] Not a standalone git repo root`)
+        }
+      }
+
+      // Preflight remote tag inspection (non-mutating)
+      try {
+        const rTag = checkRemoteTag(gitTag, 'origin', ROOT_APP)
+        if (rTag.exists) {
+          console.log(`   ℹ️  [Preflight Notice] Tag ${gitTag} already exists on remote origin (${(rTag.commit || '').slice(0, 10)})`)
+        }
+      } catch {
+        // remote check notice only
+      }
+
+      // 1d. Current package version and historical records check
+      const pkg = JSON.parse(readFileSync(join(ROOT_APP, 'package.json'), 'utf8'))
+      console.log(`\n   Current propel-app version: ${pkg.version}`)
+      assertLegacyBackendRecords()
+      console.log('   ✔ Historical production records (1.2, 1.2.0, 1.3, 1.3.0, 1.4, 1.4.0) verified intact.')
+
+      // 1e. Run safety test suite
+      if (process.env.PROPEL_RELEASE_ORCHESTRATING === '1') {
+        console.log('   ℹ️  Invoked from release test runner (PROPEL_RELEASE_ORCHESTRATING=1); skipping nested test suite execution.')
+      } else {
+        console.log('\n   Running automated release safety tests...')
+        execSync('node scripts/test-release-infrastructure.mjs', {
+          cwd: ROOT_APP,
+          stdio: 'inherit',
+          env: { ...process.env, PROPEL_RELEASE_ORCHESTRATING: '1' },
+        })
+      }
+    } catch (err) {
+      haltOnFailure(1, 'Pre-release inspection', err.message, {
+        failedCommand: 'Pre-flight integrity and branch inspection',
+        recoveryAdvice: 'Ensure git/npm are installed, branches are on main, and legacy production records in official-builds.json are intact.',
       })
     }
-  } catch (err) {
-    haltOnFailure(1, 'Pre-release inspection', err.message)
-  }
 
-  printStepSuccess(1, 'Pre-release inspection', 'Prerequisites, branches, historical records, and 29 unit tests verified.')
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 1 by user.')
-    process.exit(0)
+    printStepSuccess(1, 'Pre-release inspection', 'Prerequisites, branches, historical records, and safety tests verified.')
+    saveCheckpoint(fullVersion, 1, { summary: 'Prerequisites, branches, historical records, and safety tests verified.' })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 1 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 2 — Release dry-run
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(2, 'Release dry-run', `Pre-validating version synchronization in memory for v${fullVersion}`)
-  try {
-    const gitStatusBefore = execSync('git status --porcelain', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+  if (resumeStartStep > 2) {
+    console.log(`   ⏩ Skipping Step 2 (${TOTAL_STEPS[1].title}) — verified from prior run.`)
+  } else {
+    try {
+      const gitStatusBefore = execSync('git status --porcelain', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
 
-    execSync(`node scripts/release-prepare.mjs ${fullVersion} --dry-run ${isForce ? '--force' : ''}`, {
-      cwd: ROOT_APP,
-      stdio: 'inherit',
-    })
+      execSync(`node scripts/release-prepare.mjs ${fullVersion} --dry-run ${isForce ? '--force' : ''}`, {
+        cwd: ROOT_APP,
+        stdio: 'inherit',
+      })
 
-    const gitStatusAfter = execSync('git status --porcelain', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
-    if (gitStatusBefore !== gitStatusAfter) {
-      throw new Error('Dry-run modified working tree files! Expected 0 file changes.')
+      const gitStatusAfter = execSync('git status --porcelain', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+      if (gitStatusBefore !== gitStatusAfter) {
+        throw new Error('Dry-run modified working tree files! Expected 0 file changes.')
+      }
+    } catch (err) {
+      haltOnFailure(2, 'Release dry-run', err.message, {
+        failedCommand: `node scripts/release-prepare.mjs ${fullVersion} --dry-run`,
+        recoveryAdvice: 'Inspect package version and working tree state. Ensure no uncommitted modifications exist before dry-run.',
+      })
     }
-  } catch (err) {
-    haltOnFailure(2, 'Release dry-run', err.message)
-  }
 
-  printStepSuccess(2, 'Release dry-run', `All 10 target files pre-validated in memory for ${fullVersion}. 0 files modified.`)
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 2 by user.')
-    process.exit(0)
+    printStepSuccess(2, 'Release dry-run', `All 10 target files pre-validated in memory for ${fullVersion}. 0 files modified.`)
+    saveCheckpoint(fullVersion, 2, { summary: `10 target files pre-validated in memory for ${fullVersion}.` })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 2 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 3 — Apply release version
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(3, 'Apply release version', `Synchronizing version references across 10 desktop application files`)
-  try {
-    const targetFiles = [
-      'package.json',
-      'package-lock.json',
-      'RELEASE.md',
-      'electron/security/integrity-manifest.json',
-      'electron/services/updater/updaterService.ts',
-      'electron/ipc/handlers.ts',
-      'src/services/telemetry.ts',
-      'src/pages/SplashScreen.tsx',
-      'src/pages/LoginPage.tsx',
-      'src/pages/AboutPage.tsx',
-    ]
+  if (resumeStartStep > 3) {
+    console.log(`   ⏩ Skipping Step 3 (${TOTAL_STEPS[2].title}) — verified from prior run.`)
+  } else {
+    try {
+      const targetFiles = [
+        'package.json',
+        'package-lock.json',
+        'RELEASE.md',
+        'electron/security/integrity-manifest.json',
+        'electron/services/updater/updaterService.ts',
+        'electron/ipc/handlers.ts',
+        'src/services/telemetry.ts',
+        'src/pages/SplashScreen.tsx',
+        'src/pages/LoginPage.tsx',
+        'src/pages/AboutPage.tsx',
+      ]
 
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would atomically update 10 desktop files and verify version references:')
-      for (const f of targetFiles) console.log(`     • ${f} -> ${fullVersion} (${displayVersion})`)
-    } else {
-      execSync(`node scripts/release-prepare.mjs ${fullVersion} ${isForce ? '--force' : ''}`, {
-        cwd: ROOT_APP,
-        stdio: 'inherit',
+      if (isDryRun) {
+        console.log('   [DRY RUN] Would atomically update 10 desktop files and verify version references:')
+        for (const f of targetFiles) console.log(`     • ${f} -> ${fullVersion} (${displayVersion})`)
+      } else {
+        execSync(`node scripts/release-prepare.mjs ${fullVersion} ${isForce ? '--force' : ''}`, {
+          cwd: ROOT_APP,
+          stdio: 'inherit',
+        })
+        execSync(`node scripts/verify-release-version.mjs ${fullVersion}`, {
+          cwd: ROOT_APP,
+          stdio: 'inherit',
+        })
+        console.log('   Synchronized release version across files:')
+        for (const f of targetFiles) console.log(`     ✔ ${f}`)
+      }
+    } catch (err) {
+      haltOnFailure(3, 'Apply release version', err.message, {
+        failedCommand: `node scripts/release-prepare.mjs ${fullVersion}`,
+        recoveryAdvice: 'Check that target version files are accessible and not locked by another process.',
       })
-      execSync(`node scripts/verify-release-version.mjs ${fullVersion}`, {
-        cwd: ROOT_APP,
-        stdio: 'inherit',
-      })
-      console.log('   Synchronized release version across files:')
-      for (const f of targetFiles) console.log(`     ✔ ${f}`)
     }
-  } catch (err) {
-    haltOnFailure(3, 'Apply release version', err.message)
-  }
 
-  printStepSuccess(3, 'Apply release version', isDryRun ? `[SIMULATION] Desktop version updates simulated for ${fullVersion}. 0 files modified on disk.` : `10 desktop application files synchronized to ${fullVersion} (${displayVersion}).`)
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 3 by user.')
-    process.exit(0)
+    printStepSuccess(3, 'Apply release version', isDryRun ? `[SIMULATION] Desktop version updates simulated for ${fullVersion}. 0 files modified on disk.` : `10 desktop application files synchronized to ${fullVersion} (${displayVersion}).`)
+    saveCheckpoint(fullVersion, 3, { summary: `10 desktop application files synchronized to ${fullVersion}.` })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 3 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 4 — Build application
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(4, 'Build application', 'Compiling application bundles exactly once (electron-vite build)')
-  try {
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would execute: npm run build')
-    } else {
-      execSync('npm run build', { cwd: ROOT_APP, stdio: 'inherit' })
-      const required = [
-        join(ROOT_APP, 'out', 'main', 'index.js'),
-        join(ROOT_APP, 'out', 'preload', 'index.js'),
-      ]
-      for (const r of required) {
-        if (!existsSync(r)) throw new Error(`Missing expected build bundle: ${r}`)
+  if (resumeStartStep > 4) {
+    console.log(`   ⏩ Skipping Step 4 (${TOTAL_STEPS[3].title}) — verified from prior run.`)
+  } else {
+    try {
+      if (isDryRun) {
+        console.log('   [DRY RUN] Would execute: npm run build')
+      } else {
+        execSync('npm run build', { cwd: ROOT_APP, stdio: 'inherit' })
+        const required = [
+          join(ROOT_APP, 'out', 'main', 'index.js'),
+          join(ROOT_APP, 'out', 'preload', 'index.js'),
+        ]
+        for (const r of required) {
+          if (!existsSync(r)) throw new Error(`Missing expected build bundle: ${r}`)
+        }
       }
+    } catch (err) {
+      haltOnFailure(4, 'Build application', err.message, {
+        failedCommand: 'npm run build',
+        recoveryAdvice: 'Fix Vite/TypeScript build errors in propel-app, verify dependencies with npm install, then retry.',
+      })
     }
-  } catch (err) {
-    haltOnFailure(4, 'Build application', err.message)
-  }
 
-  printStepSuccess(4, 'Build application', isDryRun ? '[SIMULATION] Production build simulated. 0 files compiled.' : 'Production build compiled exactly once to out/ directory.')
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 4 by user.')
-    process.exit(0)
+    printStepSuccess(4, 'Build application', isDryRun ? '[SIMULATION] Production build simulated. 0 files compiled.' : 'Production build compiled exactly once to out/ directory.')
+    saveCheckpoint(fullVersion, 4, { summary: 'Production build compiled exactly once to out/ directory.' })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 4 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -624,106 +1118,147 @@ async function main() {
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(5, 'Generate and verify integrity manifest', 'Computing and hashing out/ bundles into integrity-manifest.json')
   let generatedSignature = 'SIMULATED-64-HEX-HMAC-SHA256-SIGNATURE'
-  try {
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would execute: npm run generate:manifest && npm run verify:integrity')
-      console.log(`   [DRY RUN] Resulting signature: ${generatedSignature}`)
-    } else {
-      execSync('npm run generate:manifest', {
-        cwd: ROOT_APP,
-        stdio: 'inherit',
-        env: { ...process.env, VITE_APP_VERSION: displayVersion },
-      })
-      execSync('npm run verify:integrity', { cwd: ROOT_APP, stdio: 'inherit' })
+  if (resumeStartStep > 5) {
+    console.log(`   ⏩ Skipping Step 5 (${TOTAL_STEPS[4].title}) — verified from prior run.`)
+    try {
       const mfPath = join(ROOT_APP, 'electron', 'security', 'integrity-manifest.json')
-      const mf = JSON.parse(readFileSync(mfPath, 'utf8'))
-      generatedSignature = mf.signature || 'calculated'
-      console.log(`   ✔ Manifest generated: electron/security/integrity-manifest.json`)
-      console.log(`   ✔ Resulting Build Signature: ${generatedSignature}`)
+      if (existsSync(mfPath)) {
+        const mf = JSON.parse(readFileSync(mfPath, 'utf8'))
+        generatedSignature = mf.signature || 'calculated'
+      }
+    } catch {
+      // fallback
     }
-  } catch (err) {
-    haltOnFailure(5, 'Generate and verify integrity manifest', err.message)
-  }
+  } else {
+    try {
+      if (isDryRun) {
+        console.log('   [DRY RUN] Would execute: npm run generate:manifest && npm run verify:integrity')
+        console.log(`   [DRY RUN] Resulting signature: ${generatedSignature}`)
+      } else {
+        execSync('npm run generate:manifest', {
+          cwd: ROOT_APP,
+          stdio: 'inherit',
+          env: { ...process.env, VITE_APP_VERSION: displayVersion },
+        })
+        execSync('npm run verify:integrity', { cwd: ROOT_APP, stdio: 'inherit' })
+        const mfPath = join(ROOT_APP, 'electron', 'security', 'integrity-manifest.json')
+        const mf = JSON.parse(readFileSync(mfPath, 'utf8'))
+        generatedSignature = mf.signature || 'calculated'
+        console.log(`   ✔ Manifest generated: electron/security/integrity-manifest.json`)
+        console.log(`   ✔ Resulting Build Signature: ${generatedSignature}`)
+      }
+    } catch (err) {
+      haltOnFailure(5, 'Generate and verify integrity manifest', err.message, {
+        failedCommand: 'npm run generate:manifest && npm run verify:integrity',
+        recoveryAdvice: 'Ensure out/ build artifacts exist and are not modified during manifest generation.',
+      })
+    }
 
-  printStepSuccess(5, 'Generate and verify integrity manifest', isDryRun ? `[SIMULATION] Integrity manifest generation simulated. 0 files written.` : `Integrity manifest generated and verified (${generatedSignature.slice(0, 16)}...).`)
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 5 by user.')
-    process.exit(0)
+    printStepSuccess(5, 'Generate and verify integrity manifest', isDryRun ? `[SIMULATION] Integrity manifest generation simulated. 0 files written.` : `Integrity manifest generated and verified (${generatedSignature.slice(0, 16)}...).`)
+    saveCheckpoint(fullVersion, 5, { summary: `Integrity manifest generated and verified (${generatedSignature.slice(0, 16)}...).` })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 5 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 6 — Register backend build signature
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(6, 'Register backend build signature', 'Calculating build signature and appending to official-builds.json')
-  try {
-    if (isDryRun) {
-      console.log(`   [DRY RUN] Would register "${displayVersion}" and "${fullVersion}" in official-builds.json:`)
-      console.log(`     + "${displayVersion}": "${generatedSignature}"`)
-      console.log(`     + "${fullVersion}": "${generatedSignature}"`)
-    } else {
-      execSync('npm run release:register', { cwd: ROOT_APP, stdio: 'inherit' })
-      execSync('npm run verify:build-signature', { cwd: ROOT_APP, stdio: 'inherit' })
-      assertLegacyBackendRecords()
-      const backendBuilds = JSON.parse(readFileSync(BACKEND_BUILDS_PATH, 'utf8'))
-      console.log(`   Registry additions in ${BACKEND_BUILDS_PATH}:`)
-      console.log(`     ✔ "${displayVersion}": "${backendBuilds[displayVersion]}"`)
-      console.log(`     ✔ "${fullVersion}": "${backendBuilds[fullVersion]}"`)
+  if (resumeStartStep > 6) {
+    console.log(`   ⏩ Skipping Step 6 (${TOTAL_STEPS[5].title}) — verified from prior run.`)
+  } else {
+    try {
+      if (isDryRun) {
+        console.log(`   [DRY RUN] Would register "${displayVersion}" and "${fullVersion}" in official-builds.json:`)
+        console.log(`     + "${displayVersion}": "${generatedSignature}"`)
+        console.log(`     + "${fullVersion}": "${generatedSignature}"`)
+      } else {
+        execSync('npm run release:register', { cwd: ROOT_APP, stdio: 'inherit' })
+        execSync('npm run verify:build-signature', { cwd: ROOT_APP, stdio: 'inherit' })
+        assertLegacyBackendRecords()
+        const backendBuilds = JSON.parse(readFileSync(BACKEND_BUILDS_PATH, 'utf8'))
+        console.log(`   Registry additions in ${BACKEND_BUILDS_PATH}:`)
+        console.log(`     ✔ "${displayVersion}": "${backendBuilds[displayVersion]}"`)
+        console.log(`     ✔ "${fullVersion}": "${backendBuilds[fullVersion]}"`)
+      }
+      console.log('   ✔ Historical records 1.2, 1.2.0, 1.3, 1.3.0, 1.4, 1.4.0 verified unchanged.')
+    } catch (err) {
+      haltOnFailure(6, 'Register backend build signature', err.message, {
+        failedCommand: 'npm run release:register',
+        recoveryAdvice: 'Verify that propel-backend/services/official-builds.json is writable and legacy records are not corrupted.',
+      })
     }
-    console.log('   ✔ Historical records 1.2, 1.2.0, 1.3, 1.3.0, 1.4, 1.4.0 verified unchanged.')
-  } catch (err) {
-    haltOnFailure(6, 'Register backend build signature', err.message)
-  }
 
-  printStepSuccess(6, 'Register backend build signature', isDryRun ? `[SIMULATION] Backend signature registration simulated. 0 records modified.` : `Registered ${displayVersion} & ${fullVersion} in official-builds.json.`)
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 6 by user.')
-    process.exit(0)
+    printStepSuccess(6, 'Register backend build signature', isDryRun ? `[SIMULATION] Backend signature registration simulated. 0 records modified.` : `Registered ${displayVersion} & ${fullVersion} in official-builds.json.`)
+    saveCheckpoint(fullVersion, 6, { summary: `Registered ${displayVersion} & ${fullVersion} in official-builds.json.` })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 6 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 7 — Package Windows installer
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(7, 'Package Windows installer', 'Packaging existing build without recompiling (package:win)')
-  try {
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would execute: npm run package:win (electron-builder --win)')
-    } else {
-      execSync('npm run package:win', { cwd: ROOT_APP, stdio: 'inherit' })
-      const installerPath = join(ROOT_APP, 'release', installerName)
-      if (!existsSync(installerPath)) {
-        throw new Error(`Expected installer binary not found at: ${installerPath}`)
+  if (resumeStartStep > 7) {
+    console.log(`   ⏩ Skipping Step 7 (${TOTAL_STEPS[6].title}) — verified from prior run.`)
+  } else {
+    try {
+      if (isDryRun) {
+        console.log('   [DRY RUN] Would execute: npm run package:win (electron-builder --win)')
+      } else {
+        execSync('npm run package:win', { cwd: ROOT_APP, stdio: 'inherit' })
+        const installerPath = join(ROOT_APP, 'release', installerName)
+        if (!existsSync(installerPath)) {
+          throw new Error(`Expected installer binary not found at: ${installerPath}`)
+        }
+        const szMb = (statSync(installerPath).size / (1024 * 1024)).toFixed(2)
+        console.log(`   ✔ Installer created: release/${installerName} (${szMb} MB)`)
       }
-      const szMb = (statSync(installerPath).size / (1024 * 1024)).toFixed(2)
-      console.log(`   ✔ Installer created: release/${installerName} (${szMb} MB)`)
+    } catch (err) {
+      haltOnFailure(7, 'Package Windows installer', err.message, {
+        failedCommand: 'npm run package:win',
+        recoveryAdvice: 'Ensure electron-builder dependencies and NSIS tools are installed and no previous installer is locked.',
+      })
     }
-  } catch (err) {
-    haltOnFailure(7, 'Package Windows installer', err.message)
-  }
 
-  printStepSuccess(7, 'Package Windows installer', isDryRun ? `[SIMULATION] Windows installer packaging simulated. No installer created.` : `Packaged release/${installerName} without rebuilding.`)
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 7 by user.')
-    process.exit(0)
+    printStepSuccess(7, 'Package Windows installer', isDryRun ? `[SIMULATION] Windows installer packaging simulated. No installer created.` : `Packaged release/${installerName} without rebuilding.`)
+    saveCheckpoint(fullVersion, 7, { summary: `Packaged release/${installerName} without rebuilding.` })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 7 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 8 — Verify installer
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(8, 'Verify installer', 'Strict verification of installer freshness, latest.yml and ASAR signature')
-  try {
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would execute: node scripts/verify-build-signature.mjs --strict')
-    } else {
-      execSync('node scripts/verify-build-signature.mjs --strict', { cwd: ROOT_APP, stdio: 'inherit' })
+  if (resumeStartStep > 8) {
+    console.log(`   ⏩ Skipping Step 8 (${TOTAL_STEPS[7].title}) — verified from prior run.`)
+  } else {
+    try {
+      if (isDryRun) {
+        console.log('   [DRY RUN] Would execute: node scripts/verify-build-signature.mjs --strict')
+      } else {
+        execSync('node scripts/verify-build-signature.mjs --strict', { cwd: ROOT_APP, stdio: 'inherit' })
+      }
+    } catch (err) {
+      haltOnFailure(8, 'Verify installer', err.message, {
+        failedCommand: 'node scripts/verify-build-signature.mjs --strict',
+        recoveryAdvice: `Ensure installer Propel-Setup-${fullVersion}.exe and latest.yml were updated during packaging and ASAR matches manifest.`,
+      })
     }
-  } catch (err) {
-    haltOnFailure(8, 'Verify installer', err.message)
-  }
 
-  printStepSuccess(8, 'Verify installer', isDryRun ? '[SIMULATION] Installer verification simulated.' : 'Installer timestamp, latest.yml SHA-512, and ASAR signature strictly verified.')
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 8 by user.')
-    process.exit(0)
+    printStepSuccess(8, 'Verify installer', isDryRun ? '[SIMULATION] Installer verification simulated.' : 'Installer timestamp, latest.yml SHA-512, and ASAR signature strictly verified.')
+    saveCheckpoint(fullVersion, 8, { summary: 'Installer timestamp, latest.yml SHA-512, and ASAR signature strictly verified.' })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 8 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -759,12 +1294,17 @@ async function main() {
   console.log(`     • Desktop: "chore(release): prepare Propel v${fullVersion}"`)
   console.log('\n   Safety Boundary: No wildcards (git add . / git add -A) will be used.')
 
-  printStepSuccess(9, 'Review Git changes', 'Explicit staging boundaries and proposed commit messages reviewed.')
-  if (!await askStepConfirmation(
-    `\nReview complete. Proceed to stage and commit backend registry?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
-  )) {
-    reportMidwayStop('Stopped after Step 9 by user.')
-    process.exit(0)
+  if (resumeStartStep > 9) {
+    console.log(`   ⏩ Skipping Step 9 (${TOTAL_STEPS[8].title}) — verified from prior run.`)
+  } else {
+    printStepSuccess(9, 'Review Git changes', 'Explicit staging boundaries and proposed commit messages reviewed.')
+    saveCheckpoint(fullVersion, 9, { summary: 'Explicit staging boundaries and proposed commit messages reviewed.' })
+    if (!await askStepConfirmation(
+      `\nReview complete. Proceed to stage and commit backend registry?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
+    )) {
+      reportMidwayStop('Stopped after Step 9 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -773,220 +1313,283 @@ async function main() {
   printStepBanner(10, 'Commit backend registry', 'Staging and committing official-builds.json in propel-backend')
   const backendDir = resolve(ROOT_WORKSPACE, 'propel-backend')
   let backendCommitHash = 'SIMULATED-HASH'
-  try {
-    if (isDryRun) {
-      console.log(`   [DRY RUN] Would execute in ${backendDir}:`)
-      console.log(`     git add services/official-builds.json`)
-      console.log(`     git commit -m "chore(release): register official build signature for ${fullVersion}"`)
-    } else {
-      // Check if already committed on retry
-      const status = execSync('git status --porcelain services/official-builds.json', { cwd: backendDir, encoding: 'utf8' }).trim()
-      const headMsg = execSync('git log -1 --pretty=%B', { cwd: backendDir, encoding: 'utf8' }).trim()
-
-      if (!status && headMsg.includes(`register official build signature for ${fullVersion}`)) {
-        console.log(`   ℹ️  Backend already committed in previous run: ${headMsg.split('\n')[0]}`)
-      } else {
-        execSync('git add services/official-builds.json', { cwd: backendDir, stdio: 'inherit' })
-        const stagedDiff = execSync('git diff --cached --stat', { cwd: backendDir, encoding: 'utf8' })
-        console.log(`\n   Staged diff in propel-backend:\n${stagedDiff}`)
-
-        const confirmed = await askStepConfirmation(
-          `\nReady to commit backend official-builds.json?\n\n   [YES] Commit now\n   [NO]  Stop safely\n\n> `
-        )
-        if (!confirmed) {
-          reportMidwayStop('Stopped before backend commit by user.')
-          process.exit(0)
-        }
-
-        execSync(`git commit -m "chore(release): register official build signature for ${fullVersion}"`, {
-          cwd: backendDir,
-          stdio: 'inherit',
-        })
-      }
+  if (resumeStartStep > 10) {
+    console.log(`   ⏩ Skipping Step 10 (${TOTAL_STEPS[9].title}) — verified from prior run.`)
+    try {
       backendCommitHash = execSync('git rev-parse HEAD', { cwd: backendDir, encoding: 'utf8' }).trim()
-      console.log(`   ✔ Backend Commit Hash: ${backendCommitHash}`)
+    } catch {
+      // fallback
     }
-  } catch (err) {
-    haltOnFailure(10, 'Commit backend registry', err.message)
-  }
+  } else {
+    try {
+      if (isDryRun) {
+        console.log(`   [DRY RUN] Would execute in ${backendDir}:`)
+        console.log(`     git add services/official-builds.json`)
+        console.log(`     git commit -m "chore(release): register official build signature for ${fullVersion}"`)
+      } else {
+        // Check if already committed on retry
+        const status = execSync('git status --porcelain services/official-builds.json', { cwd: backendDir, encoding: 'utf8' }).trim()
+        const headMsg = execSync('git log -1 --pretty=%B', { cwd: backendDir, encoding: 'utf8' }).trim()
 
-  printStepSuccess(10, 'Commit backend registry', isDryRun ? '[SIMULATION] Backend git commit simulated. 0 commits created.' : `Backend signature committed (${backendCommitHash.slice(0, 10)}).`)
-  if (!await askStepConfirmation(
-    `\nProceed to push backend commit and verify Render deployment?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
-  )) {
-    reportMidwayStop('Stopped after Step 10 by user.')
-    process.exit(0)
+        if (!status && headMsg.includes(`register official build signature for ${fullVersion}`)) {
+          console.log(`   ℹ️  Backend already committed in previous run: ${headMsg.split('\n')[0]}`)
+        } else {
+          execSync('git add services/official-builds.json', { cwd: backendDir, stdio: 'inherit' })
+          const stagedDiff = execSync('git diff --cached --stat', { cwd: backendDir, encoding: 'utf8' })
+          console.log(`\n   Staged diff in propel-backend:\n${stagedDiff}`)
+
+          const confirmed = await askStepConfirmation(
+            `\nReady to commit backend official-builds.json?\n\n   [YES] Commit now\n   [NO]  Stop safely\n\n> `
+          )
+          if (!confirmed) {
+            reportMidwayStop('Stopped before backend commit by user.')
+            process.exit(0)
+          }
+
+          execSync(`git commit -m "chore(release): register official build signature for ${fullVersion}"`, {
+            cwd: backendDir,
+            stdio: 'inherit',
+          })
+        }
+        backendCommitHash = execSync('git rev-parse HEAD', { cwd: backendDir, encoding: 'utf8' }).trim()
+        console.log(`   ✔ Backend Commit Hash: ${backendCommitHash}`)
+      }
+    } catch (err) {
+      haltOnFailure(10, 'Commit backend registry', err.message, {
+        failedCommand: `git commit -m "chore(release): register official build signature for ${fullVersion}"`,
+        recoveryAdvice: 'Check propel-backend working tree status and resolve any git lock or conflict issues.',
+      })
+    }
+
+    printStepSuccess(10, 'Commit backend registry', isDryRun ? '[SIMULATION] Backend git commit simulated. 0 commits created.' : `Backend signature committed (${backendCommitHash.slice(0, 10)}).`)
+    saveCheckpoint(fullVersion, 10, { summary: `Backend signature committed (${backendCommitHash.slice(0, 10)}).` })
+    if (!await askStepConfirmation(
+      `\nProceed to push backend commit and verify Render deployment?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
+    )) {
+      reportMidwayStop('Stopped after Step 10 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 11 — Push backend and verify deployment
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(11, 'Push backend and verify deployment', 'Pushing propel-backend to origin/main and verifying Render deployment')
-  try {
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would execute in propel-backend: git push origin main')
-      console.log('   [DRY RUN] Backend commit push simulated.')
-      console.log(`   Render Dashboard: https://dashboard.render.com/web/cleanmasterpro-backend-server`)
-    } else {
-      // Check if already pushed
-      const unpushed = execSync('git log origin/main..HEAD', { cwd: backendDir, encoding: 'utf8' }).trim()
-      if (unpushed) {
-        execSync('git push origin main', { cwd: backendDir, stdio: 'inherit' })
-        console.log('   ✔ Pushed backend commit to origin/main.')
+  if (resumeStartStep > 11) {
+    console.log(`   ⏩ Skipping Step 11 (${TOTAL_STEPS[10].title}) — verified from prior run.`)
+  } else {
+    try {
+      if (isDryRun) {
+        console.log('   [DRY RUN] Would execute in propel-backend: git push origin main')
+        console.log('   [DRY RUN] Backend commit push simulated.')
+        console.log(`   Render Dashboard: https://dashboard.render.com/web/cleanmasterpro-backend-server`)
       } else {
-        console.log('   ℹ️  Backend commit is already pushed to origin/main.')
+        // Check if already pushed
+        const unpushed = execSync('git log origin/main..HEAD', { cwd: backendDir, encoding: 'utf8' }).trim()
+        if (unpushed) {
+          execSync('git push origin main', { cwd: backendDir, stdio: 'inherit' })
+          console.log('   ✔ Pushed backend commit to origin/main.')
+        } else {
+          console.log('   ℹ️  Backend commit is already pushed to origin/main.')
+        }
+
+        console.log('\n' + '─'.repeat(70))
+        console.log('🌐 RENDER DEPLOYMENT VERIFICATION REQUIRED:')
+        console.log('   Render automatically deploys when commits are pushed to origin/main.')
+        console.log(`   1. Open Render Dashboard: https://dashboard.render.com/web/cleanmasterpro-backend-server`)
+        console.log(`   2. Inspect the latest deployment for backend commit: ${backendCommitHash.slice(0, 10)}`)
+        console.log('   3. Wait until Render displays "Deploy live" or "Live" before confirming.')
+        console.log('   Note: Do not assume deployment is verified merely because the backend URL responds.')
+        console.log('─'.repeat(70) + '\n')
       }
-
-      console.log('\n' + '─'.repeat(70))
-      console.log('🌐 RENDER DEPLOYMENT VERIFICATION REQUIRED:')
-      console.log('   Render automatically deploys when commits are pushed to origin/main.')
-      console.log(`   1. Open Render Dashboard: https://dashboard.render.com/web/cleanmasterpro-backend-server`)
-      console.log(`   2. Inspect the latest deployment for backend commit: ${backendCommitHash.slice(0, 10)}`)
-      console.log('   3. Wait until Render displays "Deploy live" or "Live" before confirming.')
-      console.log('   Note: Do not assume deployment is verified merely because the backend URL responds.')
-      console.log('─'.repeat(70) + '\n')
+    } catch (err) {
+      haltOnFailure(11, 'Push backend and verify deployment', err.message, {
+        failedCommand: 'git push origin main (propel-backend)',
+        recoveryAdvice: 'Verify git remote connection and write permissions to propel-backend, or confirm Render deployment status before retrying.',
+      })
     }
-  } catch (err) {
-    haltOnFailure(11, 'Push backend and verify deployment', err.message)
+
+    const renderPrompt = (
+      `\nHave you verified that the correct commit is successfully deployed on Render?\n\n` +
+      `   [YES] Continue to the next release step\n` +
+      `   [NO]  Cancel the remaining workflow safely\n\n> `
+    )
+
+    const renderConfirmed = await askStepConfirmation(renderPrompt)
+    if (!renderConfirmed) {
+      reportMidwayStop('Workflow cancelled safely by user: Backend deployment not verified on Render.')
+      process.exit(0)
+    }
+
+    printStepSuccess(11, 'Push backend and verify deployment', isDryRun ? '[SIMULATION] Backend push simulated and Render verification prompt confirmed.' : 'Backend pushed and Render deployment confirmed by user.')
+    saveCheckpoint(fullVersion, 11, { summary: 'Backend pushed and Render deployment confirmed by user.' })
   }
-
-  const renderPrompt = (
-    `\nHave you verified that the correct commit is successfully deployed on Render?\n\n` +
-    `   [YES] Continue to the next release step\n` +
-    `   [NO]  Cancel the remaining workflow safely\n\n> `
-  )
-
-  const renderConfirmed = await askStepConfirmation(renderPrompt)
-  if (!renderConfirmed) {
-    reportMidwayStop('Workflow cancelled safely by user: Backend deployment not verified on Render.')
-    process.exit(0)
-  }
-
-  printStepSuccess(11, 'Push backend and verify deployment', isDryRun ? '[SIMULATION] Backend push simulated and Render verification prompt confirmed.' : 'Backend pushed and Render deployment confirmed by user.')
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 12 — Commit desktop release
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(12, 'Commit desktop release', 'Staging only approved desktop release files in propel-app')
   let desktopCommitHash = 'SIMULATED-HASH'
-  try {
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would stage approved desktop files and commit with: chore(release): prepare Propel v' + fullVersion)
-    } else {
-      const headMsg = execSync('git log -1 --pretty=%B', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
-      if (headMsg.includes(`prepare Propel v${fullVersion}`)) {
-        console.log(`   ℹ️  Desktop release commit already exists at HEAD: ${headMsg.split('\n')[0]}`)
-      } else {
-        // Stage only approved files
-        for (const file of desktopApprovedFiles) {
-          if (existsSync(join(ROOT_APP, file))) {
-            execSync(`git add "${file}"`, { cwd: ROOT_APP, stdio: 'inherit' })
-          }
-        }
-        const stagedDiff = execSync('git diff --cached --stat', { cwd: ROOT_APP, encoding: 'utf8' })
-        console.log(`\n   Staged diff in propel-app:\n${stagedDiff}`)
-
-        const confirmed = await askStepConfirmation(
-          `\nReady to commit staged desktop release files?\n\n   [YES] Commit now\n   [NO]  Stop safely\n\n> `
-        )
-        if (!confirmed) {
-          reportMidwayStop('Stopped before desktop commit by user.')
-          process.exit(0)
-        }
-
-        execSync(`git commit -m "chore(release): prepare Propel v${fullVersion}"`, {
-          cwd: ROOT_APP,
-          stdio: 'inherit',
-        })
-      }
+  if (resumeStartStep > 12) {
+    console.log(`   ⏩ Skipping Step 12 (${TOTAL_STEPS[11].title}) — verified from prior run.`)
+    try {
       desktopCommitHash = execSync('git rev-parse HEAD', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
-      console.log(`   ✔ Desktop Commit Hash: ${desktopCommitHash}`)
+    } catch {
+      // fallback
     }
-  } catch (err) {
-    haltOnFailure(12, 'Commit desktop release', err.message)
-  }
+  } else {
+    try {
+      if (isDryRun) {
+        console.log('   [DRY RUN] Would stage approved desktop files and commit with: chore(release): prepare Propel v' + fullVersion)
+      } else {
+        const headMsg = execSync('git log -1 --pretty=%B', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+        if (headMsg.includes(`prepare Propel v${fullVersion}`)) {
+          console.log(`   ℹ️  Desktop release commit already exists at HEAD: ${headMsg.split('\n')[0]}`)
+        } else {
+          // Stage only approved files
+          for (const file of desktopApprovedFiles) {
+            if (existsSync(join(ROOT_APP, file))) {
+              execSync(`git add "${file}"`, { cwd: ROOT_APP, stdio: 'inherit' })
+            }
+          }
+          const stagedDiff = execSync('git diff --cached --stat', { cwd: ROOT_APP, encoding: 'utf8' })
+          console.log(`\n   Staged diff in propel-app:\n${stagedDiff}`)
 
-  printStepSuccess(12, 'Commit desktop release', isDryRun ? '[SIMULATION] Desktop git commit simulated. 0 commits created.' : `Desktop release committed (${desktopCommitHash.slice(0, 10)}).`)
-  if (!await askStepConfirmation(
-    `\nProceed to create and push tag ${gitTag}?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
-  )) {
-    reportMidwayStop('Stopped after Step 12 by user.')
-    process.exit(0)
+          const confirmed = await askStepConfirmation(
+            `\nReady to commit staged desktop release files?\n\n   [YES] Commit now\n   [NO]  Stop safely\n\n> `
+          )
+          if (!confirmed) {
+            reportMidwayStop('Stopped before desktop commit by user.')
+            process.exit(0)
+          }
+
+          execSync(`git commit -m "chore(release): prepare Propel v${fullVersion}"`, {
+            cwd: ROOT_APP,
+            stdio: 'inherit',
+          })
+        }
+        desktopCommitHash = execSync('git rev-parse HEAD', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+        console.log(`   ✔ Desktop Commit Hash: ${desktopCommitHash}`)
+      }
+    } catch (err) {
+      haltOnFailure(12, 'Commit desktop release', err.message, {
+        failedCommand: `git commit -m "chore(release): prepare Propel v${fullVersion}"`,
+        recoveryAdvice: 'Check propel-app git status and staging area. Ensure approved desktop files are clean and unstaged changes are resolved.',
+      })
+    }
+
+    printStepSuccess(12, 'Commit desktop release', isDryRun ? '[SIMULATION] Desktop git commit simulated. 0 commits created.' : `Desktop release committed (${desktopCommitHash.slice(0, 10)}).`)
+    saveCheckpoint(fullVersion, 12, { summary: `Desktop release committed (${desktopCommitHash.slice(0, 10)}).` })
+    if (!await askStepConfirmation(
+      `\nProceed to create and push tag ${gitTag}?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
+    )) {
+      reportMidwayStop('Stopped after Step 12 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 13 — Create and push tag
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(13, 'Create and push tag', `Creating annotated tag ${gitTag} and pushing to origin`)
-  try {
-    if (isDryRun) {
-      console.log(`   [DRY RUN] Would create tag: git tag -a ${gitTag} -m "Release Propel ${gitTag}"`)
-      console.log(`   [DRY RUN] Would verify tag points to current commit and push main and ${gitTag}`)
-    } else {
-      const existingTag = execSync(`git tag -l ${gitTag}`, { cwd: ROOT_APP, encoding: 'utf8' }).trim()
-      if (existingTag) {
-        console.log(`   ℹ️  Git tag ${gitTag} already exists locally.`)
+  if (resumeStartStep > 13) {
+    console.log(`   ⏩ Skipping Step 13 (${TOTAL_STEPS[12].title}) — verified from prior run.`)
+  } else {
+    try {
+      if (isDryRun) {
+        console.log(`   [DRY RUN] Would create tag: git tag -a ${gitTag} -m "Release Propel ${gitTag}"`)
+        console.log(`   [DRY RUN] Would verify tag points to current commit and push main and ${gitTag}`)
       } else {
-        const createConfirmed = await askStepConfirmation(
-          `\nReady to create git tag ${gitTag}?\n\n   [YES] Create tag\n   [NO]  Stop safely\n\n> `
-        )
-        if (!createConfirmed) {
-          reportMidwayStop('Stopped before tag creation by user.')
-          process.exit(0)
+        const existingTag = execSync(`git tag -l ${gitTag}`, { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+        if (existingTag) {
+          console.log(`   ℹ️  Git tag ${gitTag} already exists locally.`)
+        } else {
+          const createConfirmed = await askStepConfirmation(
+            `\nReady to create git tag ${gitTag}?\n\n   [YES] Create tag\n   [NO]  Stop safely\n\n> `
+          )
+          if (!createConfirmed) {
+            reportMidwayStop('Stopped before tag creation by user.')
+            process.exit(0)
+          }
+          execSync(`git tag -a ${gitTag} -m "Release Propel ${gitTag}"`, { cwd: ROOT_APP, stdio: 'inherit' })
+          console.log(`   ✔ Tag ${gitTag} created.`)
         }
-        execSync(`git tag -a ${gitTag} -m "Release Propel ${gitTag}"`, { cwd: ROOT_APP, stdio: 'inherit' })
-        console.log(`   ✔ Tag ${gitTag} created.`)
-      }
 
-      const tagCommit = execSync(`git rev-parse ${gitTag}^{commit}`, { cwd: ROOT_APP, encoding: 'utf8' }).trim()
-      const headCommit = execSync('git rev-parse HEAD', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
-      if (tagCommit !== headCommit) {
-        throw new Error(`Tag ${gitTag} (${tagCommit}) does not point to current release commit (${headCommit})!`)
-      }
-      console.log(`   ✔ Verified tag ${gitTag} points to release commit: ${headCommit.slice(0, 10)}`)
+        const tagCommit = execSync(`git rev-parse ${gitTag}^{commit}`, { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+        const headCommit = execSync('git rev-parse HEAD', { cwd: ROOT_APP, encoding: 'utf8' }).trim()
+        if (tagCommit !== headCommit) {
+          throw new Error(`Tag ${gitTag} (${tagCommit}) does not point to current release commit (${headCommit})!`)
+        }
+        console.log(`   ✔ Verified tag ${gitTag} points to release commit: ${headCommit.slice(0, 10)}`)
 
-      const confirmed = await askStepConfirmation(
-        `\nReady to push main branch and tag ${gitTag} to GitHub?\n\n   [YES] Push now\n   [NO]  Stop safely\n\n> `
-      )
-      if (!confirmed) {
-        reportMidwayStop('Stopped before pushing desktop branch/tag by user.')
-        process.exit(0)
-      }
+        // Duplicate remote tag protection
+        const rTag = checkRemoteTag(gitTag, 'origin', ROOT_APP)
+        if (rTag.exists) {
+          if (rTag.commit && rTag.commit !== headCommit && rTag.commit !== tagCommit) {
+            throw new Error(
+              `Ambiguous/Conflicting Remote State: Remote tag ${gitTag} points to commit ${rTag.commit.slice(0, 10)}, ` +
+              `but local HEAD is ${headCommit.slice(0, 10)}. ` +
+              `Manual intervention required: cannot overwrite or retarget existing remote tag automatically!`
+            )
+          }
+          console.log(`   ℹ️  Tag ${gitTag} already exists on remote origin and matches current HEAD. Skipping duplicate tag push.`)
+        } else {
+          const confirmed = await askStepConfirmation(
+            `\nReady to push main branch and tag ${gitTag} to GitHub?\n\n   [YES] Push now\n   [NO]  Stop safely\n\n> `
+          )
+          if (!confirmed) {
+            reportMidwayStop('Stopped before pushing desktop branch/tag by user.')
+            process.exit(0)
+          }
 
-      execSync('git push origin main', { cwd: ROOT_APP, stdio: 'inherit' })
-      execSync(`git push origin ${gitTag}`, { cwd: ROOT_APP, stdio: 'inherit' })
-      console.log(`   ✔ Branch main and tag ${gitTag} pushed successfully.`)
+          execSync('git push origin main', { cwd: ROOT_APP, stdio: 'inherit' })
+          execSync(`git push origin ${gitTag}`, { cwd: ROOT_APP, stdio: 'inherit' })
+          console.log(`   ✔ Branch main and tag ${gitTag} pushed successfully.`)
+        }
+      }
+    } catch (err) {
+      haltOnFailure(13, 'Create and push tag', err.message, {
+        failedCommand: `git tag -a ${gitTag} && git push origin ${gitTag}`,
+        recoveryAdvice: 'If tag already exists remotely, verify whether it matches the release commit. If mismatched, investigate before manually moving or deleting tags.',
+      })
     }
-  } catch (err) {
-    haltOnFailure(13, 'Create and push tag', err.message)
-  }
 
-  printStepSuccess(13, 'Create and push tag', isDryRun ? '[SIMULATION] Git tag creation and push simulated. 0 tags created.' : `Tag ${gitTag} created and pushed to origin/main.`)
-  if (!await askStepConfirmation()) {
-    reportMidwayStop('Stopped after Step 13 by user.')
-    process.exit(0)
+    printStepSuccess(13, 'Create and push tag', isDryRun ? '[SIMULATION] Git tag creation and push simulated. 0 tags created.' : `Tag ${gitTag} created and pushed to origin/main.`)
+    saveCheckpoint(fullVersion, 13, { summary: `Tag ${gitTag} created and pushed to origin/main.` })
+    if (!await askStepConfirmation()) {
+      reportMidwayStop('Stopped after Step 13 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 14 — Publishing dry-run
   // ═══════════════════════════════════════════════════════════════════════════
   printStepBanner(14, 'Publishing dry-run', 'Executing guarded publication pre-flight check without uploading')
-  try {
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would execute: node scripts/release-publish.mjs --dry-run on verified build artifacts')
-    } else {
-      execSync('node scripts/release-publish.mjs --dry-run', { cwd: ROOT_APP, stdio: 'inherit' })
+  if (resumeStartStep > 14) {
+    console.log(`   ⏩ Skipping Step 14 (${TOTAL_STEPS[13].title}) — verified from prior run.`)
+  } else {
+    try {
+      if (isDryRun) {
+        console.log('   [DRY RUN] Would execute: node scripts/release-publish.mjs --dry-run on verified build artifacts')
+      } else {
+        execSync('node scripts/release-publish.mjs --dry-run', { cwd: ROOT_APP, stdio: 'inherit' })
+      }
+    } catch (err) {
+      haltOnFailure(14, 'Publishing dry-run', err.message, {
+        failedCommand: 'node scripts/release-publish.mjs --dry-run',
+        recoveryAdvice: 'Verify build artifacts, checksums, and backend registry match before attempting live publish.',
+      })
     }
-  } catch (err) {
-    haltOnFailure(14, 'Publishing dry-run', err.message)
-  }
 
-  printStepSuccess(14, 'Publishing dry-run', isDryRun ? '[SIMULATION] Publishing dry-run simulated. Zero network uploads made.' : 'All publishing guards passed. Zero network uploads made.')
-  if (!await askStepConfirmation(
-    `\nPre-flight verified. Proceed to Step 15 for GitHub Release publication?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
-  )) {
-    reportMidwayStop('Stopped after Step 14 by user.')
-    process.exit(0)
+    printStepSuccess(14, 'Publishing dry-run', isDryRun ? '[SIMULATION] Publishing dry-run simulated. Zero network uploads made.' : 'All publishing guards passed. Zero network uploads made.')
+    saveCheckpoint(fullVersion, 14, { summary: 'All publishing guards passed. Zero network uploads made.' })
+    if (!await askStepConfirmation(
+      `\nPre-flight verified. Proceed to Step 15 for GitHub Release publication?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
+    )) {
+      reportMidwayStop('Stopped after Step 14 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -998,44 +1601,81 @@ async function main() {
   console.log(`   Release Tag: ${gitTag}`)
   console.log(`   Assets:      ${installerName}, latest.yml, ${installerName}.blockmap`)
 
-  // Secure token acquisition & validation (in-memory only, non-echoing prompt if needed)
-  const tokenAcquired = await ensureGitHubToken(isDryRun)
-  if (!tokenAcquired) {
-    reportMidwayStop('Publication cancelled safely: Valid GitHub token was not provided.')
-    process.exit(0)
-  }
-
-  const finalConfirmPrompt = (
-    `\n` + '═'.repeat(70) + `\n` +
-    `⚠️  FINAL PRODUCTION PUBLISHING CONFIRMATION\n` +
-    `You are about to publish Propel v${fullVersion} to production.\n` +
-    `Type YES to publish or NO to stop.\n` +
-    '═'.repeat(70) + `\n\n> `
-  )
-
-  const authorized = await askStepConfirmation(finalConfirmPrompt, true)
-  if (!authorized) {
-    reportMidwayStop('Publication aborted safely by user in Step 15.')
-    process.exit(0)
-  }
-
-  try {
-    if (isDryRun) {
-      console.log('   [DRY RUN] Would execute: node scripts/release-publish.mjs')
-      console.log('   [DRY RUN] Publication simulated successfully. Zero network uploads made.')
-    } else {
-      execSync('node scripts/release-publish.mjs', { cwd: ROOT_APP, stdio: 'inherit', env: process.env })
+  if (resumeStartStep > 15) {
+    console.log(`   ⏩ Skipping Step 15 (${TOTAL_STEPS[14].title}) — verified from prior run.`)
+  } else {
+    // Secure token acquisition & validation (in-memory only, non-echoing prompt if needed)
+    const tokenAcquired = await ensureGitHubToken(isDryRun)
+    if (!tokenAcquired) {
+      reportMidwayStop('Publication cancelled safely: Valid GitHub token was not provided.')
+      process.exit(0)
     }
-  } catch (err) {
-    haltOnFailure(15, 'Publish GitHub Release', err.message)
-  }
 
-  printStepSuccess(15, 'Publish GitHub Release', isDryRun ? '[SIMULATION] GitHub release publication simulated. Zero network uploads made.' : `Propel v${fullVersion} published to pranavop45/propel-releases!`)
-  if (!await askStepConfirmation(
-    `\nPublication complete. Run Step 16 final verification?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
-  )) {
-    reportMidwayStop('Stopped after Step 15 by user.')
-    process.exit(0)
+    // Check remote release existence and partial asset protection
+    let alreadyPublished = false
+    try {
+      const relCheck = await checkRemoteRelease(gitTag)
+      if (relCheck.exists) {
+        if (relCheck.isComplete) {
+          console.log(`   ℹ️  GitHub Release ${gitTag} already exists with all 3 required assets:`)
+          for (const a of relCheck.assets) console.log(`     ✔ ${a}`)
+          console.log('   Skipping duplicate upload to prevent overwriting or re-upload errors.')
+          alreadyPublished = true
+        } else {
+          throw new Error(
+            `Ambiguous/Partial Remote Release: Release ${gitTag} exists on GitHub but is missing required asset(s): ${relCheck.missingAssets.join(', ')}. ` +
+            `Existing assets: ${relCheck.assets.join(', ') || 'none'}. ` +
+            `Manual intervention required: Inspect GitHub release state before re-running to avoid corrupt releases.`
+          )
+        }
+      }
+    } catch (checkErr) {
+      if (checkErr.message.includes('Ambiguous/Partial Remote Release')) {
+        haltOnFailure(15, 'Publish GitHub Release', checkErr.message, {
+          failedCommand: 'checkRemoteRelease',
+          recoveryAdvice: 'Inspect the release on GitHub. If incomplete or corrupted, delete the incomplete draft/release assets manually before retrying.',
+        })
+      }
+    }
+
+    if (!alreadyPublished) {
+      const finalConfirmPrompt = (
+        `\n` + '═'.repeat(70) + `\n` +
+        `⚠️  FINAL PRODUCTION PUBLISHING CONFIRMATION\n` +
+        `You are about to publish Propel v${fullVersion} to production.\n` +
+        `Type YES to publish or NO to stop.\n` +
+        '═'.repeat(70) + `\n\n> `
+      )
+
+      const authorized = await askStepConfirmation(finalConfirmPrompt, true)
+      if (!authorized) {
+        reportMidwayStop('Publication aborted safely by user in Step 15.')
+        process.exit(0)
+      }
+
+      try {
+        if (isDryRun) {
+          console.log('   [DRY RUN] Would execute: node scripts/release-publish.mjs')
+          console.log('   [DRY RUN] Publication simulated successfully. Zero network uploads made.')
+        } else {
+          execSync('node scripts/release-publish.mjs', { cwd: ROOT_APP, stdio: 'inherit', env: process.env })
+        }
+      } catch (err) {
+        haltOnFailure(15, 'Publish GitHub Release', err.message, {
+          failedCommand: 'node scripts/release-publish.mjs',
+          recoveryAdvice: 'Check GitHub token permissions, network connectivity, and release repository state on pranavop45/propel-releases.',
+        })
+      }
+    }
+
+    printStepSuccess(15, 'Publish GitHub Release', isDryRun ? '[SIMULATION] GitHub release publication simulated. Zero network uploads made.' : `Propel v${fullVersion} published to pranavop45/propel-releases!`)
+    saveCheckpoint(fullVersion, 15, { summary: `Propel v${fullVersion} published to pranavop45/propel-releases!` })
+    if (!await askStepConfirmation(
+      `\nPublication complete. Run Step 16 final verification?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
+    )) {
+      reportMidwayStop('Stopped after Step 15 by user.')
+      process.exit(0)
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1070,10 +1710,14 @@ async function main() {
     console.log('   [ ] Test clean installation of Propel-Setup-' + fullVersion + '.exe on a physical Windows PC.')
     console.log('   [ ] Test background auto-update from existing installed v1.4.0 clients.')
   } catch (err) {
-    haltOnFailure(16, 'Final verification', err.message)
+    haltOnFailure(16, 'Final verification', err.message, {
+      failedCommand: 'GitHub API & Website Resolver Check',
+      recoveryAdvice: 'Verify that the release asset is accessible via GitHub Releases API and that the website download page resolves correctly.',
+    })
   }
 
   printStepSuccess(16, 'Final verification', 'GitHub API, website resolver, and release assets verified.')
+  clearCheckpoint()
 
   console.log('\n' + '═'.repeat(70))
   console.log(`🎉 RELEASE WORKFLOW COMPLETE FOR PROPEL v${fullVersion}!`)
