@@ -25,9 +25,81 @@ Propel desktop employs ASAR anti-tamper verification and cryptographic build att
 
 ---
 
-## 2. Release Command Sequence (Step-by-Step)
+## 2. Sequential Interactive Windows Release Workflow
 
-Follow this exact sequence for future releases (e.g., `1.5.0`):
+Propel features a production-safe, sequential, step-by-step interactive release orchestrator:
+- **`RELEASE-PROPEL.bat`** at the `CMP-V5` workspace root.
+- **`release-orchestrator.mjs`** inside `propel-app/scripts/`.
+
+### How to Execute the Release Workflow
+
+#### Option A: Double-Click (GUI Interactive)
+1. Double-click `RELEASE-PROPEL.bat` in Windows Explorer.
+2. Enter the target release version when prompted:
+   ```text
+   Enter the target release version (e.g. 1.5.0):
+   Target Version: 1.5.0
+   ```
+3. The orchestrator executes all 16 release steps sequentially in the same window.
+4. After every step:
+   - Displays `[SUCCESS]` or `[FAILED]`.
+   - Shows a summary of results.
+   - On success, prompts:
+     ```text
+     Step completed successfully.
+     Continue to the next step?
+
+     [YES] Continue
+     [NO] Stop safely
+     ```
+   - Enter `YES` (or `Y`, case-insensitive) to proceed to the next step.
+   - Enter `NO` (or `N`, case-insensitive) to stop safely without executing subsequent steps.
+   - Rejects empty or invalid inputs and asks again.
+   - On step failure, halts immediately (fail-closed); never asks to continue after a failure.
+
+#### Option B: Terminal Command
+```cmd
+# From the workspace root:
+RELEASE-PROPEL.bat 1.5.0
+
+# Non-mutating dry-run simulation (simulates all 16 steps without modifying files, building, or publishing):
+RELEASE-PROPEL.bat 1.5.0 --dry-run
+```
+
+#### Option C: npm Script
+```bash
+cd propel-app
+
+# Interactive release workflow:
+npm run release:orchestrate -- 1.5.0
+
+# Non-mutating dry-run simulation:
+npm run release:orchestrate -- 1.5.0 --dry-run
+```
+
+### The 16 Sequential Steps
+1. **Pre-release inspection**: Validates Node.js (18+), Git and npm in PATH, inspects branches/remotes/status across all 3 repositories, verifies historical signatures (`1.2` through `1.4.0`), and runs automated safety tests (`test-release-infrastructure.mjs`).
+2. **Release dry-run**: Pre-validates version synchronization in memory for the target version and confirms 0 files were modified on disk.
+3. **Apply release version**: Atomically synchronizes the 10 desktop application files to the target release version and verifies version references.
+4. **Build application**: Compiles application bundles (`out/`) exactly once via `npm run build` (`electron-vite build`).
+5. **Generate & verify integrity manifest**: Hashes compiled bundles and computes signed HMAC manifest (`integrity-manifest.json`), then verifies on-disk hashes.
+6. **Register backend build signature**: Appends deterministic build signature to `propel-backend/services/official-builds.json` under both display and full semver keys, and verifies historical records remain unchanged.
+7. **Package Windows installer**: Packages existing build output into `release/Propel-Setup-<version>.exe` without recompiling (`npm run package:win`).
+8. **Verify installer**: Performs strict timestamp verification, compares `latest.yml` version and SHA-512 against the binary, and verifies packaged ASAR internal manifest against the registered signature.
+9. **Review Git changes**: Inspects explicit intended file lists for backend and desktop commits without wildcards (`git add .`), warning against untracked or unrelated files.
+10. **Commit backend registry**: Stages only `services/official-builds.json`, displays staged diff, prompts for confirmation, and creates the backend release commit.
+11. **Push backend & verify deployment**: Pushes `propel-backend` to `origin/main` and queries the live Render endpoint (`https://cleanmasterpro-backend-server.onrender.com/`).
+12. **Commit desktop release**: Stages only approved desktop release files, displays staged diff, prompts for confirmation, and creates the desktop release commit.
+13. **Create & push tag**: Checks tag existence, prompts for confirmation, creates annotated tag `v<version>`, verifies it points to HEAD commit, and pushes tag & `main`.
+14. **Publishing dry-run**: Runs guarded `release-publish.mjs --dry-run` to ensure all installer hashes, ASAR signatures, and metadata match without uploading anything.
+15. **Publish GitHub Release**: Checks `GH_TOKEN`, requires explicit final confirmation (`Type YES to publish or NO to stop.`), and executes guarded publication to `pranavop45/propel-releases`.
+16. **Final verification**: Queries GitHub Releases API for tag and asset presence, checks website download resolver configuration, and displays final release summary.
+
+---
+
+## 3. Manual Release Command Sequence (Step-by-Step Alternative)
+
+If you prefer to execute individual phases manually or inspect steps interactively:
 
 ### Phase 1: Pre-Release Validation & Version Synchronization
 Synchronize desktop application version references across all internal files atomically.
@@ -158,10 +230,12 @@ Verify that existing desktop installations detect and process the new update:
 
 ---
 
-## 3. Command Safety Matrix
+## 4. Command Safety Matrix
 
 | Command | Type | Idempotent / Re-run Safe | Description |
 | :--- | :--- | :--- | :--- |
+| `RELEASE-PROPEL.bat [ver] [--dry-run]` | Orchestrated | ⚠️ Runs full sequence safely | One-click release preparation batch file at workspace root. Executes 10 phases and pauses for review. |
+| `npm run release:orchestrate -- <ver> [--dry-run]` | Orchestrated | ⚠️ Runs full sequence safely | Node orchestrator equivalent of the batch workflow. |
 | `npm run release:prepare -- <ver> --dry-run` | Read-only | ✅ Safe to rerun anytime | Validates target semver and tests file transforms without writing. |
 | `npm run release:prepare -- <ver>` | Mutating | ⚠️ Run once per release | Synchronizes version across 10 desktop application files. Refuses downgrades without `--force`. |
 | `npm run release:verify` | Read-only | ✅ Safe to rerun anytime | Verifies all 14 version, website hook, and historical record assertions. |
@@ -177,7 +251,7 @@ Verify that existing desktop installations detect and process the new update:
 
 ---
 
-## 4. Protected Historical Signatures
+## 5. Protected Historical Signatures
 
 The following historical production releases are permanently protected by `assertLegacyBackendRecords()` in `scripts/release-safety.mjs`. Any modification or deletion of these entries causes release tooling to abort immediately:
 
@@ -187,7 +261,7 @@ The following historical production releases are permanently protected by `asser
 
 ---
 
-## 5. Current Workspace State & Prerequisites for Future Release
+## 6. Current Workspace State & Prerequisites for Future Release
 
 - **Current Version**: Propel is currently at version **1.4.0** (1.4).
 - **Working-Tree Integrity Note**: The local `integrity-manifest.json` on disk currently reflects modified development files (`0827c833...`) which differ from the historical 1.4 production build (`3c77454d...`).
