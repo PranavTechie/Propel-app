@@ -395,21 +395,6 @@ export const SettingsPage: React.FC = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between py-2.5 mb-4 border-b border-border/40 pb-4">
-                <div>
-                  <p className="text-sm text-text-primary">
-                    Update Notifications
-                  </p>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    Show update modal when a new version is available
-                  </p>
-                </div>
-                <Toggle
-                  checked={maintenanceSettings?.updateNotificationsEnabled ?? true}
-                  onChange={(v) => handleMaintenanceToggle("updateNotificationsEnabled", v)}
-                />
-              </div>
-
               {maintenanceSettings && (
                 <>
                   <div className="py-2.5 mb-4 border-b border-border/40 pb-4">

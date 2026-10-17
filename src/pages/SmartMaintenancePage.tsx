@@ -18,6 +18,7 @@ import {
   Flame,
   Layers,
   Activity,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { useSessionStore } from "@/store/sessionStore";
@@ -78,13 +79,17 @@ const SectionCard: React.FC<{
 
 // ── Row inside a section card ──────────────────────────────────────────────
 const ControlRow: React.FC<{
-  label: string;
+  label: React.ReactNode;
   sublabel?: string;
+  badge?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ label, sublabel, children }) => (
+}> = ({ label, sublabel, badge, children }) => (
   <div className="flex items-center justify-between gap-4 py-1">
     <div className="min-w-0">
-      <p className="text-xs font-medium text-text-secondary">{label}</p>
+      <div className="flex items-center gap-2">
+        <p className="text-xs font-medium text-text-secondary">{label}</p>
+        {badge}
+      </div>
       {sublabel && (
         <p className="text-2xs text-text-muted mt-0.5">{sublabel}</p>
       )}
@@ -289,6 +294,23 @@ export const SmartMaintenancePage: React.FC = () => {
           >
             <ControlRow
               label="Enable Scheduler"
+              badge={
+                !canSchedule ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      addToast({
+                        type: "warning",
+                        title: "Upgrade Required",
+                        description: "Upgrade to PRO or MAX to use the scheduler.",
+                      });
+                    }}
+                    className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full border bg-brand-primary/10 text-brand-primary border-brand-primary/25 hover:bg-brand-primary/20 transition-colors cursor-pointer"
+                  >
+                    <Lock className="w-2.5 h-2.5" /> PRO
+                  </button>
+                ) : null
+              }
               sublabel="Runs in the background automatically"
             >
               <Toggle
@@ -472,11 +494,11 @@ export const SmartMaintenancePage: React.FC = () => {
             </ControlRow>
           </SectionCard>
 
-          {/* 4. Browser Maintenance */}
+          {/* 4. Browser & Updates */}
           <SectionCard
             icon={<Globe className="w-4 h-4" />}
-            title="Browser Maintenance"
-            subtitle="Auto-clean browser cache only (no passwords or bookmarks)"
+            title="Browser &amp; Updates"
+            subtitle="Browser cache cleanup and app update alerts"
           >
             <ControlRow
               label="Auto-clean browser cache"
@@ -492,6 +514,16 @@ export const SmartMaintenancePage: React.FC = () => {
               Only cache is removed. Profiles, passwords, and bookmarks are
               never touched.
             </p>
+
+            <ControlRow
+              label="Update Notifications"
+              sublabel="Show update modal when a new version is available"
+            >
+              <Toggle
+                checked={settings.updateNotificationsEnabled ?? true}
+                onChange={(v) => toggle("updateNotificationsEnabled", v)}
+              />
+            </ControlRow>
           </SectionCard>
         </div>
 
