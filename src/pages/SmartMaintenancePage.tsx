@@ -22,6 +22,7 @@ import {
 import { cn } from "@/utils/cn";
 import { useSessionStore } from "@/store/sessionStore";
 import { useAppStore } from "@/store/appStore";
+import { PROPEL_PRICING_URL } from "@/constants/appConstants";
 import type { MaintenanceSettings, MaintenanceStatus } from "@/types";
 
 // ── Glow Toggle ────────────────────────────────────────────────────────────
@@ -140,7 +141,7 @@ function fmtNext(ts: number | null): string {
 
 // ── Default settings ───────────────────────────────────────────────────────
 const DEFAULT_SETTINGS: MaintenanceSettings = {
-  scheduleEnabled: true,
+  scheduleEnabled: false,
   scheduleFrequency: "weekly",
   recycleBinEnabled: false,
   ignoreDownloads: true,
@@ -164,8 +165,10 @@ const DEFAULT_SETTINGS: MaintenanceSettings = {
   lastCleanupAt: null,
 };
 
-// ── Page ───────────────────────────────────────────────────────────────────
 export const SmartMaintenancePage: React.FC = () => {
+  const entitlement = useAppStore((s) => s.entitlementStatus);
+  const addToast = useAppStore((s) => s.addToast);
+  const canSchedule = Boolean(entitlement.features?.alwaysOnMaintenance ?? (entitlement.plan !== 'FREE'));
 
   const { settings, status, loading, running, runResult, isTechnicalDetailsOpen } = useSessionStore(s => s.smartMaintenance);
   const setSmartMaintenance = useSessionStore(s => s.setSmartMaintenance);
@@ -289,18 +292,29 @@ export const SmartMaintenancePage: React.FC = () => {
               sublabel="Runs in the background automatically"
             >
               <Toggle
-                checked={settings.scheduleEnabled}
-                onChange={(v) => toggle("scheduleEnabled", v)}
+                checked={Boolean(canSchedule && settings.scheduleEnabled)}
+                onChange={(v) => {
+                  if (!canSchedule) {
+                    addToast({
+                      type: "warning",
+                      title: "Upgrade Required",
+                      description: "Upgrade to PRO or MAX to use the scheduler.",
+                    });
+                    return;
+                  }
+                  toggle("scheduleEnabled", v);
+                }}
               />
             </ControlRow>
 
-            {settings.scheduleEnabled && (
+            {canSchedule && settings.scheduleEnabled && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
               >
                 <ControlRow label="Frequency">
                   <select
+                    disabled={!canSchedule}
                     value={settings.scheduleFrequency}
                     onChange={(e) =>
                       toggle("scheduleFrequency", e.target.value)

@@ -44,4 +44,7 @@ export const maintenanceBridge = {
 
   getStatus:      (): Promise<MaintenanceStatus> =>
     ipcRenderer.invoke('propel:maintenance:getStatus'),
+
+  syncScheduler:  (): Promise<void> =>
+    ipcRenderer.invoke('propel:maintenance:syncScheduler'),
 }

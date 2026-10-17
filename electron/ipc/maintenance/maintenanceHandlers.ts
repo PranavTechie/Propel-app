@@ -63,4 +63,9 @@ export function setupMaintenanceIPC(): void {
       browserProtectionCount: settings.browserMasterEnabled ? await getInstalledBrowserCount() : 0,
     }
   })
+
+  // ── Sync scheduler task explicitly (e.g. on plan change or login) ────────
+  ipcMain.handle('propel:maintenance:syncScheduler', async () => {
+    return syncWindowsTask(app.getPath('exe'))
+  })
 }

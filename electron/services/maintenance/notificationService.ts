@@ -7,6 +7,18 @@ import { loadSettings } from './automationStore'
 import { getAppIconPath } from '../../main/icon'
 import { runAutoClean } from './schedulerService'
 import { permissionsService, getStartupEntries } from '../permissions/permissionsService'
+import { getCachedEntitlementSync } from '../auth/entitlementCache'
+
+export function getEffectiveThresholds(settings: { ramAlertThreshold?: number; diskAlertThreshold?: number; junkAlertThreshold?: number }) {
+  const entitlement = getCachedEntitlementSync()
+  const customAllowed = entitlement.features?.customThresholds ?? false
+  return {
+    ramThreshold: customAllowed ? (settings.ramAlertThreshold ?? 85) : 85,
+    diskThreshold: customAllowed ? (settings.diskAlertThreshold ?? 90) : 90,
+    junkThreshold: customAllowed ? (settings.junkAlertThreshold ?? 2) : 2,
+    customAllowed,
+  }
+}
 
 // ── Constants ──────────────────────────────────────────────────────────────
 const RAM_POLL_MS     = 15_000        // check RAM every 15 seconds
@@ -76,7 +88,8 @@ async function checkRam(): Promise<void> {
   try {
     const settings = await loadSettings()
     const enabled   = settings.ramAlertsEnabled
-    const threshold = settings.ramAlertThreshold ?? 85
+    const { ramThreshold } = getEffectiveThresholds(settings)
+    const threshold = ramThreshold
 
     if (!enabled) return   // intentionally silent — alerts are off
 
@@ -114,7 +127,8 @@ async function checkDisk(): Promise<void> {
   try {
     const settings  = await loadSettings()
     const enabled   = settings.diskAlertsEnabled
-    const threshold = settings.diskAlertThreshold
+    const { diskThreshold } = getEffectiveThresholds(settings)
+    const threshold = diskThreshold
 
     if (!enabled) return   // intentionally silent — alerts are off
 
@@ -195,8 +209,9 @@ async function checkJunk(): Promise<void> {
     }
 
     const totalGb = totalBytes / (1024 * 1024 * 1024)
+    const { junkThreshold } = getEffectiveThresholds(settings)
 
-    if (totalGb < settings.junkAlertThreshold) {
+    if (totalGb < junkThreshold) {
       _lastJunkNotifiedSize = 0
       return
     }

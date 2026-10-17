@@ -34,6 +34,18 @@ export interface EntitlementStatus {
   trial_active: boolean
   trial_expires_at: string | null
   subscription_status: string
+  limits?: {
+    devices: number
+    aiChecksPerMonth: number
+  }
+  features?: {
+    customThresholds: boolean
+    alwaysOnMaintenance: boolean
+  }
+  expiresAt?: string | null
+  serverTime?: string
+  fetchedAt?: number
+  isOffline?: boolean
 }
 
 export interface ScanCategory {

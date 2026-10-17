@@ -11,6 +11,8 @@ import { useSystemStats } from "@/hooks/useSystemStats";
 import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import { usePerformanceProfile } from "@/hooks/usePerformanceProfile";
 import { useDevicePing } from "@/hooks/useDevicePing";
+import { useEntitlementRefresh } from "@/hooks/useEntitlementRefresh";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { pageVariants } from "@/animations/variants";
 import { Dashboard } from "@/pages/Dashboard";
 const CleanerPage = lazy(() =>
@@ -82,6 +84,7 @@ export const AppLayout: React.FC = () => {
   const perfProfile = usePerformanceProfile();
   
   useDevicePing();
+  useEntitlementRefresh();
 
   const ActivePage = PAGE_MAP[activePage];
   return (
@@ -92,6 +95,7 @@ export const AppLayout: React.FC = () => {
         style={{ background: "var(--t-app-bg)" }}
       >
         <TitleBar />
+        <OfflineBanner />
         <div className="relative z-10 flex flex-1 overflow-hidden">
           <Sidebar />
           <main className="relative flex-1 overflow-hidden">

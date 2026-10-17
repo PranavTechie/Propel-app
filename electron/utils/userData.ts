@@ -8,6 +8,7 @@ export const APP_DATA_FILES = [
   'propel_license.json',
   'propel_exclusions.json',
   'propel_maintenance.json',
+  'propel_entitlement.json',
 ] as const
 
 export type AppDataFileName = typeof APP_DATA_FILES[number]
@@ -52,6 +53,10 @@ export function getExclusionsFilePath(): string {
 
 export function getMaintenanceFilePath(): string {
   return getAppDataFilePath('propel_maintenance.json')
+}
+
+export function getEntitlementFilePath(): string {
+  return getAppDataFilePath('propel_entitlement.json')
 }
 
 /**

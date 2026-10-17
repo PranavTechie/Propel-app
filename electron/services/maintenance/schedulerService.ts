@@ -5,6 +5,7 @@ import os from 'os'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { loadSettings, loadSettingsSync, updateSettings } from './automationStore'
+import { getCachedEntitlementSync } from '../auth/entitlementCache'
 
 const execFileAsync = promisify(execFile)
 
@@ -195,10 +196,18 @@ export async function runAutoClean(): Promise<{
 
 // ── Scheduled entry point (called from main/index.ts on --scheduled-maintenance) ──
 // Double-protection:
-//   1. Check scheduleEnabled + isDue() — preserves rolling-window semantics
-//   2. _isRunningCleanup lock — prevents concurrent double-execution
+//   1. Check cached entitlement: alwaysOnMaintenance must be true (not expired, not FREE)
+//   2. Check scheduleEnabled + isDue() — preserves rolling-window semantics
+//   3. _isRunningCleanup lock — prevents concurrent double-execution
 // Returns true if cleanup was actually executed.
 export async function runScheduledIfDue(): Promise<boolean> {
+  const entitlement = getCachedEntitlementSync()
+  if (!entitlement.features?.alwaysOnMaintenance) {
+    // If not entitled or cache expired/missing: remove the task, exit quietly, do not clean.
+    await removeWindowsTask()
+    return false
+  }
+
   const settings = loadSettingsSync()
   if (!isDue(settings)) return false
   if (_isRunningCleanup) return false  // already running in this process
@@ -254,11 +263,14 @@ async function removeWindowsTask(): Promise<void> {
 
 // ── Public API for scheduler lifecycle (called from IPC handler + main) ───
 // syncWindowsTask() is idempotent — safe to call on every settings change.
-// It replaces the old startScheduler()/stopScheduler() pair.
-export async function syncWindowsTask(executablePath: string): Promise<void> {
+// Creates the task ONLY if features.alwaysOnMaintenance is true AND scheduleEnabled is true.
+export async function syncWindowsTask(executablePath?: string): Promise<void> {
+  const entitlement = getCachedEntitlementSync()
   const settings = loadSettingsSync()
-  if (settings.scheduleEnabled) {
-    await createWindowsTask(executablePath)
+  const execPath = executablePath || process.execPath
+
+  if (entitlement.features?.alwaysOnMaintenance && settings.scheduleEnabled) {
+    await createWindowsTask(execPath)
   } else {
     await removeWindowsTask()
   }

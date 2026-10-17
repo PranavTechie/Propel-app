@@ -27,6 +27,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { THEMES, type ThemeId } from "@/theme/themes";
 import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabase";
+import { PROPEL_ACCOUNT_URL, PROPEL_PRICING_URL } from "@/constants/appConstants";
 
 import {
   MotionCard,
@@ -117,6 +118,25 @@ export const SettingsPage: React.FC = () => {
   const addToast = useAppStore((s) => s.addToast);
   const [signingOut, setSigningOut] = useState(false);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  const hasCustomThresholds = Boolean(
+    entitlement.features?.customThresholds ?? (entitlement.plan !== "FREE")
+  );
+
+  const expiryRaw = entitlement.expiresAt || entitlement.trial_expires_at;
+  let planExpiryLabel = `${entitlement.plan} Plan`;
+  if (expiryRaw) {
+    const dateObj = new Date(expiryRaw);
+    if (!isNaN(dateObj.getTime())) {
+      const formatted = dateObj.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      planExpiryLabel = `${entitlement.plan}${entitlement.trial_active ? " Trial" : ""} until ${formatted}`;
+    }
+  }
 
   // ── Settings store ──────────────────────────────────────────────────────
   const {
@@ -264,7 +284,7 @@ export const SettingsPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                   <div>
-                    <p className="text-sm text-text-primary">Current Plan</p>
+                    <p className="text-sm font-medium text-text-primary">{planExpiryLabel}</p>
                     <p className="text-xs text-text-muted">
                       {session?.user?.email || "Authenticated Account"}
                     </p>
@@ -276,29 +296,13 @@ export const SettingsPage: React.FC = () => {
                 />
               </div>
 
-              {entitlement.trial_active && entitlement.trial_expires_at && (
-                <div className="flex items-center justify-between py-3 border-b border-border/40">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-text-muted" />
-                    <p className="text-sm text-text-primary">Trial Expiry</p>
-                  </div>
-                  <span className="text-xs font-bold tabular-nums text-amber-400">
-                    {new Date(
-                      entitlement.trial_expires_at,
-                    ).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
-
               <div className="pt-4 flex flex-wrap gap-2">
                 <Button
                   variant="primary"
                   size="sm"
                   icon={<ExternalLink className="w-3.5 h-3.5" />}
                   onClick={() =>
-                    window.electronAPI.shell.openExternal(
-                      "https://cleanmasterpro.in/account",
-                    )
+                    window.electronAPI.shell.openExternal(PROPEL_ACCOUNT_URL)
                   }
                 >
                   Manage Account & Upgrade
@@ -409,52 +413,97 @@ export const SettingsPage: React.FC = () => {
               {maintenanceSettings && (
                 <>
                   <div className="py-2.5 mb-4 border-b border-border/40 pb-4">
-                    <p className="text-sm text-text-primary">High RAM Usage Threshold</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-text-primary">High RAM Usage Threshold</p>
+                      {!hasCustomThresholds && (
+                        <button
+                          type="button"
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full border bg-brand-primary/10 text-brand-primary border-brand-primary/25 hover:bg-brand-primary/20 transition-colors"
+                        >
+                          <Lock className="w-2.5 h-2.5" /> PRO
+                        </button>
+                      )}
+                    </div>
                     <p className="text-xs text-text-muted mt-0.5">
-                      Alert when RAM usage exceeds {maintenanceSettings.ramAlertThreshold ?? 85}% (5 min cooldown)
+                      Alert when RAM usage exceeds {!hasCustomThresholds ? 85 : (maintenanceSettings.ramAlertThreshold ?? 85)}% (5 min cooldown)
                     </p>
-                    <div className="mt-3">
+                    <div 
+                      className={`mt-3 ${!hasCustomThresholds ? 'cursor-pointer opacity-50' : ''}`}
+                      onClick={() => { if (!hasCustomThresholds) setShowUpgradeModal(true); }}
+                    >
                       <input 
                         type="range" 
                         min="70" 
                         max="95" 
-                        value={maintenanceSettings.ramAlertThreshold ?? 85}
-                        onChange={(e) => handleMaintenanceToggle("ramAlertThreshold", parseInt(e.target.value, 10))}
-                        className="w-full h-1 bg-border/50 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--c-accent))]"
+                        disabled={!hasCustomThresholds}
+                        value={!hasCustomThresholds ? 85 : (maintenanceSettings.ramAlertThreshold ?? 85)}
+                        onChange={(e) => hasCustomThresholds && handleMaintenanceToggle("ramAlertThreshold", parseInt(e.target.value, 10))}
+                        className={`w-full h-1 bg-border/50 rounded-lg appearance-none accent-[rgb(var(--c-accent))] ${!hasCustomThresholds ? 'cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
                       />
                     </div>
                   </div>
 
                   <div className="py-2.5 mb-4 border-b border-border/40 pb-4">
-                    <p className="text-sm text-text-primary">High Disk Usage Threshold</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-text-primary">High Disk Usage Threshold</p>
+                      {!hasCustomThresholds && (
+                        <button
+                          type="button"
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full border bg-brand-primary/10 text-brand-primary border-brand-primary/25 hover:bg-brand-primary/20 transition-colors"
+                        >
+                          <Lock className="w-2.5 h-2.5" /> PRO
+                        </button>
+                      )}
+                    </div>
                     <p className="text-xs text-text-muted mt-0.5">
-                      Alert when disk usage exceeds {maintenanceSettings.diskAlertThreshold}%
+                      Alert when disk usage exceeds {!hasCustomThresholds ? 90 : (maintenanceSettings.diskAlertThreshold ?? 90)}%
                     </p>
-                    <div className="mt-3">
+                    <div 
+                      className={`mt-3 ${!hasCustomThresholds ? 'cursor-pointer opacity-50' : ''}`}
+                      onClick={() => { if (!hasCustomThresholds) setShowUpgradeModal(true); }}
+                    >
                       <input 
                         type="range" 
                         min="70" 
                         max="95" 
-                        value={maintenanceSettings.diskAlertThreshold}
-                        onChange={(e) => handleMaintenanceToggle("diskAlertThreshold", parseInt(e.target.value, 10))}
-                        className="w-full h-1 bg-border/50 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--c-accent))]"
+                        disabled={!hasCustomThresholds}
+                        value={!hasCustomThresholds ? 90 : (maintenanceSettings.diskAlertThreshold ?? 90)}
+                        onChange={(e) => hasCustomThresholds && handleMaintenanceToggle("diskAlertThreshold", parseInt(e.target.value, 10))}
+                        className={`w-full h-1 bg-border/50 rounded-lg appearance-none accent-[rgb(var(--c-accent))] ${!hasCustomThresholds ? 'cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
                       />
                     </div>
                   </div>
 
                   <div className="py-2.5 mb-4 pb-4">
-                    <p className="text-sm text-text-primary">Junk File Threshold</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-text-primary">Junk File Threshold</p>
+                      {!hasCustomThresholds && (
+                        <button
+                          type="button"
+                          onClick={() => setShowUpgradeModal(true)}
+                          className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full border bg-brand-primary/10 text-brand-primary border-brand-primary/25 hover:bg-brand-primary/20 transition-colors"
+                        >
+                          <Lock className="w-2.5 h-2.5" /> PRO
+                        </button>
+                      )}
+                    </div>
                     <p className="text-xs text-text-muted mt-0.5">
-                      Alert when junk files exceed {maintenanceSettings.junkAlertThreshold} GB
+                      Alert when junk files exceed {!hasCustomThresholds ? 2 : (maintenanceSettings.junkAlertThreshold ?? 2)} GB
                     </p>
-                    <div className="mt-3">
+                    <div 
+                      className={`mt-3 ${!hasCustomThresholds ? 'cursor-pointer opacity-50' : ''}`}
+                      onClick={() => { if (!hasCustomThresholds) setShowUpgradeModal(true); }}
+                    >
                       <input 
                         type="range" 
                         min="1" 
                         max="10" 
-                        value={maintenanceSettings.junkAlertThreshold}
-                        onChange={(e) => handleMaintenanceToggle("junkAlertThreshold", parseInt(e.target.value, 10))}
-                        className="w-full h-1 bg-border/50 rounded-lg appearance-none cursor-pointer accent-[rgb(var(--c-accent))]"
+                        disabled={!hasCustomThresholds}
+                        value={!hasCustomThresholds ? 2 : (maintenanceSettings.junkAlertThreshold ?? 2)}
+                        onChange={(e) => hasCustomThresholds && handleMaintenanceToggle("junkAlertThreshold", parseInt(e.target.value, 10))}
+                        className={`w-full h-1 bg-border/50 rounded-lg appearance-none accent-[rgb(var(--c-accent))] ${!hasCustomThresholds ? 'cursor-not-allowed pointer-events-none' : 'cursor-pointer'}`}
                       />
                     </div>
                   </div>
@@ -503,6 +552,78 @@ export const SettingsPage: React.FC = () => {
           </MotionCard>
         </motion.div>
       </motion.div>
+
+      {/* ── Upgrade Modal ── */}
+      <AnimatePresence>
+        {showUpgradeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-[460px] rounded-2xl border border-brand-primary/30 p-6 shadow-2xl"
+              style={{ background: 'var(--t-app-bg, #16181d)' }}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-xl bg-brand-primary/10 border border-brand-primary/20 flex items-center justify-center text-brand-primary">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-text-primary">Upgrade to PRO or MAX</h2>
+                  <p className="text-xs text-text-muted">Unlock advanced performance & customization</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-6 text-xs text-text-secondary">
+                <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/[0.03] border border-border/40">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-text-primary">Custom Alert Thresholds</p>
+                    <p className="text-text-muted mt-0.5">Customize your RAM, Disk, and Junk file alert triggers to match your workflow.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/[0.03] border border-border/40">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-text-primary">Always-On Maintenance</p>
+                    <p className="text-text-muted mt-0.5">Automatic scheduled system cleanup even when Propel is completely closed.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/[0.03] border border-border/40">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-text-primary">PC Advisor AI & Multi-Device</p>
+                    <p className="text-text-muted mt-0.5">Up to 50 AI diagnostic checks per month and multi-device workstation support.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowUpgradeModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={<ExternalLink className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    window.electronAPI.shell.openExternal(PROPEL_PRICING_URL);
+                    setShowUpgradeModal(false);
+                  }}
+                >
+                  View Pricing & Upgrade
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

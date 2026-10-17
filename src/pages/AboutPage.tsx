@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/Card";
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import appIconUrl from "@/assets/icons/propel.ico";
+import { PROPEL_ACCOUNT_URL, PROPEL_PRICING_URL, PROPEL_WEBSITE_URL } from "@/constants/appConstants";
 
 
 
@@ -165,7 +166,7 @@ export const AboutPage: React.FC = () => {
                       <button
                         onClick={() =>
                           window.electronAPI.shell.openExternal(
-                            "https://cleanmasterpro.in/account",
+                            PROPEL_ACCOUNT_URL,
                           )
                         }
                         className="flex-1 flex items-center justify-center gap-2 h-9 px-3 rounded-xl bg-gradient-brand text-white text-xs font-semibold shadow-[0_3px_12px_rgb(var(--c-accent)/0.28)] hover:shadow-[0_4px_16px_rgb(var(--c-accent)/0.38)] hover:-translate-y-px transition-all duration-150"
@@ -176,7 +177,7 @@ export const AboutPage: React.FC = () => {
                       <button
                         onClick={() =>
                           window.electronAPI.shell.openExternal(
-                            "https://cleanmasterpro.in/pricing",
+                            PROPEL_PRICING_URL,
                           )
                         }
                         className="flex items-center gap-1.5 px-3.5 h-9 rounded-xl border border-border bg-bg-surface text-xs font-medium text-text-secondary hover:text-text-primary hover:border-border/80 transition-colors whitespace-nowrap"
@@ -305,7 +306,7 @@ export const AboutPage: React.FC = () => {
               <button
                 onClick={() =>
                   window.electronAPI.shell.openExternal(
-                    "https://cleanmasterpro.in",
+                    PROPEL_WEBSITE_URL,
                   )
                 }
                 className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border border-border bg-bg-surface text-sm font-medium text-text-secondary hover:text-text-primary hover:border-border/80 transition-colors"

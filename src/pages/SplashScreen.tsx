@@ -31,62 +31,159 @@ export const SplashScreen: React.FC = () => {
           subscription_status: "",
         });
 
-        // getSession() auto-refreshes the access token if expired.
-        // If the stored refresh_token is also invalid/revoked it returns null — handled below.
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
+        const cached = await (window as any).propel.entitlements.getCached();
         if (cancelled) return;
 
-        if (error || !session) {
+        let session = null;
+        try {
+          const { data, error } = await supabase.auth.getSession();
+          if (!error && data?.session) {
+            session = data.session;
+          }
+        } catch {
+          // Network / auth error
+        }
+
+        if (cancelled) return;
+
+        if (!session) {
+          // If no active session, but cache exists, use cache and go to main
+          if (cached && !cached.isFallback) {
+            setEntitlementStatus({
+              status: "active",
+              plan: cached.plan,
+              source: (cached.source as any) || "plan",
+              trial_active: cached.trial_active || false,
+              trial_expires_at: cached.trial_expires_at || null,
+              subscription_status: cached.subscription_status || "",
+              limits: cached.limits,
+              features: cached.features,
+              expiresAt: cached.expiresAt,
+              serverTime: cached.serverTime,
+              fetchedAt: cached.fetchedAt,
+              isOffline: true,
+            });
+            setDone(true);
+            setPhase("main");
+            return;
+          }
+
+          // No cache AND no session
+          if (!navigator.onLine) {
+            setDone(true);
+            setPhase("no_internet");
+            return;
+          }
+
           setDone(true);
           setPhase("login");
           return;
         }
 
         setSession(session);
-        const result = await (window as any).propel.entitlements.fetch(
-          session.access_token,
-        );
-        if (cancelled) return;
 
-        if (result.ok) {
-          setEntitlementStatus({
-            status: "active",
-            plan: result.data.plan,
-            source: result.data.source,
-            trial_active: result.data.trial_active,
-            trial_expires_at: result.data.trial_expires_at,
-            subscription_status: result.data.subscription_status,
-          });
+        try {
+          const result = await (window as any).propel.entitlements.fetch(
+            session.access_token,
+          );
+          if (cancelled) return;
+
+          if (result.ok && result.data) {
+            setEntitlementStatus({
+              status: "active",
+              plan: result.data.plan,
+              source: result.data.source,
+              trial_active: result.data.trial_active,
+              trial_expires_at: result.data.trial_expires_at,
+              subscription_status: result.data.subscription_status,
+              limits: result.data.limits,
+              features: result.data.features,
+              expiresAt: result.data.expiresAt,
+              serverTime: result.data.serverTime,
+              fetchedAt: Date.now(),
+              isOffline: false,
+            });
+            window.propel?.maintenance?.syncScheduler?.().catch(() => {});
+            setDone(true);
+            setPhase("main");
+          } else if (result.networkError || !navigator.onLine) {
+            if (cached && !cached.isFallback) {
+              setEntitlementStatus({
+                status: "active",
+                plan: cached.plan,
+                source: (cached.source as any) || "plan",
+                trial_active: cached.trial_active || false,
+                trial_expires_at: cached.trial_expires_at || null,
+                subscription_status: cached.subscription_status || "",
+                limits: cached.limits,
+                features: cached.features,
+                expiresAt: cached.expiresAt,
+                serverTime: cached.serverTime,
+                fetchedAt: cached.fetchedAt,
+                isOffline: true,
+              });
+            } else {
+              setEntitlementStatus({
+                status: "active",
+                plan: "FREE",
+                source: "plan",
+                trial_active: false,
+                trial_expires_at: null,
+                subscription_status: "",
+                limits: { devices: 10, aiChecksPerMonth: 1 },
+                features: { customThresholds: false, alwaysOnMaintenance: false },
+                isOffline: true,
+              });
+            }
+            setDone(true);
+            setPhase("main");
+          } else {
+            setEntitlementStatus({
+              status: "error",
+              plan: "FREE",
+              source: "plan",
+              trial_active: false,
+              trial_expires_at: null,
+              subscription_status: "",
+            });
+            setDone(true);
+            setPhase("login");
+          }
+        } catch {
+          if (cancelled) return;
+          if (cached && !cached.isFallback) {
+            setEntitlementStatus({
+              status: "active",
+              plan: cached.plan,
+              source: (cached.source as any) || "plan",
+              trial_active: cached.trial_active || false,
+              trial_expires_at: cached.trial_expires_at || null,
+              subscription_status: cached.subscription_status || "",
+              limits: cached.limits,
+              features: cached.features,
+              expiresAt: cached.expiresAt,
+              serverTime: cached.serverTime,
+              fetchedAt: cached.fetchedAt,
+              isOffline: true,
+            });
+          } else {
+            setEntitlementStatus({
+              status: "active",
+              plan: "FREE",
+              source: "plan",
+              trial_active: false,
+              trial_expires_at: null,
+              subscription_status: "",
+              limits: { devices: 10, aiChecksPerMonth: 1 },
+              features: { customThresholds: false, alwaysOnMaintenance: false },
+              isOffline: true,
+            });
+          }
           setDone(true);
           setPhase("main");
-        } else if (result.networkError) {
-          setDone(true);
-          setPhase("no_internet");
-        } else {
-          setEntitlementStatus({
-            status: "error",
-            plan: "FREE",
-            source: "plan",
-            trial_active: false,
-            trial_expires_at: null,
-            subscription_status: "",
-          });
-          setDone(true);
-          setPhase("login");
         }
       } catch {
         if (cancelled) return;
-        setEntitlementStatus({
-          status: "error",
-          plan: "FREE",
-          source: "plan",
-          trial_active: false,
-          trial_expires_at: null,
-          subscription_status: "",
-        });
         setDone(true);
         setPhase("login");
       }

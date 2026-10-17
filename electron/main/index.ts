@@ -55,7 +55,8 @@ async function cleanupOrphanedGameMode() {
   }
 }
 
-import { runScheduledIfDue, syncWindowsTask } from "../services/maintenance/schedulerService";
+import { runScheduledIfDue, syncWindowsTask, removeWindowsTask } from "../services/maintenance/schedulerService";
+import { getCachedEntitlementSync } from "../services/auth/entitlementCache";
 import { loadSettingsSync } from "../services/maintenance/automationStore";
 import { startNotificationService, stopNotificationService } from "../services/maintenance/notificationService";
 import {
@@ -344,6 +345,14 @@ app.whenReady().then(async () => {
   // This path only reaches here if no other Propel instance was running —
   // the single-instance lock above already handled the handoff case.
   if (isScheduledRun) {
+    const entitlement = getCachedEntitlementSync();
+    if (!entitlement.features?.alwaysOnMaintenance) {
+      console.log('[ScheduledMaintenance] Not entitled to alwaysOnMaintenance. Removing task and exiting.');
+      await removeWindowsTask();
+      app.quit();
+      return;
+    }
+
     // Still need IPC + maintenance handlers in case runAutoClean() needs them,
     // but we deliberately skip window, tray, and notification service.
     setupMaintenanceIPC();

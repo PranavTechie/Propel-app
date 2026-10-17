@@ -40,7 +40,7 @@ export interface MaintenanceSettings {
 }
 
 const DEFAULTS: MaintenanceSettings = {
-  scheduleEnabled:            true,
+  scheduleEnabled:            false,
   scheduleFrequency:          'weekly',
   recycleBinEnabled:          false,
   ignoreDownloads:            true,

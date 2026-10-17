@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { saveCachedEntitlement } from './entitlementCache'
 
 // We get API_BASE from env or fallback for local dev
 const API_BASE = process.env.VITE_API_BASE_URL || 'https://cleanmasterpro-backend-server.onrender.com'
@@ -7,6 +8,16 @@ export interface EntitlementResponse {
   success: boolean
   data?: {
     plan: 'FREE' | 'PRO' | 'MAX'
+    limits?: {
+      devices: number
+      aiChecksPerMonth: number
+    }
+    features?: {
+      customThresholds: boolean
+      alwaysOnMaintenance: boolean
+    }
+    expiresAt?: string | null
+    serverTime?: string
     source: 'plan' | 'subscription' | 'trial'
     trial_active: boolean
     trial_expires_at: string | null
@@ -30,6 +41,20 @@ export async function fetchEntitlements(accessToken: string): Promise<Entitlemen
     })
 
     if (res.data.success && res.data.data) {
+      // Cache immediately upon successful fetch
+      await saveCachedEntitlement({
+        plan: res.data.data.plan,
+        features: res.data.data.features,
+        limits: res.data.data.limits,
+        expiresAt: res.data.data.expiresAt,
+        serverTime: res.data.data.serverTime,
+        fetchedAt: Date.now(),
+        source: res.data.data.source,
+        trial_active: res.data.data.trial_active,
+        trial_expires_at: res.data.data.trial_expires_at,
+        subscription_status: res.data.data.subscription_status,
+      })
+
       return { ok: true, data: res.data.data }
     }
     return { ok: false, networkError: false, message: res.data.message || 'server_error' }
