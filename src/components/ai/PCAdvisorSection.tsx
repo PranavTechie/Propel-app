@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
-import { Brain, Shield, AlertTriangle, AlertCircle, CheckCircle, ChevronRight, Play, Loader2, ArrowRight, Info, Cpu, Activity, HardDrive, Lock, Sparkles } from 'lucide-react';
+import { Brain, Shield, AlertTriangle, AlertCircle, CheckCircle, ChevronRight, Play, Loader2, ArrowRight, Info, Cpu, Activity, HardDrive, Lock, Sparkles, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { formatBytes, getHealthScore } from '@/utils/format';
+import { PROPEL_PRICING_URL } from '@/constants/appConstants';
+import {
+  getQuotaCardContent,
+  cleanTechnicalError,
+  isQuotaExceededError,
+  parseQuotaFromErrorMessage,
+  type QuotaPayload,
+} from '@/utils/pcAdvisorQuota';
 
 interface Action {
   priority: number;
@@ -51,8 +59,10 @@ export const PCAdvisorSection: React.FC = () => {
   const cleanerResult = useAppStore(s => s.scanResults);
   const hasScanned = useAppStore(s => s.hasScanned);
   const session = useAppStore(s => s.session);
+  const entitlement = useAppStore(s => s.entitlementStatus);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quotaInfo, setQuotaInfo] = useState<QuotaPayload | null>(null);
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const setActivePage = useAppStore(s => s.setActivePage);
 
@@ -60,6 +70,7 @@ export const PCAdvisorSection: React.FC = () => {
     setLoading(true);
     setError(null);
     setResult(null);
+    setQuotaInfo(null);
 
     if (!stats) {
       setError('System diagnostics are currently unavailable.');
@@ -82,10 +93,42 @@ export const PCAdvisorSection: React.FC = () => {
 
     try {
       const token = session?.access_token || '';
-      const data = await window.propel.ai.getPCAdvisorDiagnosis(payload, token);
-      setResult(data);
+      const response = await window.propel.ai.getPCAdvisorDiagnosis(payload, token);
+
+      if (response && typeof response === 'object') {
+        if (response.ok === false) {
+          if (response.quotaExceeded) {
+            setQuotaInfo({
+              limit: response.limit,
+              used: response.used,
+              resetsAt: response.resetsAt,
+              plan: response.limit === 50 ? 'MAX' : response.limit === 10 ? 'PRO' : response.limit === 1 ? 'FREE' : entitlement.plan,
+            });
+            return;
+          }
+          setError(cleanTechnicalError(response.message));
+          return;
+        }
+
+        const diagnosisData = response.data ?? response;
+        setResult(diagnosisData);
+        return;
+      }
+
+      setResult(response);
     } catch (err: any) {
-      setError(err.message || 'An error occurred during analysis.');
+      const rawMessage = err?.message || String(err);
+      if (isQuotaExceededError(rawMessage)) {
+        const parsed = parseQuotaFromErrorMessage(rawMessage);
+        const limit = parsed.limit ?? (entitlement.plan === 'MAX' ? 50 : entitlement.plan === 'PRO' ? 10 : 1);
+        setQuotaInfo({
+          limit,
+          resetsAt: parsed.resetsAt,
+          plan: limit === 50 ? 'MAX' : limit === 10 ? 'PRO' : limit === 1 ? 'FREE' : entitlement.plan,
+        });
+      } else {
+        setError(cleanTechnicalError(rawMessage));
+      }
     } finally {
       setLoading(false);
     }
@@ -171,6 +214,64 @@ export const PCAdvisorSection: React.FC = () => {
         </p>
       </div>
 
+      {/* Quota Limit Card */}
+      <AnimatePresence>
+        {quotaInfo && !loading && !result && (
+          <motion.div
+            key="quota-card"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="p-6 md:p-8 rounded-2xl bg-surface-card border border-brand-primary/25 relative overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.25)]"
+          >
+            <div className="absolute top-0 right-0 w-80 h-80 bg-brand-primary/[0.04] rounded-full blur-[80px] pointer-events-none" />
+
+            {(() => {
+              const card = getQuotaCardContent(quotaInfo, entitlement.plan);
+              return (
+                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-brand-primary/10 border border-brand-primary/25 flex items-center justify-center shrink-0 mt-0.5 text-brand-primary shadow-glow-sm">
+                      <Sparkles className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[11px] font-bold text-brand-primary uppercase tracking-wider">
+                          PC Advisor Quota
+                        </span>
+                      </div>
+                      <h3 className="text-xl font-bold text-text-primary tracking-tight">
+                        {card.heading}
+                      </h3>
+                      <p className="text-sm text-text-secondary mt-1.5 leading-relaxed max-w-xl">
+                        {card.message}
+                      </p>
+                      <p className="text-xs text-text-muted mt-2 font-medium">
+                        {card.supportingText}
+                      </p>
+                    </div>
+                  </div>
+
+                  {card.showCta && card.ctaText && (
+                    <div className="shrink-0 pt-2 md:pt-0 self-start md:self-center">
+                      <button
+                        type="button"
+                        onClick={() => window.electronAPI?.shell?.openExternal(PROPEL_PRICING_URL)}
+                        className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold text-xs transition-all shadow-glow-sm hover:-translate-y-0.5 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>{card.ctaText}</span>
+                        <ArrowRight className="w-3.5 h-3.5 opacity-80 group-hover:translate-x-0.5 transition-transform" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Initial / Empty State */}
       {!result && !loading && !error && (
         <motion.div
@@ -215,25 +316,34 @@ export const PCAdvisorSection: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex flex-col items-center pt-8 border-t border-white/[0.05]">
-            <button
-              onClick={handleAnalyze}
-              className="group flex items-center gap-2 px-8 py-3.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold transition-all hover:-translate-y-0.5 shadow-glow-sm"
-            >
-              Explain my PC's health <ArrowRight className="w-4 h-4 opacity-70 group-hover:translate-x-1 transition-transform" />
-            </button>
-            
-            <p className="mt-4 text-[11px] text-text-muted/60 flex items-center gap-1.5">
-              <Lock className="w-3 h-3 opacity-70" />
-              Uses your current system metrics • No files or personal content
-            </p>
-          </div>
+          {!quotaInfo ? (
+            <div className="flex flex-col items-center pt-8 border-t border-white/[0.05]">
+              <button
+                onClick={handleAnalyze}
+                className="group flex items-center gap-2 px-8 py-3.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold transition-all hover:-translate-y-0.5 shadow-glow-sm"
+              >
+                Explain my PC's health <ArrowRight className="w-4 h-4 opacity-70 group-hover:translate-x-1 transition-transform" />
+              </button>
+              
+              <p className="mt-4 text-[11px] text-text-muted/60 flex items-center gap-1.5">
+                <Lock className="w-3 h-3 opacity-70" />
+                Uses your current system metrics • No files or personal content
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center pt-6 border-t border-white/[0.05]">
+              <p className="text-xs text-text-muted flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 opacity-70" />
+                Diagnostic check used. Next check unlocks when quota resets.
+              </p>
+            </div>
+          )}
         </motion.div>
       )}
 
-      {/* Error State */}
+      {/* Error State for genuine temporary/network errors */}
       <AnimatePresence>
-        {error && (
+        {error && !quotaInfo && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
