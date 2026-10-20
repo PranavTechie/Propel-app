@@ -134,12 +134,12 @@ export function getQuotaCardContent(
   if (plan === 'FREE') {
     return {
       plan: 'FREE',
-      heading: 'Check Limit Reached',
-      message: "You've used your 1 free PC Advisor check for this 30-day window.",
+      heading: 'Monthly limit reached',
+      message: "You've used your 1 PC Advisor check for this monthly period.",
       supportingText: formattedDate
-        ? `Your next check will be available on ${formattedDate}.`
-        : 'Your next check will be available when your 30-day window resets.',
-      ctaText: 'Upgrade to PRO for 10 checks/30 days',
+        ? `Your next check is available on ${formattedDate}.`
+        : 'Your next check is available on your next quota cycle.',
+      ctaText: 'Upgrade to PRO',
       showCta: true,
     };
   }
@@ -147,12 +147,12 @@ export function getQuotaCardContent(
   if (plan === 'PRO') {
     return {
       plan: 'PRO',
-      heading: 'Limit Reached',
+      heading: 'Monthly limit reached',
       message: "You've used all 10 PC Advisor checks included in your PRO plan.",
       supportingText: formattedDate
-        ? `Your next check will be available on ${formattedDate}.`
-        : 'Your next check will be available when your 30-day window resets.',
-      ctaText: 'Explore MAX — 50 checks/30 days',
+        ? `Your next check is available on ${formattedDate}.`
+        : 'Your next check is available on your next quota cycle.',
+      ctaText: 'Upgrade to MAX',
       showCta: true,
     };
   }
@@ -160,11 +160,11 @@ export function getQuotaCardContent(
   // MAX Plan
   return {
     plan: 'MAX',
-    heading: 'Limit Reached',
+    heading: 'Monthly limit reached',
     message: "You've used all 50 PC Advisor checks included in your MAX plan.",
     supportingText: formattedDate
-      ? `Your next check will be available on ${formattedDate}.`
-      : 'Your next check will be available when your 30-day window resets.',
+      ? `Your next check is available on ${formattedDate}.`
+      : 'Your next check is available on your next quota cycle.',
     ctaText: null,
     showCta: false,
   };

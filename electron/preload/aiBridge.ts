@@ -11,6 +11,9 @@ export const aiBridge = {
   getPCAdvisorDiagnosis: (payload: any, token: string): Promise<any> =>
     ipcRenderer.invoke('ai:get-pc-advisor-diagnosis', payload, token),
 
+  pingHealth: (): Promise<void> =>
+    ipcRenderer.invoke('ai:ping-health'),
+
   smartBoostOptimize: (): Promise<SmartBoostResult> =>
     ipcRenderer.invoke('ai:smart-boost-optimize'),
 

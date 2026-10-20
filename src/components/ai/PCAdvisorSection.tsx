@@ -52,6 +52,35 @@ function HealthRing({ score }: { score: number }) {
   );
 }
 
+function getFriendlyErrorMessage(code?: string, rawMsg?: string): string {
+  switch (code) {
+    case 'AI_TIMEOUT':
+      return 'Analysis took longer than expected. Please try again.';
+    case 'AI_RATE_LIMITED':
+    case 'AI_COOLDOWN':
+    case 'TOO_MANY_REQUESTS':
+      return 'PC Advisor is experiencing high demand. Please wait a few seconds and try again.';
+    case 'AI_SERVICE_BUSY':
+    case 'AI_SERVICE_UNAVAILABLE':
+      return 'PC Advisor is temporarily busy. Please try again in a few seconds.';
+    case 'AI_INVALID_RESPONSE':
+      return 'Diagnostic service returned an unexpected format. Please try again.';
+    case 'DAILY_CAP_REACHED':
+      return 'Daily AI diagnostic limit reached. Please try again tomorrow.';
+    case 'AI_DISABLED':
+      return 'PC Advisor is temporarily disabled.';
+    case 'AI_NOT_CONFIGURED':
+      return 'PC Advisor service is not configured.';
+    default: {
+      const cleaned = cleanTechnicalError(rawMsg);
+      if (cleaned.toLowerCase().includes('timeout') || cleaned.toLowerCase().includes('abort')) {
+        return 'Analysis took longer than expected. Please try again.';
+      }
+      return cleaned || 'PC Advisor is temporarily unavailable. Please try again in a few seconds.';
+    }
+  }
+}
+
 export const PCAdvisorSection: React.FC = () => {
   const aiAdvisorConsent = useSettingsStore(s => s.aiAdvisorConsent);
   const setAiAdvisorConsent = useSettingsStore(s => s.setAiAdvisorConsent);
@@ -62,11 +91,28 @@ export const PCAdvisorSection: React.FC = () => {
   const entitlement = useAppStore(s => s.entitlementStatus);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retryCountdown, setRetryCountdown] = useState<number>(0);
   const [quotaInfo, setQuotaInfo] = useState<QuotaPayload | null>(null);
   const [result, setResult] = useState<DiagnosisResult | null>(null);
   const setActivePage = useAppStore(s => s.setActivePage);
 
+  // Wake up Render backend if cold (fire-and-forget)
+  React.useEffect(() => {
+    window.propel?.ai?.pingHealth?.();
+  }, []);
+
+  // 3-second disabled countdown on Retry button
+  React.useEffect(() => {
+    if (retryCountdown <= 0) return;
+    const timer = setTimeout(() => {
+      setRetryCountdown(c => c - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [retryCountdown]);
+
   const handleAnalyze = async () => {
+    if (retryCountdown > 0) return;
+
     setLoading(true);
     setError(null);
     setResult(null);
@@ -97,6 +143,8 @@ export const PCAdvisorSection: React.FC = () => {
 
       if (response && typeof response === 'object') {
         if (response.ok === false) {
+          console.warn(`[PC Advisor] Diagnosis error received: status=${response.status ?? 'unknown'}, code=${response.code ?? response.error ?? 'unknown'}`);
+
           if (response.quotaExceeded) {
             setQuotaInfo({
               limit: response.limit,
@@ -106,7 +154,8 @@ export const PCAdvisorSection: React.FC = () => {
             });
             return;
           }
-          setError(cleanTechnicalError(response.message));
+          setError(getFriendlyErrorMessage(response.code, response.message));
+          setRetryCountdown(3);
           return;
         }
 
@@ -118,6 +167,8 @@ export const PCAdvisorSection: React.FC = () => {
       setResult(response);
     } catch (err: any) {
       const rawMessage = err?.message || String(err);
+      console.warn(`[PC Advisor] Diagnosis exception received: ${cleanTechnicalError(rawMessage)}`);
+
       if (isQuotaExceededError(rawMessage)) {
         const parsed = parseQuotaFromErrorMessage(rawMessage);
         const limit = parsed.limit ?? (entitlement.plan === 'MAX' ? 50 : entitlement.plan === 'PRO' ? 10 : 1);
@@ -127,7 +178,8 @@ export const PCAdvisorSection: React.FC = () => {
           plan: limit === 50 ? 'MAX' : limit === 10 ? 'PRO' : limit === 1 ? 'FREE' : entitlement.plan,
         });
       } else {
-        setError(cleanTechnicalError(rawMessage));
+        setError(getFriendlyErrorMessage(undefined, rawMessage));
+        setRetryCountdown(3);
       }
     } finally {
       setLoading(false);
@@ -214,66 +266,52 @@ export const PCAdvisorSection: React.FC = () => {
         </p>
       </div>
 
-      {/* Quota Limit Card */}
+      {/* Quota Notice (Understated, compact inline status) */}
       <AnimatePresence>
         {quotaInfo && !loading && !result && (
           <motion.div
-            key="quota-card"
-            initial={{ opacity: 0, y: 10 }}
+            key="quota-notice"
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="p-6 md:p-8 rounded-2xl bg-surface-card border border-brand-primary/25 relative overflow-hidden shadow-[0_4px_30px_rgba(0,0,0,0.25)]"
+            exit={{ opacity: 0, y: -6 }}
+            className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]"
           >
-            <div className="absolute top-0 right-0 w-80 h-80 bg-brand-primary/[0.04] rounded-full blur-[80px] pointer-events-none" />
-
             {(() => {
               const card = getQuotaCardContent(quotaInfo, entitlement.plan);
               return (
-                <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-brand-primary/10 border border-brand-primary/25 flex items-center justify-center shrink-0 mt-0.5 text-brand-primary shadow-glow-sm">
-                      <Sparkles className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-[11px] font-bold text-brand-primary uppercase tracking-wider">
-                          PC Advisor Quota
-                        </span>
-                      </div>
-                      <h3 className="text-xl font-bold text-text-primary tracking-tight">
+                <>
+                  <div className="flex items-start gap-3 min-w-0">
+                    <Info className="w-4 h-4 text-text-muted mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-text-primary">
                         {card.heading}
-                      </h3>
-                      <p className="text-sm text-text-secondary mt-1.5 leading-relaxed max-w-xl">
-                        {card.message}
-                      </p>
-                      <p className="text-xs text-text-muted mt-2 font-medium">
-                        {card.supportingText}
+                      </div>
+                      <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
+                        {card.message}{' '}
+                        <span className="text-text-muted">{card.supportingText}</span>
                       </p>
                     </div>
                   </div>
 
                   {card.showCta && card.ctaText && (
-                    <div className="shrink-0 pt-2 md:pt-0 self-start md:self-center">
-                      <button
-                        type="button"
-                        onClick={() => window.electronAPI?.shell?.openExternal(PROPEL_PRICING_URL)}
-                        className="group inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold text-xs transition-all shadow-glow-sm hover:-translate-y-0.5 cursor-pointer"
-                      >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>{card.ctaText}</span>
-                        <ArrowRight className="w-3.5 h-3.5 opacity-80 group-hover:translate-x-0.5 transition-transform" />
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => window.electronAPI?.shell?.openExternal(PROPEL_PRICING_URL)}
+                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 text-xs font-medium text-text-primary transition-colors cursor-pointer"
+                    >
+                      <span>{card.ctaText}</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-text-muted" />
+                    </button>
                   )}
-                </div>
+                </>
               );
             })()}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Initial / Empty State */}
-      {!result && !loading && !error && (
+      {/* Initial / Empty State (only when quota is available) */}
+      {!result && !loading && !error && !quotaInfo && (
         <motion.div
           key="hero"
           initial={{ opacity: 0, y: 10 }}
@@ -316,28 +354,19 @@ export const PCAdvisorSection: React.FC = () => {
             </div>
           </div>
 
-          {!quotaInfo ? (
-            <div className="flex flex-col items-center pt-8 border-t border-white/[0.05]">
-              <button
-                onClick={handleAnalyze}
-                className="group flex items-center gap-2 px-8 py-3.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold transition-all hover:-translate-y-0.5 shadow-glow-sm"
-              >
-                Explain my PC's health <ArrowRight className="w-4 h-4 opacity-70 group-hover:translate-x-1 transition-transform" />
-              </button>
-              
-              <p className="mt-4 text-[11px] text-text-muted/60 flex items-center gap-1.5">
-                <Lock className="w-3 h-3 opacity-70" />
-                Uses your current system metrics • No files or personal content
-              </p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center pt-6 border-t border-white/[0.05]">
-              <p className="text-xs text-text-muted flex items-center gap-1.5">
-                <Lock className="w-3.5 h-3.5 opacity-70" />
-                Diagnostic check used. Next check unlocks when quota resets.
-              </p>
-            </div>
-          )}
+          <div className="flex flex-col items-center pt-8 border-t border-white/[0.05]">
+            <button
+              onClick={handleAnalyze}
+              className="group flex items-center gap-2 px-8 py-3.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold transition-all hover:-translate-y-0.5 shadow-glow-sm"
+            >
+              Explain my PC's health <ArrowRight className="w-4 h-4 opacity-70 group-hover:translate-x-1 transition-transform" />
+            </button>
+            
+            <p className="mt-4 text-[11px] text-text-muted/60 flex items-center gap-1.5">
+              <Lock className="w-3 h-3 opacity-70" />
+              Uses your current system metrics • No files or personal content
+            </p>
+          </div>
         </motion.div>
       )}
 
@@ -348,12 +377,29 @@ export const PCAdvisorSection: React.FC = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center gap-3"
+            className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-between gap-4"
           >
-            <AlertCircle className="w-5 h-5 shrink-0" />
-            <span className="text-sm font-medium">{error}</span>
-            <button onClick={handleAnalyze} className="ml-auto text-xs font-bold underline hover:text-red-300">
-              Retry
+            <div className="flex items-center gap-3 min-w-0">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-medium">{error}</span>
+                {retryCountdown > 0 && (
+                  <span className="text-xs text-red-400/70 mt-0.5">Please wait a moment before trying again.</span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleAnalyze}
+              disabled={retryCountdown > 0 || loading}
+              className={cn(
+                "shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all",
+                retryCountdown > 0
+                  ? "opacity-50 cursor-not-allowed border-red-500/20 text-red-400/60"
+                  : "underline hover:text-red-300 border-red-500/30 hover:border-red-500/50 cursor-pointer"
+              )}
+            >
+              {retryCountdown > 0 ? `Retry in ${retryCountdown}s` : 'Retry'}
             </button>
           </motion.div>
         )}
