@@ -223,9 +223,10 @@ export const PCAdvisorSection: React.FC = () => {
     if (!metric) return null;
     const text = metric.toLowerCase();
     
+    if (text.includes('duplicate')) return 'duplicates';
+    if (text.includes('startup')) return 'startup';
     if (text.includes('memory') || text.includes('ram')) return 'memory';
     if (text.includes('disk') || text.includes('storage') || text.includes('junk') || text.includes('clean') || text.includes('temp')) return 'cleaner';
-    if (text.includes('startup')) return 'maintenance';
     if (text.includes('process') || text.includes('cpu')) return 'performance';
     
     return null;

@@ -12,6 +12,8 @@ import {
   Brain,
   ShieldCheck,
   Sparkles,
+  Files,
+  Rocket,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { cn } from "@/utils/cn";
@@ -31,8 +33,10 @@ const GROUPS: NavGroup[] = [
       { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "systemcheck", label: "System Check", icon: Shield },
       { id: "cleaner", label: "Cleaner", icon: Trash2 },
+      { id: "duplicates", label: "Duplicate Finder", icon: Files },
       { id: "memory", label: "Memory", icon: MemoryStick },
       { id: "performance", label: "Performance", icon: Activity },
+      { id: "startup", label: "Startup", icon: Rocket },
     ],
   },
   {

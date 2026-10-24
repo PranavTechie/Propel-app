@@ -15,6 +15,7 @@ import { useEntitlementRefresh } from "@/hooks/useEntitlementRefresh";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { pageVariants } from "@/animations/variants";
 import { Dashboard } from "@/pages/Dashboard";
+import { NavPage } from "@/types";
 const CleanerPage = lazy(() =>
   import("@/pages/CleanerPage").then((m) => ({ default: m.CleanerPage })),
 );
@@ -45,8 +46,16 @@ const SystemCheckPage = lazy(() =>
     default: m.SystemCheckPage,
   })),
 );
+const StartupPage = lazy(() =>
+  import("@/pages/StartupPage").then((m) => ({ default: m.StartupPage })),
+);
+const DuplicateFinderPage = lazy(() =>
+  import("@/pages/DuplicateFinderPage").then((m) => ({
+    default: m.DuplicateFinderPage,
+  })),
+);
 
-const PAGE_MAP = {
+const PAGE_MAP: Record<NavPage, React.ComponentType> = {
   dashboard: Dashboard,
   cleaner: CleanerPage,
   memory: MemoryPage,
@@ -56,6 +65,8 @@ const PAGE_MAP = {
   systemcheck: SystemCheckPage,
   settings: SettingsPage,
   about: AboutPage,
+  startup: StartupPage,
+  duplicates: DuplicateFinderPage,
 };
 const PageFallback = () => (
   <div className="page-shell space-y-4" role="status" aria-label="Loading page">

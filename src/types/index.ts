@@ -126,7 +126,7 @@ export interface UpdateInfo {
   release_notes?: string | null
 }
 
-export type NavPage = 'dashboard' | 'cleaner' | 'memory' | 'maintenance' | 'performance' | 'ai' | 'systemcheck' | 'settings' | 'about'
+export type NavPage = 'dashboard' | 'cleaner' | 'memory' | 'maintenance' | 'performance' | 'ai' | 'systemcheck' | 'settings' | 'about' | 'startup' | 'duplicates'
 
 export interface MaintenanceSettings {
   scheduleEnabled:            boolean
