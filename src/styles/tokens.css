@@ -126,6 +126,7 @@
   --c-fg-3: 104 114 100; /* muted      ~5:1 on white, 4.6:1 on base */
   --c-fg-4: 150 158 146; /* disabled / placeholder */
   --c-fg-on-brand: 255 255 255;
+  --c-fg-on-danger: 255 255 255; /* 4.6:1 on red-600 */
 
   /* Lines (alpha over the line color adapts to any surface) */
   --c-line: 38 56 30;
@@ -135,9 +136,9 @@
 
   /* Brand */
   --c-brand: var(--green-600); /* icons, indicators: 4:1 on white */
-  --c-brand-solid: var(--green-700); /* primary fill: 4.9:1 with white */
+  --c-brand-solid: 56 114 38; /* primary fill (700/800 mix): 6:1 with white */
   --c-brand-solid-hover: var(--green-800);
-  --c-brand-solid-top: var(--green-600); /* gradient top stop */
+  --c-brand-solid-top: var(--green-700); /* gradient top stop: 4.9:1 with white */
   --c-brand-fg: var(--green-800); /* brand text: 7:1 */
   --c-brand-soft: 234 244 227; /* tinted backgrounds */
   --c-brand-glow: var(--green-500);
@@ -203,6 +204,7 @@
   --c-fg-3: 128 139 124; /* ~4.9:1 on raised */
   --c-fg-4: 92 102 89;
   --c-fg-on-brand: 12 24 8; /* dark text on green-500: 5.9:1 */
+  --c-fg-on-danger: 32 8 6; /* dark text on red-400 */
 
   --c-line: 225 240 215;
   --a-line-1: 0.06;

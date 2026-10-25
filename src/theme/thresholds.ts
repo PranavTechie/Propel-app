@@ -4,11 +4,12 @@
 export type Tone = "healthy" | "warning" | "critical" | "neutral";
 export type UsageMetric = "cpu" | "memory" | "disk";
 
-// Warn levels match the previous TitleBar; critical levels added on top.
+// Same levels as the Smart insights rules (components/common/InsightsPanel),
+// so chips, cards and insights never disagree on one screen.
 const USAGE_LIMITS: Record<UsageMetric, { warn: number; crit: number }> = {
-  cpu: { warn: 75, crit: 90 },
-  memory: { warn: 80, crit: 90 },
-  disk: { warn: 85, crit: 95 },
+  cpu: { warn: 65, crit: 85 },
+  memory: { warn: 72, crit: 88 },
+  disk: { warn: 75, crit: 90 },
 };
 
 /** Tone for a resource usage percentage (higher is worse). */

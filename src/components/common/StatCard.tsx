@@ -1,81 +1,59 @@
-import React, { useEffect, useRef, memo } from "react";
-import { motion, animate } from "framer-motion";
+import React, { memo } from "react";
+import { motion } from "framer-motion";
 import { cn } from "@/utils/cn";
-import { staggerItem } from "@/animations/variants";
-function useAnimatedValue(target: number, duration = 0.5) {
-  const [display, setDisplay] = React.useState(target);
-  const prev = useRef(target);
-  useEffect(() => {
-    const from = prev.current;
-    prev.current = target;
-    if (from === target) return;
-    const c = animate(from, target, {
-      duration,
-      ease: [0.2, 0.8, 0.2, 1],
-      onUpdate: (v) => setDisplay(Math.round(v * 10) / 10),
-    });
-    return c.stop;
-  }, [target, duration]);
-  return display;
-}
+import { rise } from "@/theme/motion";
+import { usageTone, type UsageMetric } from "@/theme/thresholds";
+import { Progress } from "@/components/ui/Progress";
+import { StatusPill } from "@/components/ui/StatusPill";
+
 interface Props {
   title: string;
   value: string | number;
   subtitle?: string;
   icon?: React.ReactNode;
   percent?: number;
+  /** Which usage thresholds color the bar. Omit for a neutral bar. */
+  metric?: UsageMetric;
+  // legacy props, ignored (color now comes from thresholds)
   color?: "blue" | "purple" | "emerald" | "orange" | "red";
   trend?: "up" | "down" | "stable";
   className?: string;
 }
+
+/** Compact metric card: label, value, threshold-toned bar. */
 export const StatCard = memo<Props>(function StatCard({
   title,
   value,
   subtitle,
   icon,
   percent,
+  metric,
   className,
 }) {
-  const safe = Math.min(100, Math.max(0, percent ?? 0));
-  const animated = useAnimatedValue(safe);
+  const tone = metric && percent !== undefined ? usageTone(metric, percent) : null;
   return (
     <motion.div
-      variants={staggerItem}
+      variants={rise}
       className={cn(
-        "group rounded-xl border border-border/70 bg-bg-elevated/75 p-4",
+        "rounded-card border border-line bg-surface-raised p-4 shadow-[var(--shadow-1),var(--highlight-top)]",
         className,
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[.13em] text-text-muted">
-            {title}
-          </p>
-          <p className="mt-2 text-[26px] font-semibold leading-none tracking-[-.04em] text-text-primary tabular-nums">
-            {value}
-          </p>
-          {subtitle && (
-            <p className="mt-2 text-[11px] text-text-secondary">{subtitle}</p>
-          )}
-        </div>
-        {icon && (
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-primary/[.08] text-brand-secondary">
-            <span className="h-[18px] w-[18px]">{icon}</span>
-          </div>
-        )}
-      </div>
-      {percent !== undefined && (
-        <div className="mt-4">
-          <div className="mb-1.5 flex justify-between text-[10px] text-text-muted">
-            <span>Current load</span>
-            <span className="font-semibold tabular-nums text-text-secondary">
-              {Math.round(animated)}%
+        <div className="flex items-center gap-2">
+          {icon && (
+            <span className="flex h-7 w-7 items-center justify-center rounded-chip bg-surface-inset text-fg-2">
+              <span className="h-4 w-4">{icon}</span>
             </span>
-          </div>
-          <div className="stat-bar">
-            <div className="stat-bar-fill" style={{ width: `${animated}%` }} />
-          </div>
+          )}
+          <p className="text-body-sm font-medium text-fg-2">{title}</p>
         </div>
+        {tone && <StatusPill tone={tone} />}
+      </div>
+      <p className="mt-3 font-display text-metric font-semibold text-fg-1 tabular">{value}</p>
+      {subtitle && <p className="mt-1 text-caption text-fg-3">{subtitle}</p>}
+      {percent !== undefined && (
+        <Progress value={percent} metric={metric} className="mt-3" aria-label={`${title} usage`} />
       )}
     </motion.div>
   );

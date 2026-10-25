@@ -12,16 +12,17 @@ export const smoothTween: Transition = {
   duration: 0.35,
 }
 
+// Page transition: fade + 8px slide, 200ms, token easing (see theme/motion.ts)
 export const pageVariants: Variants = {
   initial: { opacity: 0, y: 8 },
   animate: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] },
   },
   exit: {
     opacity: 0,
-    transition: { duration: 0.15, ease: 'easeIn' },
+    transition: { duration: 0.12, ease: [0.2, 0.8, 0.2, 1] },
   },
 }
 
@@ -54,16 +55,16 @@ export const slideInRight: Variants = {
 
 export const staggerContainer: Variants = {
   animate: {
-    transition: { staggerChildren: 0.05, delayChildren: 0.02 },
+    transition: { staggerChildren: 0.04, delayChildren: 0.02 },
   },
 }
 
 export const staggerItem: Variants = {
-  initial: { opacity: 0, y: 10 },
+  initial: { opacity: 0, y: 8 },
   animate: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.22, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] },
   },
 }
 

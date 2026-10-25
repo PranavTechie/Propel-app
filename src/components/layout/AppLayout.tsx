@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { MotionConfig, motion } from "framer-motion";
 import { TitleBar } from "./TitleBar";
 import { Sidebar } from "./Sidebar";
 import { ToastProvider } from "@/components/common/ToastProvider";
@@ -13,6 +13,12 @@ import { usePerformanceProfile } from "@/hooks/usePerformanceProfile";
 import { useDevicePing } from "@/hooks/useDevicePing";
 import { useEntitlementRefresh } from "@/hooks/useEntitlementRefresh";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { TooltipProvider } from "@/components/ui/Tooltip";
+import { Skeleton } from "@/components/ui/Skeleton";
+import {
+  PageActiveContext,
+  useWindowVisible,
+} from "@/components/ui/hooks/useLiveGate";
 import { pageVariants } from "@/animations/variants";
 import { Dashboard } from "@/pages/Dashboard";
 import { NavPage } from "@/types";
@@ -69,14 +75,17 @@ const PAGE_MAP: Record<NavPage, React.ComponentType> = {
   duplicates: DuplicateFinderPage,
 };
 const PageFallback = () => (
-  <div className="page-shell space-y-4" role="status" aria-label="Loading page">
-    <div className="skeleton h-7 w-52" />
-    <div className="grid grid-cols-3 gap-4">
-      <div className="skeleton h-28" />
-      <div className="skeleton h-28" />
-      <div className="skeleton h-28" />
+  <div className="page-shell" role="status" aria-label="Loading page">
+    <div className="mb-6 space-y-2">
+      <Skeleton className="h-6 w-48" />
+      <Skeleton className="h-3.5 w-72" />
     </div>
-    <div className="skeleton h-64 w-full" />
+    <div className="grid grid-cols-3 gap-4">
+      <Skeleton className="h-28 rounded-card" />
+      <Skeleton className="h-28 rounded-card" />
+      <Skeleton className="h-28 rounded-card" />
+    </div>
+    <Skeleton className="mt-4 h-64 w-full rounded-card" />
   </div>
 );
 export const AppLayout: React.FC = () => {
@@ -93,17 +102,19 @@ export const AppLayout: React.FC = () => {
     handleRetry,
   } = useUpdateCheck();
   const perfProfile = usePerformanceProfile();
-  
+  const windowVisible = useWindowVisible();
+
   useDevicePing();
   useEntitlementRefresh();
 
   const ActivePage = PAGE_MAP[activePage];
   return (
-    <>
+    <MotionConfig reducedMotion="user">
+    <TooltipProvider delayDuration={350} skipDelayDuration={200}>
       <div
-        className="relative flex h-screen w-screen flex-col overflow-hidden"
+        className="relative flex h-screen w-screen flex-col overflow-hidden bg-surface-base text-fg-1"
         data-perf={perfProfile}
-        style={{ background: "var(--t-app-bg)" }}
+        data-window-hidden={windowVisible ? undefined : "true"}
       >
         <TitleBar />
         <OfflineBanner />
@@ -128,9 +139,11 @@ export const AppLayout: React.FC = () => {
                     className="absolute inset-0 overflow-y-auto overflow-x-hidden"
                     style={{ scrollbarGutter: "stable" }}
                   >
-                    <Suspense fallback={<PageFallback />}>
-                      <Component />
-                    </Suspense>
+                    <PageActiveContext.Provider value={isActive}>
+                      <Suspense fallback={<PageFallback />}>
+                        <Component />
+                      </Suspense>
+                    </PageActiveContext.Provider>
                   </motion.div>
                 </div>
               );
@@ -155,6 +168,7 @@ export const AppLayout: React.FC = () => {
           onRetry={handleRetry}
         />
       )}
-    </>
+    </TooltipProvider>
+    </MotionConfig>
   );
 };

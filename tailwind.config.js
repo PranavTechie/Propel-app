@@ -26,6 +26,7 @@ export default {
           3: c("fg-3"),
           4: c("fg-4"),
           "on-brand": c("fg-on-brand"),
+          "on-danger": c("fg-on-danger"),
         },
         line: {
           subtle: line(1),
