@@ -34,6 +34,7 @@ export default {
           strong: line(3),
         },
         state: c("state"),
+        "control-thumb": c("control-thumb"),
         scrim: c("scrim"),
         brand: {
           DEFAULT: c("brand"),

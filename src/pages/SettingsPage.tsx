@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
@@ -12,11 +12,21 @@ import {
   Bell,
   Sparkles,
   Radio,
+  Sun,
+  Moon,
+  Monitor,
   LogOut,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { THEMES, type ThemeId } from "@/theme/themes";
+import {
+  THEMES,
+  THEME_ORDER,
+  isThemeId,
+  getResolvedTheme,
+  subscribeResolvedTheme,
+  type ThemeId,
+} from "@/theme/themes";
 import { Button } from "@/components/ui/Button";
 import { supabase } from "@/lib/supabase";
 import { PROPEL_ACCOUNT_URL, PROPEL_PRICING_URL } from "@/constants/appConstants";
@@ -30,6 +40,7 @@ import { StatusPill } from "@/components/ui/StatusPill";
 import { PlanIcon } from "@/components/ui/PlanIcon";
 import { Callout } from "@/components/ui/Callout";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Segmented } from "@/components/ui/Segmented";
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import { cn } from "@/utils/cn";
 
@@ -87,6 +98,42 @@ const ProLock: React.FC<{ onClick: () => void }> = ({ onClick }) => (
     <Lock className="h-2.5 w-2.5" /> PRO
   </button>
 );
+
+const THEME_ICONS: Record<ThemeId, React.ReactNode> = {
+  light: <Sun />,
+  dark: <Moon />,
+  system: <Monitor />,
+};
+
+/** Light / Dark / System switch. Applies instantly via the settings store. */
+const ThemeSwitch: React.FC = () => {
+  const stored = useSettingsStore((s) => s.themeId);
+  const setThemeId = useSettingsStore((s) => s.setThemeId);
+  const themeId: ThemeId = isThemeId(stored) ? stored : "light";
+  const resolved = useSyncExternalStore(subscribeResolvedTheme, getResolvedTheme);
+
+  return (
+    <div className="py-3">
+      <SectionTitle icon={<Monitor className="h-3.5 w-3.5" />} label="Theme" />
+      <div className="flex flex-wrap items-center justify-between gap-4 py-1.5">
+        <div className="min-w-0">
+          <p className="text-body font-medium text-fg-1">Color theme</p>
+          <p className="mt-0.5 text-caption text-fg-3">
+            {themeId === "system"
+              ? `Follows your Windows setting · currently ${resolved === "dark" ? "Dark" : "Light"}`
+              : THEMES[themeId].description}
+          </p>
+        </div>
+        <Segmented<ThemeId>
+          aria-label="Color theme"
+          value={themeId}
+          onChange={setThemeId}
+          options={THEME_ORDER.map((id) => ({ value: id, label: THEMES[id].name, icon: THEME_ICONS[id] }))}
+        />
+      </div>
+    </div>
+  );
+};
 
 const SETTINGS_SECTIONS: [string, string][] = [
   ["account", "Account"],
@@ -339,7 +386,8 @@ export const SettingsPage: React.FC = () => {
 
           {/* ── Appearance ── */}
           <SettingsCard id="appearance" icon={<Palette />} title="Appearance">
-            <div className="py-3">
+            <ThemeSwitch />
+            <div className="border-t border-line-subtle py-3">
               <SectionTitle
                 icon={soundEnabled ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
                 label="Sound Effects"

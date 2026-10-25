@@ -99,7 +99,9 @@ const __dirname = path
   .replace(/^\/([A-Z]:)/, "$1");
 
 
-nativeTheme.themeSource = "dark";
+// Follow Windows until the renderer sends the user's choice via "theme:set"
+// (needed so the renderer can read the real Windows theme for "system").
+nativeTheme.themeSource = "system";
 let mainWindow: BrowserWindow | null = null;
 let rendererReady = false;
 let splashReady = false;
@@ -320,6 +322,23 @@ process.on("unhandledRejection", (reason) => {
   const err = reason instanceof Error ? reason : new Error(String(reason));
   captureMainError(err, "main-process-unhandled-rejection");
   console.error("[main] Unhandled rejection:", reason);
+});
+
+// ── Theme IPC: renderer reports the user's theme mode ─────────────
+// Validated: only "light" | "dark" | "system". Sets nativeTheme and the
+// main window background (window is shown only after splash:ready, so the
+// background is right before the first visible frame).
+const THEME_WINDOW_BG = { light: "#F2F5EF", dark: "#0D100C" } as const;
+ipcMain.handle("theme:set", (event, mode: unknown) => {
+  if (mode !== "light" && mode !== "dark" && mode !== "system") {
+    return { ok: false, dark: nativeTheme.shouldUseDarkColors };
+  }
+  nativeTheme.themeSource = mode;
+  const dark = nativeTheme.shouldUseDarkColors;
+  if (mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents) {
+    mainWindow.setBackgroundColor(dark ? THEME_WINDOW_BG.dark : THEME_WINDOW_BG.light);
+  }
+  return { ok: true, dark };
 });
 
 // ── Telemetry opt-out IPC ─────────────────────────────────────────

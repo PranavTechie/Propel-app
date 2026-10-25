@@ -144,6 +144,18 @@
   contain: layout;
 }
 
+/* Theme switch cross-fade (160ms). Added by theme runtime for ~220ms only,
+   and skipped entirely under prefers-reduced-motion. */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition-property: background-color, border-color, color, fill, stroke,
+    box-shadow !important;
+  transition-duration: 160ms !important;
+  transition-timing-function: var(--ease-out) !important;
+}
+
 @keyframes shimmer {
   from {
     background-position: -200% 0;
@@ -241,7 +253,7 @@
   width: 16px;
   margin-top: -5px;
   border-radius: 999px;
-  background: rgb(var(--c-surface-raised));
+  background: rgb(var(--c-control-thumb));
   border: 1px solid rgb(var(--c-line) / var(--a-line-3));
   box-shadow: var(--shadow-1);
   transition: transform var(--dur-fast) var(--ease-out),

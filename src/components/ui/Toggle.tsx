@@ -25,7 +25,7 @@ export const Toggle = React.forwardRef<HTMLButtonElement, ToggleProps>(
     >
       <SwitchPrimitive.Thumb
         className={cn(
-          "pointer-events-none block rounded-full bg-surface-raised shadow-[var(--shadow-1)] transition-transform duration-base ease-out",
+          "pointer-events-none block rounded-full bg-control-thumb shadow-[var(--shadow-1)] transition-transform duration-base ease-out",
           "group-active/toggle:scale-95",
           size === "md"
             ? "h-4 w-4 translate-x-[1px] data-[state=checked]:translate-x-[17px]"

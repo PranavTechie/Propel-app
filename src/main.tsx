@@ -2,10 +2,20 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './App'
 import './styles/globals.css'
-import { applyTheme } from './theme/themes'
+import { initTheme } from './theme/themes'
+import { useSettingsStore } from './store/settingsStore'
 import { installCrashHandlers } from './services/crashLogger'
 import { initRendererTelemetry } from './services/telemetry'
 import { TelemetryErrorBoundary } from './components/common/TelemetryErrorBoundary'
+
+// ── Theme: apply synchronously BEFORE anything renders ───────────────────
+// Sets data-theme + color-scheme on <html> so the first paint already uses
+// the right token set. A missing/invalid/old saved value falls back to light.
+try {
+  initTheme(useSettingsStore.getState().themeId)
+} catch {
+  initTheme('light')
+}
 
 // ── Telemetry: init BEFORE rendering, non-blocking ───────────────────────
 initRendererTelemetry()
@@ -27,14 +37,11 @@ if (import.meta.env.DEV) {
     }
     console.log(
       '%c[Propel Dev] Telemetry test suite ready → window.__cmTelemetryTest',
-      'color: #6366f1; font-weight: bold',
+      'font-weight: bold',
     )
   }).catch(() => { /* non-fatal — never breaks dev server */ })
 }
 
-
-// Always apply Light theme — Dark theme has been removed.
-applyTheme('light')
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

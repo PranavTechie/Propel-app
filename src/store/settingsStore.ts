@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { applyTheme, type ThemeId } from '@/theme/themes'
+import { applyTheme, isThemeId, type ThemeId } from '@/theme/themes'
 
 // ── Store ─────────────────────────────────────────────────────────────────
 interface SettingsState {
@@ -47,11 +47,15 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     { 
       name: 'propel-settings',
-      version: 2, // bump to migrate away from removed 'pure-black' theme
+      version: 3, // v3: themeId may be 'light' | 'dark' | 'system'
       migrate: (persisted: unknown, version: number) => {
         const state = (persisted ?? {}) as Record<string, unknown>
         // Any prior version may have stored themeId: 'pure-black' — force light
         if (version < 2) {
+          state.themeId = 'light'
+        }
+        // v3: keep 'light' / 'dark'; anything missing or unknown becomes 'light'
+        if (!isThemeId(state.themeId)) {
           state.themeId = 'light'
         }
         return state

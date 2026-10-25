@@ -8,10 +8,10 @@
  * Colors are stored as space-separated RGB channels (--c-*) so Tailwind can
  * apply alpha modifiers: rgb(var(--c-brand) / .2).
  *
- * Themes: light is the default. [data-theme="dark"] is fully designed but
- * not wired to a switch yet (main process forces nativeTheme "dark", so
- * prefers-color-scheme cannot be trusted). Force it in DevTools with:
- *   document.documentElement.dataset.theme = 'dark'
+ * Themes: light is the default. [data-theme="dark"] is selected from
+ * Settings > Appearance (Light / Dark / System), applied by src/theme/themes.ts.
+ * Every variable in the light block must also exist in the dark block;
+ * tests/test_theme_tokens.cjs enforces this plus WCAG contrast pairs.
  */
 
 :root {
@@ -127,6 +127,7 @@
   --c-fg-4: 150 158 146; /* disabled / placeholder */
   --c-fg-on-brand: 255 255 255;
   --c-fg-on-danger: 255 255 255; /* 4.6:1 on red-600 */
+  --c-control-thumb: 255 255 255; /* switch + slider thumbs */
 
   /* Lines (alpha over the line color adapts to any surface) */
   --c-line: 38 56 30;
@@ -181,7 +182,7 @@
 }
 
 /* ═════════════════════════════════════════════════════════════════════
- * DARK (designed, not wired yet)
+ * DARK
  * ═════════════════════════════════════════════════════════════════════ */
 [data-theme="dark"] {
   color-scheme: dark;
@@ -205,6 +206,7 @@
   --c-fg-4: 92 102 89;
   --c-fg-on-brand: 12 24 8; /* dark text on green-500: 5.9:1 */
   --c-fg-on-danger: 32 8 6; /* dark text on red-400 */
+  --c-control-thumb: 214 222 210; /* soft off-white, reads on dark tracks */
 
   --c-line: 225 240 215;
   --a-line-1: 0.06;
@@ -245,6 +247,9 @@
     0 4px 14px -2px rgb(90 166 60 / 0.3);
   --highlight-top: inset 0 1px 0 rgb(255 255 255 / 0.045);
   --highlight-brand: inset 0 1px 0 rgb(255 255 255 / 0.22);
+
+  --ring: 0 0 0 2px rgb(var(--c-surface-raised)),
+    0 0 0 4px rgb(var(--c-brand) / 0.5);
 }
 
 /* ═════════════════════════════════════════════════════════════════════

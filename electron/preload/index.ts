@@ -63,6 +63,13 @@ const api = {
     },
   },
 
+  // ── Theme ────────────────────────────────────────────────
+  // Main validates the mode; returns whether dark colors are in effect.
+  theme: {
+    set: (mode: "light" | "dark" | "system"): Promise<{ ok: boolean; dark: boolean }> =>
+      ipcRenderer.invoke("theme:set", mode),
+  },
+
   // ── Telemetry opt-out ────────────────────────────────────
   telemetry: {
     setEnabled: (enabled: boolean): Promise<{ ok: boolean }> =>
