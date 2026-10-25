@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { Minus, Square, X, Leaf, CircleUserRound } from "lucide-react";
+import { Minus, Square, X, Leaf } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { cn } from "@/utils/cn";
 
@@ -21,9 +21,7 @@ const Metric = memo<{ label: string; value: string; warn: boolean }>(
 Metric.displayName = "Metric";
 
 export const TitleBar: React.FC = () => {
-  const entitlement = useAppStore((s) => s.entitlementStatus);
   const stats = useAppStore((s) => s.stats);
-  const plan = entitlement.trial_active ? "PRO trial" : entitlement.plan;
   const control =
     "flex h-9 w-10 items-center justify-center text-text-muted hover:bg-black/5 hover:text-text-primary dark:hover:bg-white/5";
   return (
@@ -65,12 +63,6 @@ export const TitleBar: React.FC = () => {
         )}
       </div>
       <div className="no-drag flex items-center">
-        <div className="mr-3 flex items-center gap-2 rounded-lg border border-border/60 bg-bg-elevated/60 px-2.5 py-1.5">
-          <CircleUserRound className="h-3.5 w-3.5 text-text-muted" />
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary">
-            {plan}
-          </span>
-        </div>
         <button
           aria-label="Minimize"
           title="Minimize"

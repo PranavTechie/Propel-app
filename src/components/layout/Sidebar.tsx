@@ -98,11 +98,15 @@ SystemStatus.displayName = "SystemStatus";
 const AccountCard = memo(() => {
   const entitlement = useAppStore((s) => s.entitlementStatus);
   const email = useAppStore((s) => s.session?.user?.email);
+  const setActivePage = useAppStore((s) => s.setActivePage);
   const plan = entitlement.trial_active
     ? "PRO Trial"
     : `${entitlement.plan} plan`;
   return (
-    <div className="mx-3 mb-3 rounded-xl border border-border/70 bg-bg-elevated/70 p-3">
+    <button
+      onClick={() => setActivePage("settings")}
+      className="mx-3 mb-3 block w-[calc(100%-24px)] text-left rounded-xl border border-border/70 bg-bg-elevated/70 p-3 transition-colors hover:border-brand-primary/30 hover:bg-bg-elevated focus-visible:outline-none"
+    >
       <div className="flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary">
           <Sparkles className="h-4 w-4" />
@@ -114,7 +118,7 @@ const AccountCard = memo(() => {
           </p>
         </div>
       </div>
-    </div>
+    </button>
   );
 });
 AccountCard.displayName = "AccountCard";
