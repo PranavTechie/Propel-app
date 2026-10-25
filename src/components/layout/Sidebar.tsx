@@ -22,7 +22,7 @@ import { getHealthScore } from "@/utils/format";
 import { scoreTone } from "@/theme/thresholds";
 import { RingGauge } from "@/components/ui/RingGauge";
 import { Tooltip } from "@/components/ui/Tooltip";
-import { AccountAvatar } from "@/components/ui/PlanIcon";
+import { PlanIcon } from "@/components/ui/PlanIcon";
 import { useGatedStore } from "@/components/ui/hooks/useGatedStore";
 import type { NavPage } from "@/types";
 
@@ -120,7 +120,7 @@ const AccountCard = memo<{ collapsed: boolean }>(({ collapsed }) => {
   const iconPlan = entitlement.trial_active ? "PRO" : entitlement.plan;
 
   const avatar = (
-    <AccountAvatar identity={email} plan={iconPlan} size={32} ringClassName="ring-surface-chrome" />
+    <PlanIcon variant="avatar" plan={iconPlan} size={32} />
   );
 
   return (

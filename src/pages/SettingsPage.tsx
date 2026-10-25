@@ -27,7 +27,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Toggle as UiToggle } from "@/components/ui/Toggle";
 import { Slider } from "@/components/ui/Slider";
 import { StatusPill } from "@/components/ui/StatusPill";
-import { PlanIcon, AccountAvatar } from "@/components/ui/PlanIcon";
+import { PlanIcon } from "@/components/ui/PlanIcon";
 import { Callout } from "@/components/ui/Callout";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { staggerContainer, staggerItem } from "@/animations/variants";
@@ -295,11 +295,10 @@ export const SettingsPage: React.FC = () => {
           <SettingsCard id="account" icon={<Shield />} title="Account & Entitlement">
             <div className="flex items-center justify-between gap-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
-                <AccountAvatar
-                  identity={session?.user?.email}
+                <PlanIcon
+                  variant="avatar"
                   plan={entitlement.trial_active ? "PRO" : entitlement.plan}
                   size={40}
-                  ringClassName="ring-surface-raised"
                 />
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 text-body font-semibold text-fg-1">

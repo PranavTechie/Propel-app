@@ -9,21 +9,29 @@ export type PlanId = "FREE" | "PRO" | "MAX";
  * user's plan icon renders this component; never copy the mapping.
  * MAX uses a brand-green gradient on purpose: amber means "warning" here.
  */
-const PLAN_VISUAL: Record<PlanId, { icon: LucideIcon; disc: string; label: string }> = {
+const MAX_GRADIENT = "bg-[linear-gradient(135deg,rgb(var(--green-700)),rgb(var(--green-400)))]";
+
+const PLAN_VISUAL: Record<
+  PlanId,
+  { icon: LucideIcon; label: string; badge: string; avatar: string }
+> = {
   FREE: {
     icon: User,
-    disc: "bg-surface-inset text-fg-3 shadow-[inset_0_0_0_1px_rgb(var(--c-line)/var(--a-line-2))]",
     label: "FREE",
+    badge: "bg-surface-inset text-fg-3 shadow-[inset_0_0_0_1px_rgb(var(--c-line)/var(--a-line-2))]",
+    avatar: "bg-surface-inset text-fg-3 ring-1 ring-line",
   },
   PRO: {
     icon: Zap,
-    disc: "bg-brand-solid text-fg-on-brand",
     label: "PRO",
+    badge: "bg-brand-solid text-fg-on-brand",
+    avatar: "bg-brand-soft text-brand ring-1 ring-brand/20",
   },
   MAX: {
     icon: Crown,
-    disc: "bg-[linear-gradient(135deg,rgb(var(--green-700)),rgb(var(--green-400)))] text-[rgb(var(--neutral-0))]",
     label: "MAX",
+    badge: `${MAX_GRADIENT} text-fg-on-brand`,
+    avatar: `${MAX_GRADIENT} text-fg-on-brand ring-1 ring-brand/30`,
   },
 };
 
@@ -34,15 +42,14 @@ export function toPlanId(plan: string | null | undefined): PlanId {
 
 interface PlanIconProps {
   plan: PlanId | string | null | undefined;
-  /** Outer size in px (disc diameter for "badge", glyph size for "glyph"). */
+  /** Outer size in px (circle diameter, or glyph size for "glyph"). */
   size?: number;
   /**
-   * "badge": colored disc with the icon (avatar corner, standalone).
-   * "glyph": icon only in currentColor (inside pills and text labels).
+   * "avatar": account circle with the plan icon inside (Sidebar, Settings).
+   * "badge":  small colored disc next to a plan label.
+   * "glyph":  icon only in currentColor (inside pills).
    */
-  variant?: "badge" | "glyph";
-  /** Ring that separates the badge from what it sits on, e.g. "ring-surface-chrome". */
-  ringClassName?: string;
+  variant?: "avatar" | "badge" | "glyph";
   className?: string;
 }
 
@@ -50,11 +57,11 @@ export const PlanIcon: React.FC<PlanIconProps> = ({
   plan,
   size = 14,
   variant = "badge",
-  ringClassName,
   className,
 }) => {
   const id = toPlanId(plan);
-  const { icon: Icon, disc, label } = PLAN_VISUAL[id];
+  const visual = PLAN_VISUAL[id];
+  const Icon = visual.icon;
 
   if (variant === "glyph") {
     return (
@@ -67,60 +74,25 @@ export const PlanIcon: React.FC<PlanIconProps> = ({
     );
   }
 
+  const isAvatar = variant === "avatar";
+  // Avatar: icon ~55% of the circle, stroke 2. Badge: denser glyph.
+  const iconSize = Math.round(size * (isAvatar ? 0.55 : 0.58));
+
   return (
     <span
       role="img"
-      aria-label={`${label} plan`}
+      aria-label={`${visual.label} plan`}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full",
-        disc,
-        ringClassName && cn("ring-2", ringClassName),
+        isAvatar ? visual.avatar : visual.badge,
         className,
       )}
       style={{ width: size, height: size }}
     >
       <Icon
         aria-hidden
-        strokeWidth={2.6}
-        style={{ width: Math.round(size * 0.58), height: Math.round(size * 0.58) }}
-      />
-    </span>
-  );
-};
-
-interface AccountAvatarProps {
-  /** Email or name; the first letter becomes the initial. */
-  identity?: string | null;
-  plan: PlanId | string | null | undefined;
-  size?: number;
-  /** Background of the surface the avatar sits on, used for the badge ring. */
-  ringClassName?: string;
-  className?: string;
-}
-
-/** Initial-letter avatar with the plan badge on its bottom-right corner. */
-export const AccountAvatar: React.FC<AccountAvatarProps> = ({
-  identity,
-  plan,
-  size = 32,
-  ringClassName = "ring-surface-raised",
-  className,
-}) => {
-  const initial = (identity?.trim()?.[0] ?? "P").toUpperCase();
-  const badge = size >= 40 ? 16 : 14;
-  return (
-    <span className={cn("relative inline-flex shrink-0", className)} style={{ width: size, height: size }}>
-      <span
-        className="flex h-full w-full items-center justify-center rounded-full bg-brand-soft font-bold text-brand-fg ring-1 ring-brand/20"
-        style={{ fontSize: Math.round(size * 0.4) }}
-      >
-        {initial}
-      </span>
-      <PlanIcon
-        plan={plan}
-        size={badge}
-        ringClassName={ringClassName}
-        className="absolute -bottom-0.5 -right-0.5"
+        strokeWidth={isAvatar ? 2 : 2.6}
+        style={{ width: iconSize, height: iconSize }}
       />
     </span>
   );
