@@ -63,13 +63,13 @@ const StatTile: React.FC<{
   sub?: string;
   icon: React.ReactNode;
 }> = ({ label, value, sub, icon }) => (
-  <div className="rounded-control border border-line-subtle bg-surface-inset px-3 py-2.5">
+  <div className="rounded-control border border-line-subtle bg-surface-inset px-2.5 py-2">
     <p className="flex items-center gap-1.5 text-caption text-fg-3">
       {icon}
       {label}
     </p>
-    <p className="mt-1 text-title font-semibold text-fg-1 tabular">{value}</p>
-    {sub && <p className="text-[10.5px] text-fg-3 tabular">{sub}</p>}
+    <p className="mt-0.5 text-body font-semibold text-fg-1 tabular">{value}</p>
+    {sub && <p className="text-[10px] text-fg-3 tabular leading-tight">{sub}</p>}
   </div>
 );
 
@@ -85,7 +85,7 @@ const ProcessRow: React.FC<{
     <motion.li
       variants={staggerItem}
       layout="position"
-      className="flex items-center gap-3 py-2.5"
+      className="flex items-center gap-3.5 py-2.5"
     >
       <span
         className={cn(
@@ -95,22 +95,25 @@ const ProcessRow: React.FC<{
       >
         {rank + 1}
       </span>
-      <div className="min-w-0 flex-1">
-        <p className="flex items-baseline gap-1.5 truncate text-body-sm font-medium text-fg-1">
-          {proc.name}
+      <div className="w-44 sm:w-56 md:w-64 shrink-0 truncate">
+        <p className="flex items-baseline gap-1.5 truncate text-body-sm font-medium text-fg-1" title={proc.name}>
+          <span className="truncate">{proc.name}</span>
           {proc.count && proc.count > 1 && (
-            <span className="text-[10.5px] font-normal text-fg-3">({proc.count} processes)</span>
+            <span className="shrink-0 text-[10.5px] font-normal text-fg-3">
+              ({proc.count})
+            </span>
           )}
         </p>
+      </div>
+      <div className="min-w-0 flex-1 px-2">
         <Progress
           value={pct}
           tone={rank < 3 ? "brand" : "neutral"}
           size="xs"
-          className="mt-1.5"
           aria-label={`${proc.name} memory share`}
         />
       </div>
-      <span className="shrink-0 text-body-sm font-semibold text-fg-2 tabular">
+      <span className="w-24 shrink-0 text-right text-body-sm font-semibold text-fg-2 tabular">
         {formatBytes(proc.memBytes)}
       </span>
     </motion.li>
@@ -323,73 +326,77 @@ export const MemoryPage: React.FC = () => {
           }
         />
 
-        <div className="grid grid-cols-[1.6fr_1fr] items-start gap-4 max-[900px]:grid-cols-1">
-          <div className="flex flex-col gap-4">
-            <Card level="feature" className="p-6">
-              <div className="flex items-center gap-6">
-                <div className="shrink-0">
-                  <RingGauge
-                    value={memStats ? memStats.pressurePercent : null}
-                    tone={tone}
-                    size={144}
-                    thickness={11}
-                    ticks
-                    aria-label={`Memory pressure ${memStats?.pressurePercent ?? "loading"} percent`}
-                  >
-                    {memStats ? (
-                      <>
-                        <span className="flex items-baseline">
-                          <CountUp
-                            value={memStats.pressurePercent}
-                            className="font-display text-[32px] font-semibold leading-none text-fg-1"
-                          />
-                          <span className="text-body font-medium text-fg-3">%</span>
-                        </span>
-                        <span className="mt-1 text-caption text-fg-3">Memory</span>
-                      </>
-                    ) : (
-                      <Skeleton className="h-8 w-14" />
-                    )}
-                  </RingGauge>
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="mb-3 flex items-center gap-2">
-                    <StatusPill tone={memStats ? tone : "neutral"}>
-                      {memStats ? `${pressureLabel(memStats.pressurePercent)} pressure` : "Reading"}
-                    </StatusPill>
+        <div className="space-y-4">
+          {/* ── Top Section: Two Equal-Sized Cards (50/50) ── */}
+          <div className="grid grid-cols-2 gap-4 max-[900px]:grid-cols-1 items-stretch">
+            {/* Left: Memory Overview */}
+            <Card level="feature" className="p-5 h-full flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-5">
+                  <div className="shrink-0">
+                    <RingGauge
+                      value={memStats ? memStats.pressurePercent : null}
+                      tone={tone}
+                      size={132}
+                      thickness={10}
+                      ticks
+                      aria-label={`Memory pressure ${memStats?.pressurePercent ?? "loading"} percent`}
+                    >
+                      {memStats ? (
+                        <>
+                          <span className="flex items-baseline">
+                            <CountUp
+                              value={memStats.pressurePercent}
+                              className="font-display text-[28px] font-semibold leading-none text-fg-1"
+                            />
+                            <span className="text-body font-medium text-fg-3">%</span>
+                          </span>
+                          <span className="mt-1 text-caption text-fg-3">Memory</span>
+                        </>
+                      ) : (
+                        <Skeleton className="h-8 w-14" />
+                      )}
+                    </RingGauge>
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <StatTile label="Total RAM" value={formatBytes(memStats?.total ?? 0)} icon={<HardDrive className="h-3.5 w-3.5" />} />
-                    <StatTile
-                      label="In Use"
-                      value={formatBytes(memStats?.used ?? 0)}
-                      sub={`${memStats?.pressurePercent ?? 0}%`}
-                      icon={<Activity className="h-3.5 w-3.5" />}
-                    />
-                    <StatTile
-                      label="Available"
-                      value={formatBytes(memStats?.available ?? 0)}
-                      sub={`${memStats?.availablePercent ?? 0}% free`}
-                      icon={<CheckCircle className="h-3.5 w-3.5" />}
-                    />
-                    <StatTile
-                      label="Cached"
-                      value={formatBytes(memStats?.cached ?? 0)}
-                      sub={`${memStats?.cachedPercent ?? 0}% of total`}
-                      icon={<BarChart3 className="h-3.5 w-3.5" />}
-                    />
+
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-2 flex items-center gap-2">
+                      <StatusPill tone={memStats ? tone : "neutral"}>
+                        {memStats ? `${pressureLabel(memStats.pressurePercent)} pressure` : "Reading"}
+                      </StatusPill>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <StatTile label="Total RAM" value={formatBytes(memStats?.total ?? 0)} icon={<HardDrive className="h-3.5 w-3.5" />} />
+                      <StatTile
+                        label="In Use"
+                        value={formatBytes(memStats?.used ?? 0)}
+                        sub={`${memStats?.pressurePercent ?? 0}%`}
+                        icon={<Activity className="h-3.5 w-3.5" />}
+                      />
+                      <StatTile
+                        label="Available"
+                        value={formatBytes(memStats?.available ?? 0)}
+                        sub={`${memStats?.availablePercent ?? 0}% free`}
+                        icon={<CheckCircle className="h-3.5 w-3.5" />}
+                      />
+                      <StatTile
+                        label="Cached"
+                        value={formatBytes(memStats?.cached ?? 0)}
+                        sub={`${memStats?.cachedPercent ?? 0}% of total`}
+                        icon={<BarChart3 className="h-3.5 w-3.5" />}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
               {memStats && memStats.swapTotal > 0 && (
-                <div className="mt-5 border-t border-line-subtle pt-4">
+                <div className="mt-4 border-t border-line-subtle pt-3">
                   <Progress
                     value={swapPct}
                     tone={swapPct > 80 ? "critical" : swapPct > 50 ? "warning" : "healthy"}
                     label={
-                      <span className="flex items-center gap-1.5">
+                      <span className="flex items-center gap-1.5 text-caption">
                         <HardDrive className="h-3 w-3" />
                         Page File (Swap)
                       </span>
@@ -402,126 +409,95 @@ export const MemoryPage: React.FC = () => {
               )}
             </Card>
 
-            <Card className="p-5">
-              <div className="mb-2 flex items-center justify-between">
-                <div>
-                  <CardEyebrow>Processes</CardEyebrow>
-                  <h2 className="mt-1 text-title font-semibold text-fg-1">Top Memory Consumers</h2>
+            {/* Right: Focus Mode */}
+            <Card className={cn("p-5 h-full flex flex-col justify-between transition-colors duration-base", perfMode && "border-brand/30")}>
+              <div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-control",
+                      perfMode ? "bg-brand-soft text-brand-fg" : "bg-surface-inset text-fg-2",
+                    )}
+                  >
+                    <Gauge className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-title font-semibold text-fg-1">Focus Mode</p>
+                      {perfMode && <StatusPill tone="healthy">ON</StatusPill>}
+                    </div>
+                    <p className="text-caption text-fg-3">
+                      {perfModeLoading ? "Applying…" : perfMode ? "Enabled" : "Disabled"}
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={perfMode}
+                    disabled={perfModeLoading}
+                    onCheckedChange={() => void handleTogglePerfMode()}
+                    aria-label={perfMode ? "Disable Focus Mode" : "Enable Focus Mode"}
+                  />
                 </div>
-                <span className="flex items-center gap-1.5 text-caption text-fg-3">
-                  <span className="status-dot" />
-                  Live · updates every 3s
-                </span>
-              </div>
 
-              {processes.length > 0 ? (
-                <motion.ul
-                  variants={staggerContainer}
-                  initial="initial"
-                  animate="animate"
-                  className="divide-y divide-line-subtle"
-                >
-                  {groupedProcesses.slice(0, 12).map((proc, i) => (
-                    <ProcessRow key={proc.pid} proc={proc} max={maxProcMem} rank={i} />
-                  ))}
-                </motion.ul>
-              ) : (
-                <div role="status" aria-label="Loading process data">
-                  <SkeletonRow />
-                  <SkeletonRow />
-                  <SkeletonRow />
-                  <p className="pt-1 text-center text-caption text-fg-3">Loading process data…</p>
-                </div>
-              )}
-            </Card>
-
-            <AnimatePresence>
-              {lastOptimization && (
-                <OptimizeReport
-                  result={lastOptimization}
-                  onDismiss={() => setMemory({ lastOptimization: null })}
-                />
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="flex flex-col gap-4">
-            <Card className="p-5">
-              <div className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-control",
-                    isOptimizing ? "bg-brand-soft text-brand-fg" : "bg-surface-inset text-fg-2",
-                  )}
-                >
-                  <Zap className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-title font-semibold text-fg-1">
-                    {isOptimizing ? "Optimizing…" : "Optimize Memory"}
-                  </p>
-                  <p className="text-caption text-fg-3">Use Optimize Now at the top right</p>
-                </div>
-              </div>
-              <p className="mt-3 text-body-sm text-fg-2">
-                {isOptimizing
-                  ? "This may cause a momentary slowdown in recently-optimized apps as they resume."
-                  : "Trims memory working sets to reclaim available RAM without killing any processes."}
-              </p>
-              {isOptimizing && (
-                <Progress value={null} indeterminate className="mt-4" aria-label="Optimizing memory" />
-              )}
-              <div className="mt-4 flex items-start gap-2.5 rounded-control bg-surface-inset px-3 py-2.5">
-                <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success-fg" />
-                <p className="text-caption text-fg-3">
-                  Optimization is <span className="font-semibold text-success-fg">non-destructive</span>.
-                  No processes are terminated. Working sets are trimmed using the standard Windows{" "}
-                  <code className="rounded-tiny bg-surface-raised px-1 font-mono text-[10.5px] text-fg-2">
-                    EmptyWorkingSet
-                  </code>{" "}
-                  API.
+                <p className="mt-4 text-body-sm text-fg-2 leading-relaxed">
+                  {perfMode
+                    ? "Background processes deprioritized — more CPU and memory bandwidth for foreground applications."
+                    : "Deprioritize background tasks to boost responsiveness, gaming, and heavy workload performance."}
                 </p>
               </div>
-            </Card>
 
-            <Card className={cn("p-5 transition-colors duration-base", perfMode && "border-brand/30")}>
-              <div className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    "flex h-10 w-10 items-center justify-center rounded-control",
-                    perfMode ? "bg-brand-soft text-brand-fg" : "bg-surface-inset text-fg-2",
-                  )}
-                >
-                  <Gauge className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="text-title font-semibold text-fg-1">Focus Mode</p>
-                    {perfMode && <StatusPill tone="healthy">ON</StatusPill>}
-                  </div>
-                  <p className="text-caption text-fg-3">{perfModeLoading ? "Applying…" : perfMode ? "Enabled" : "Disabled"}</p>
-                </div>
-                <Toggle
-                  checked={perfMode}
-                  disabled={perfModeLoading}
-                  onCheckedChange={() => void handleTogglePerfMode()}
-                  aria-label={perfMode ? "Disable Focus Mode" : "Enable Focus Mode"}
-                />
-              </div>
-              <p className="mt-3 text-body-sm text-fg-2">
-                {perfMode
-                  ? "Background processes deprioritized — more CPU for foreground apps"
-                  : "Deprioritize background tasks to boost gaming and workload performance"}
-              </p>
-              <div className="mt-4 flex items-start gap-2.5 rounded-control bg-surface-inset px-3 py-2.5">
+              <div className="mt-4 flex items-start gap-2.5 rounded-control bg-surface-inset p-3">
                 <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success-fg" />
-                <p className="text-caption text-fg-3">
+                <p className="text-caption text-fg-3 leading-relaxed">
                   Focus Mode temporarily lowers priority of background apps to favor your active app or
                   game. Automatically restores original priorities when disabled.
                 </p>
               </div>
             </Card>
           </div>
+
+          {/* ── Optimization Report Banner ── */}
+          <AnimatePresence>
+            {lastOptimization && (
+              <OptimizeReport
+                result={lastOptimization}
+                onDismiss={() => setMemory({ lastOptimization: null })}
+              />
+            )}
+          </AnimatePresence>
+
+          {/* ── Top Memory Consumers: Full Width ── */}
+          <Card className="p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <CardEyebrow>Processes</CardEyebrow>
+                <h2 className="mt-1 text-title font-semibold text-fg-1">Top Memory Consumers</h2>
+              </div>
+              <span className="flex items-center gap-1.5 text-caption text-fg-3">
+                <span className="status-dot" />
+                Live · updates every 3s
+              </span>
+            </div>
+
+            {processes.length > 0 ? (
+              <motion.ul
+                variants={staggerContainer}
+                initial="initial"
+                animate="animate"
+                className="divide-y divide-line-subtle"
+              >
+                {groupedProcesses.slice(0, 12).map((proc, i) => (
+                  <ProcessRow key={proc.pid} proc={proc} max={maxProcMem} rank={i} />
+                ))}
+              </motion.ul>
+            ) : (
+              <div role="status" aria-label="Loading process data">
+                <SkeletonRow />
+                <SkeletonRow />
+                <SkeletonRow />
+                <p className="pt-1 text-center text-caption text-fg-3">Loading process data…</p>
+              </div>
+            )}
+          </Card>
         </div>
       </div>
     </div>
