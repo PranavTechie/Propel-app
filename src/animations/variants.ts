@@ -93,9 +93,9 @@ export const shimmerVariants: Variants = {
 export const pulseGlow: Variants = {
   animate: {
     boxShadow: [
-      '0 0 0px rgba(99,102,241,0)',
-      '0 0 24px rgba(99,102,241,0.5)',
-      '0 0 0px rgba(99,102,241,0)',
+      '0 0 0px rgb(var(--c-brand) / 0)',
+      '0 0 24px rgb(var(--c-brand) / 0.35)',
+      '0 0 0px rgb(var(--c-brand) / 0)',
     ],
     transition: { repeat: Infinity, duration: 2.5, ease: 'easeInOut' },
   },

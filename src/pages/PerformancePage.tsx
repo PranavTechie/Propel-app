@@ -9,9 +9,19 @@ import {
   Activity,
   Clock3,
   Layers3,
+  ArrowRight,
+  Wrench,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { LiveChart } from "@/components/charts/LiveChart";
+import { StatCard } from "@/components/common/StatCard";
+import { Button } from "@/components/ui/Button";
+import { Card, CardEyebrow } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Progress } from "@/components/ui/Progress";
+import { Skeleton, SkeletonStatCard } from "@/components/ui/Skeleton";
+import { useGatedStore } from "@/components/ui/hooks/useGatedStore";
+import type { UsageMetric } from "@/theme/thresholds";
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import { formatBytes, formatMbps, formatUptime } from "@/utils/format";
 import { cn } from "@/utils/cn";
@@ -20,65 +30,56 @@ interface MeterProps {
   value: number;
   max?: number;
   unit?: string;
-  color: string;
+  metric: UsageMetric;
 }
 const Meter: React.FC<MeterProps> = memo(
-  ({ label, value, max = 100, unit = "%", color }) => {
+  ({ label, value, max = 100, unit = "%", metric }) => {
     const pct = Math.min(100, (value / max) * 100);
     return (
-      <div>
-        <div className="mb-1.5 flex justify-between text-[11px]">
-          <span className="text-text-secondary">{label}</span>
-          <span className="font-semibold tabular-nums text-text-primary">
-            {unit === "%" ? `${Math.round(value)}%` : `${value} ${unit}`}
-          </span>
-        </div>
-        <div className="stat-bar">
-          <div
-            className={cn("stat-bar-fill", color)}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      </div>
+      <Progress
+        value={pct}
+        metric={metric}
+        size="md"
+        label={label}
+        showValue
+        valueLabel={unit === "%" ? `${Math.round(value)}%` : `${value} ${unit}`}
+      />
     );
   },
 );
-const Summary = ({
-  label,
-  value,
-  detail,
-  icon: Icon,
-  percent,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-  icon: React.ElementType;
-  percent?: number;
-}) => (
-  <motion.div
-    variants={staggerItem}
-    className="border-r border-border/60 px-5 last:border-0 max-[1050px]:border-b max-[1050px]:border-r-0 max-[1050px]:py-4"
-  >
-    <div className="flex items-center justify-between">
-      <p className="section-label">{label}</p>
-      <Icon className="h-4 w-4 text-text-muted" />
-    </div>
-    <p className="mt-3 text-[25px] font-semibold tracking-[-.04em] tabular-nums text-text-primary">
-      {value}
-    </p>
-    <p className="mt-1 text-[11px] text-text-muted">{detail}</p>
-    {percent !== undefined && (
-      <div className="mt-3 stat-bar">
-        <div className="stat-bar-fill" style={{ width: `${percent}%` }} />
-      </div>
-    )}
-  </motion.div>
+
+const Fact: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
+  <div className="flex items-center justify-between gap-3 py-2">
+    <dt className="text-body-sm text-fg-3">{label}</dt>
+    <dd className="text-body-sm font-semibold text-fg-1 tabular">{value}</dd>
+  </div>
 );
+
+const DetailCard: React.FC<{
+  title: string;
+  icon: React.ReactNode;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ title, icon, action, children }) => (
+  <Card className="flex flex-col p-5">
+    <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-8 w-8 items-center justify-center rounded-control bg-surface-inset text-fg-2 [&>svg]:h-4 [&>svg]:w-4">
+          {icon}
+        </span>
+        <h3 className="text-title font-semibold text-fg-1">{title}</h3>
+      </div>
+      {action}
+    </div>
+    {children}
+  </Card>
+);
+
 export const PerformancePage: React.FC = () => {
   const setActivePage = useAppStore((s) => s.setActivePage);
-  const stats = useAppStore((s) => s.stats);
-  const chartData = useAppStore((s) => s.chartData);
+  // Live data freezes while this page is hidden (perf budget).
+  const stats = useGatedStore((s) => s.stats);
+  const chartData = useGatedStore((s) => s.chartData);
   const addToast = useAppStore((s) => s.addToast);
   const { isOptimizingDrive } = useSessionStore(s => s.performance);
   const setPerformance = useSessionStore(s => s.setPerformance);
@@ -114,191 +115,168 @@ export const PerformancePage: React.FC = () => {
     }
   }, [addToast, setPerformance]);
   return (
-    <div className="page-shell space-y-5">
-      <header>
-        <p className="section-label">Live analytics</p>
-        <h1 className="mt-1 text-[25px] font-semibold tracking-[-.035em] text-text-primary">
-          Performance center
-        </h1>
-        <p className="mt-1 text-sm text-text-secondary">
-          Monitor resource pressure and system activity in real time.
-        </p>
-      </header>
-      <motion.section
-        variants={staggerContainer}
-        initial="initial"
-        animate="animate"
-        className="grid grid-cols-4 rounded-xl border border-border/70 bg-bg-elevated py-5 max-[1050px]:grid-cols-2 max-[760px]:grid-cols-1"
-      >
-        <Summary
-          label="CPU"
-          value={stats ? `${Math.round(stats.cpu)}%` : "—"}
-          detail={
-            stats
-              ? `${stats.cpuSpeed.toFixed(2)} GHz · ${stats.cpuCores} cores`
-              : "Connecting…"
-          }
-          icon={Cpu}
-          percent={stats?.cpu}
-        />
-        <Summary
-          label="Memory"
-          value={stats ? `${Math.round(stats.ram.percent)}%` : "—"}
-          detail={stats ? `${formatBytes(stats.ram.used)} used` : "Connecting…"}
-          icon={MemoryStick}
-          percent={stats?.ram.percent}
-        />
-        <Summary
-          label="Disk"
-          value={stats ? `${Math.round(stats.disk.percent)}%` : "—"}
-          detail={
-            stats ? `${formatBytes(stats.disk.free)} available` : "Connecting…"
-          }
-          icon={HardDrive}
-          percent={stats?.disk.percent}
-        />
-        <Summary
-          label="Network"
-          value={stats ? formatMbps(stats.network.download) : "—"}
-          detail={
-            stats ? `Upload ${formatMbps(stats.network.upload)}` : "Connecting…"
-          }
-          icon={Wifi}
-        />
-      </motion.section>
-      <div className="grid grid-cols-[minmax(0,1.8fr)_minmax(280px,.7fr)] gap-5 max-[1050px]:grid-cols-1">
-        <section className="rounded-xl border border-border/70 bg-bg-elevated p-5">
-          <div className="mb-4 flex items-center justify-between">
+    <div className="page-shell">
+      <PageHeader
+        eyebrow="Live analytics"
+        title="Performance center"
+        subtitle="Monitor resource pressure and system activity in real time."
+        meta={
+          <span className="flex items-center gap-2">
+            <span className="status-dot" />
+            Live
+          </span>
+        }
+      />
+
+      {stats ? (
+        <motion.section
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-4 gap-4 max-[1050px]:grid-cols-2"
+        >
+          <StatCard
+            title="CPU"
+            value={`${Math.round(stats.cpu)}%`}
+            subtitle={`${stats.cpuSpeed.toFixed(2)} GHz · ${stats.cpuCores} cores`}
+            icon={<Cpu className="h-full w-full" />}
+            percent={stats.cpu}
+            metric="cpu"
+          />
+          <StatCard
+            title="Memory"
+            value={`${Math.round(stats.ram.percent)}%`}
+            subtitle={`${formatBytes(stats.ram.used)} used`}
+            icon={<MemoryStick className="h-full w-full" />}
+            percent={stats.ram.percent}
+            metric="memory"
+          />
+          <StatCard
+            title="Disk"
+            value={`${Math.round(stats.disk.percent)}%`}
+            subtitle={`${formatBytes(stats.disk.free)} available`}
+            icon={<HardDrive className="h-full w-full" />}
+            percent={stats.disk.percent}
+            metric="disk"
+          />
+          <StatCard
+            title="Network"
+            value={formatMbps(stats.network.download)}
+            subtitle={`Upload ${formatMbps(stats.network.upload)}`}
+            icon={<Wifi className="h-full w-full" />}
+          />
+        </motion.section>
+      ) : (
+        <div className="grid grid-cols-4 gap-4 max-[1050px]:grid-cols-2" role="status" aria-label="Connecting">
+          {[0, 1, 2, 3].map((i) => (
+            <SkeletonStatCard key={i} />
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-[minmax(0,1.8fr)_minmax(280px,.7fr)] gap-4 max-[1050px]:grid-cols-1">
+        <Card>
+          <div className="flex items-center justify-between gap-4 px-5 pb-2 pt-4">
             <div>
-              <p className="section-label">60-second window</p>
-              <h2 className="mt-1 text-base font-semibold text-text-primary">
-                CPU and memory activity
-              </h2>
+              <CardEyebrow>60-second window</CardEyebrow>
+              <h2 className="mt-1 text-title font-semibold text-fg-1">CPU and memory activity</h2>
             </div>
-            <div className="flex items-center gap-5">
-              <div className="flex items-center gap-4 text-[11px] text-text-muted">
-                <span className="flex items-center gap-1.5">
-                  <i className="h-2 w-2 rounded-sm bg-brand-primary" />
-                  CPU
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <i className="h-2 w-2 rounded-sm bg-[#9a7b45]" />
-                  Memory
-                </span>
-              </div>
-              <span className="flex items-center gap-2 text-[11px] text-text-muted">
-                <span className="status-dot" />
-                Live
+            <div className="flex items-center gap-4 text-caption text-fg-3">
+              <span className="flex items-center gap-1.5">
+                <i className="h-2 w-2 rounded-[3px] bg-chart-1" />
+                CPU
+              </span>
+              <span className="flex items-center gap-1.5">
+                <i className="h-2 w-2 rounded-[3px] bg-chart-2" />
+                Memory
               </span>
             </div>
           </div>
-          <LiveChart data={chartData} height={300} />
-        </section>
-        <aside className="space-y-3">
-          <div className="rounded-xl border border-border/70 bg-bg-surface/65 p-5">
-            <Activity className="h-4 w-4 text-brand-primary" />
-            <p className="mt-4 section-label">Processes</p>
-            <p className="mt-1 text-xl font-semibold tabular-nums text-text-primary">
-              {stats?.processes ?? "—"}
-            </p>
-            <p className="mt-1 text-[11px] text-text-muted">
-              Currently visible to Windows
-            </p>
+          <div className="px-3 pb-3">
+            <LiveChart data={chartData} height={300} />
           </div>
-          <div className="rounded-xl border border-border/70 bg-bg-surface/65 p-5">
-            <Clock3 className="h-4 w-4 text-text-muted" />
-            <p className="mt-4 section-label">System uptime</p>
-            <p className="mt-1 text-base font-semibold tabular-nums text-text-primary">
-              {stats ? formatUptime(stats.uptime) : "—"}
-            </p>
-          </div>
-          <div className="rounded-xl border border-border/70 bg-bg-surface/65 p-5">
-            <Layers3 className="h-4 w-4 text-text-muted" />
-            <p className="mt-4 section-label">Processor</p>
-            <p className="mt-1 text-xs font-semibold leading-5 text-text-primary">
-              {stats?.cpuModel ?? "Reading processor information…"}
-            </p>
-          </div>
-        </aside>
+        </Card>
+
+        <Card className="flex flex-col px-5 pb-3 pt-4">
+          <CardEyebrow>System</CardEyebrow>
+          <h2 className="mt-1 text-title font-semibold text-fg-1">At a glance</h2>
+          <dl className="mt-3 divide-y divide-line-subtle">
+            <div className="flex items-center gap-3 py-3">
+              <Activity className="h-4 w-4 text-fg-3" />
+              <div className="flex-1">
+                <dt className="text-body-sm text-fg-3">Processes</dt>
+                <p className="text-caption text-fg-4">Currently visible to Windows</p>
+              </div>
+              <dd className="font-display text-[20px] font-semibold text-fg-1 tabular">
+                {stats ? stats.processes : <Skeleton className="h-5 w-10" />}
+              </dd>
+            </div>
+            <div className="flex items-center gap-3 py-3">
+              <Clock3 className="h-4 w-4 text-fg-3" />
+              <dt className="flex-1 text-body-sm text-fg-3">System uptime</dt>
+              <dd className="text-body font-semibold text-fg-1 tabular">
+                {stats ? formatUptime(stats.uptime) : <Skeleton className="h-4 w-14" />}
+              </dd>
+            </div>
+            <div className="py-3">
+              <div className="flex items-center gap-3">
+                <Layers3 className="h-4 w-4 text-fg-3" />
+                <dt className="text-body-sm text-fg-3">Processor</dt>
+              </div>
+              <dd className="mt-1.5 pl-7 text-body-sm font-medium text-fg-1">
+                {stats?.cpuModel ?? "Reading processor information…"}
+              </dd>
+            </div>
+          </dl>
+        </Card>
       </div>
+
       {stats && (
-        <section className="grid grid-cols-3 gap-5 max-[1000px]:grid-cols-1">
-          <div className="rounded-xl border border-border/70 bg-bg-surface/55 p-5">
-            <h3 className="mb-4 text-sm font-semibold text-text-primary">
-              Processor load
-            </h3>
-            <Meter
-              label="Overall load"
-              value={stats.cpu}
-              color="bg-brand-primary"
-            />
-            <div className="mt-5 grid grid-cols-2 gap-y-3 text-xs">
-              <span className="text-text-muted">Cores</span>
-              <b className="text-right text-text-primary">{stats.cpuCores}</b>
-              <span className="text-text-muted">Clock</span>
-              <b className="text-right text-text-primary">
-                {stats.cpuSpeed.toFixed(2)} GHz
-              </b>
-            </div>
-          </div>
-          <div className="rounded-xl border border-border/70 bg-bg-surface/55 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-text-primary">
-                Memory allocation
-              </h3>
-              <button
-                onClick={() => setActivePage('memory')}
-                className="rounded-lg border border-border/70 px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:border-brand-primary/30 hover:text-text-primary transition-all cursor-pointer"
-              >
+        <section className="mt-4 grid grid-cols-3 gap-4 max-[1000px]:grid-cols-1">
+          <DetailCard title="Processor load" icon={<Cpu />}>
+            <Meter label="Overall load" value={stats.cpu} metric="cpu" />
+            <dl className="mt-4 divide-y divide-line-subtle">
+              <Fact label="Cores" value={stats.cpuCores} />
+              <Fact label="Clock" value={`${stats.cpuSpeed.toFixed(2)} GHz`} />
+            </dl>
+          </DetailCard>
+          <DetailCard
+            title="Memory allocation"
+            icon={<MemoryStick />}
+            action={
+              <Button variant="secondary" size="sm" iconRight={<ArrowRight />} onClick={() => setActivePage('memory')}>
                 Optimize Memory
-              </button>
-            </div>
-            <Meter
-              label="RAM usage"
-              value={stats.ram.percent}
-              color="bg-brand-primary"
-            />
-            <div className="mt-5 grid grid-cols-2 gap-y-3 text-xs">
-              <span className="text-text-muted">Available</span>
-              <b className="text-right text-text-primary">
-                {formatBytes(stats.ram.free)}
-              </b>
-              <span className="text-text-muted">Total</span>
-              <b className="text-right text-text-primary">
-                {formatBytes(stats.ram.total)}
-              </b>
-            </div>
-          </div>
-          <div className="rounded-xl border border-border/70 bg-bg-surface/55 p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-text-primary">
-                Storage capacity
-              </h3>
-              <button
+              </Button>
+            }
+          >
+            <Meter label="RAM usage" value={stats.ram.percent} metric="memory" />
+            <dl className="mt-4 divide-y divide-line-subtle">
+              <Fact label="Available" value={formatBytes(stats.ram.free)} />
+              <Fact label="Total" value={formatBytes(stats.ram.total)} />
+            </dl>
+          </DetailCard>
+          <DetailCard
+            title="Storage capacity"
+            icon={<HardDrive />}
+            action={
+              <Button
                 id="optimize-storage-drive-btn"
+                variant="secondary"
+                size="sm"
+                icon={<Wrench />}
+                loading={isOptimizingDrive}
                 onClick={handleOptimizeDrive}
-                disabled={isOptimizingDrive}
-                className="rounded-lg border border-border/70 px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:border-brand-primary/30 hover:text-text-primary disabled:opacity-50 transition-all cursor-pointer"
               >
                 {isOptimizingDrive ? "Optimizing…" : "Optimize Storage Drive"}
-              </button>
-            </div>
-            <Meter
-              label="Disk usage"
-              value={stats.disk.percent}
-              color="bg-brand-primary"
-            />
-            <div className="mt-5 grid grid-cols-2 gap-y-3 text-xs">
-              <span className="text-text-muted">Used</span>
-              <b className="text-right text-text-primary">
-                {formatBytes(stats.disk.used)}
-              </b>
-              <span className="text-text-muted">Total</span>
-              <b className="text-right text-text-primary">
-                {formatBytes(stats.disk.total)}
-              </b>
-            </div>
-          </div>
+              </Button>
+            }
+          >
+            <Meter label="Disk usage" value={stats.disk.percent} metric="disk" />
+            <dl className="mt-4 divide-y divide-line-subtle">
+              <Fact label="Used" value={formatBytes(stats.disk.used)} />
+              <Fact label="Total" value={formatBytes(stats.disk.total)} />
+            </dl>
+          </DetailCard>
         </section>
       )}
     </div>

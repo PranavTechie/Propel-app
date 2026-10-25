@@ -3,14 +3,25 @@ import { motion } from "framer-motion";
 import {
   Files,
   Scan,
-  RefreshCw,
   CheckCircle,
   Shield,
   ChevronRight,
+  Trash2,
+  Search,
+  ListChecks,
 } from "lucide-react";
 import { useSessionStore } from "@/store/sessionStore";
 import { cn } from "@/utils/cn";
 import { formatBytes } from "@/utils/format";
+import { Button } from "@/components/ui/Button";
+import { Card, CardEyebrow } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ConfirmDialog } from "@/components/ui/Modal";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Progress } from "@/components/ui/Progress";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { Callout } from "@/components/ui/Callout";
+import { EmptyState } from "@/components/ui/EmptyState";
 import type {
   DuplicateScanResult,
   DuplicateGroup,
@@ -18,6 +29,7 @@ import type {
 } from "@/types";
 
 const DuplicateSelectionBar: React.FC = () => {
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { dupScanResult, dupSelected } = useSessionStore((s) => s.ai);
   const setAi = useSessionStore((s) => s.setAi);
   const selectedSpace =
@@ -34,33 +46,59 @@ const DuplicateSelectionBar: React.FC = () => {
 
   if (dupSelected.size === 0) return null;
 
+  const affected =
+    dupScanResult?.groups
+      .flatMap((group: DuplicateGroup) => group.files)
+      .filter((file: { path: string }) => dupSelected.has(file.path)) ?? [];
+
   return (
-    <div className="fixed bottom-5 left-1/2 z-40 flex w-[min(100%-2rem,42rem)] -translate-x-1/2 items-center gap-4 rounded-xl border border-border/70 bg-bg-elevated/95 px-4 py-3 shadow-xl backdrop-blur-md">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-text-primary">
-          {dupSelected.size} files selected
-        </p>
-        <p className="text-xs text-text-muted">
-          Recoverable space: {formatBytes(selectedSpace)}
-        </p>
-      </div>
-      <button
-        onClick={() => setAi({ dupSelected: new Set<string>() })}
-        className="text-xs font-semibold text-text-muted hover:text-text-primary"
+    <>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+        className="fixed bottom-5 left-1/2 z-40 flex w-[min(100%-2rem,42rem)] -translate-x-1/2 items-center gap-4 rounded-card border border-line bg-surface-popover px-4 py-3 shadow-[var(--shadow-4),var(--highlight-top)]"
       >
-        Clear Selection
-      </button>
-      <button
-        onClick={() =>
-          window.dispatchEvent(new Event("propel:duplicate-delete-selected"))
-        }
-        className="rounded-lg bg-[#5AA63C] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#4f9635]"
-      >
-        Delete Selected
-      </button>
-    </div>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-brand-soft text-brand-fg">
+          <ListChecks className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-body font-semibold text-fg-1 tabular">{dupSelected.size} files selected</p>
+          <p className="text-caption text-fg-3 tabular">Recoverable space: {formatBytes(selectedSpace)}</p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => setAi({ dupSelected: new Set<string>() })}>
+          Clear Selection
+        </Button>
+        <Button variant="danger" size="sm" icon={<Trash2 />} onClick={() => setConfirmOpen(true)}>
+          Delete Selected
+        </Button>
+      </motion.div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`Delete ${dupSelected.size} duplicate ${dupSelected.size === 1 ? "file" : "files"}?`}
+        description="These copies will be removed. The original in each group is always kept."
+        summary={`${dupSelected.size} ${dupSelected.size === 1 ? "file" : "files"} · ${formatBytes(selectedSpace)}`}
+        items={affected.map((f: { path: string; size: number }) => ({
+          id: f.path,
+          label: <span className="font-mono text-[11px]" title={f.path}>{f.path}</span>,
+          meta: formatBytes(f.size),
+        }))}
+        confirmLabel="Delete Selected"
+        onConfirm={() => {
+          setConfirmOpen(false);
+          window.dispatchEvent(new Event("propel:duplicate-delete-selected"));
+        }}
+      />
+    </>
   );
 };
+
+const STEPS = [
+  { n: "01", title: "Scan", desc: "Find potential duplicate files." },
+  { n: "02", title: "Review", desc: "Compare duplicate groups and choose what to keep." },
+  { n: "03", title: "Clean", desc: "Safely remove selected duplicates." },
+];
 
 export const DuplicateFinderPage: React.FC = () => {
   const {
@@ -173,249 +211,235 @@ export const DuplicateFinderPage: React.FC = () => {
       (g) => filterCategory === "all" || g.category === filterCategory
     ) ?? [];
 
+  const selectedBytes = scanResult
+    ? [...selected].reduce(
+        (sum, path) =>
+          sum +
+          (scanResult.groups.flatMap((g) => g.files).find((f) => f.path === path)?.size ?? 0),
+        0
+      )
+    : 0;
+
   return (
-    <div className="h-full flex flex-col overflow-hidden relative">
-      {/* ── Page Header ── */}
-      <div className="shrink-0 px-6 pt-6 pb-4">
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-5xl mx-auto w-full flex items-center justify-between"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center shadow-glow-md">
-              <Files className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black text-text-primary">
-                Duplicate Finder
-              </h1>
-              <p className="text-sm text-text-secondary mt-0.5">
-                Hash-based duplicate detection &amp; safe removal
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={startScan}
-            disabled={scanning}
-            className="flex items-center gap-2 rounded-lg bg-[#5AA63C] px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-[#4f9635] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Scan className={cn("h-3.5 w-3.5", scanning && "animate-spin")} />
-            {scanning ? "Scanning..." : "Scan Files"}
-          </button>
-        </motion.div>
-      </div>
+    <div className="page-shell relative">
+      <div className="mx-auto w-full max-w-6xl space-y-4 pb-20">
+        <PageHeader
+          eyebrow="Storage care"
+          title="Duplicate Finder"
+          subtitle="Hash-based duplicate detection & safe removal"
+          action={
+            <Button onClick={startScan} loading={scanning} icon={<Scan />}>
+              {scanning ? "Scanning..." : "Scan Files"}
+            </Button>
+          }
+        />
 
-      {/* ── Page Content ── */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
-        <div className="max-w-5xl mx-auto w-full space-y-5">
-          {!scanResult && !scanning && (
-            <div className="grid gap-5 rounded-2xl border border-border/60 bg-white/[0.025] p-7 md:grid-cols-[1.3fr_1fr]">
-              <div>
-                <h3 className="text-lg font-bold text-text-primary">
-                  Find duplicate files safely
-                </h3>
-                <p className="mt-2 text-sm text-text-secondary leading-relaxed">
-                  Scan selected locations for identical files using hash-based
-                  detection.
-                </p>
-                <p className="mt-4 text-xs text-text-muted leading-relaxed">
-                  Press{" "}
-                  <span className="font-semibold text-text-primary">
-                    Scan Files
-                  </span>{" "}
-                  at top right to begin scanning. Files are only removed after
-                  your review.
-                </p>
-              </div>
-              <div className="border-l border-border/40 pl-5 text-xs text-text-muted">
-                <p className="font-semibold text-text-primary">How it works</p>
-                <div className="mt-3 space-y-3">
-                  <p>
-                    <b className="mr-2 text-brand-primary">01</b>Scan
-                    <br />
-                    <span className="ml-7 text-2xs text-text-muted/80">
-                      Find potential duplicate files.
-                    </span>
+        {!scanResult && !scanning && (
+          <Card level="feature" className="p-0">
+            <div className="grid grid-cols-[1.3fr_1fr] max-[860px]:grid-cols-1">
+              <div className="relative p-7">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(var(--c-brand-glow)/.1),transparent)]"
+                />
+                <div className="relative">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-card bg-brand-soft text-brand-fg">
+                    <Files className="h-6 w-6" />
+                  </span>
+                  <h2 className="mt-5 font-display text-[22px] font-semibold leading-7 tracking-[-.02em] text-fg-1">
+                    Find duplicate files safely
+                  </h2>
+                  <p className="mt-2 text-body text-fg-2">
+                    Scan selected locations for identical files using hash-based detection.
                   </p>
-                  <p>
-                    <b className="mr-2 text-brand-primary">02</b>Review
-                    <br />
-                    <span className="ml-7 text-2xs text-text-muted/80">
-                      Compare duplicate groups and choose what to keep.
-                    </span>
-                  </p>
-                  <p>
-                    <b className="mr-2 text-brand-primary">03</b>Clean
-                    <br />
-                    <span className="ml-7 text-2xs text-text-muted/80">
-                      Safely remove selected duplicates.
-                    </span>
+                  <p className="mt-4 text-body-sm text-fg-3">
+                    Press <span className="font-semibold text-fg-1">Scan Files</span> at top right to
+                    begin scanning. Files are only removed after your review.
                   </p>
                 </div>
               </div>
-            </div>
-          )}
-
-          {scanning && progress && (
-            <div className="flex items-center gap-3 rounded-xl border border-border/50 bg-white/[0.025] p-5 text-sm text-text-secondary">
-              <RefreshCw className="h-4 w-4 animate-spin text-brand-primary" />
-              {progress.phase === "hashing"
-                ? "Hashing files..."
-                : "Scanning files..."}
-            </div>
-          )}
-
-          {scanResult && !scanning && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  ["Duplicate Groups", scanResult.groups.length],
-                  ["Duplicate Files", scanResult.totalDuplicates],
-                  ["Recoverable Space", formatBytes(scanResult.totalWastedBytes)],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="rounded-xl border border-border/50 bg-white/[0.025] p-3"
-                  >
-                    <p className="text-2xs text-text-muted">{label}</p>
-                    <p className="mt-1 text-lg font-bold text-text-primary">
-                      {value}
-                    </p>
-                  </div>
-                ))}
+              <div className="border-l border-line-subtle bg-surface-inset/60 p-6 max-[860px]:border-l-0 max-[860px]:border-t">
+                <CardEyebrow>How it works</CardEyebrow>
+                <ol className="mt-4 space-y-4">
+                  {STEPS.map((s) => (
+                    <li key={s.n} className="flex gap-3">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line bg-surface-raised text-caption font-bold text-brand-fg shadow-[var(--shadow-1)] tabular">
+                        {s.n}
+                      </span>
+                      <span>
+                        <span className="block text-body font-semibold text-fg-1">{s.title}</span>
+                        <span className="block text-caption text-fg-3">{s.desc}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
               </div>
+            </div>
+          </Card>
+        )}
 
-              {deleteResult && (
-                <p className="text-xs text-emerald-400">
-                  Removed {deleteResult.deletedCount} files and freed{" "}
-                  {formatBytes(deleteResult.freedBytes)}.
+        {scanning && progress && (
+          <Card level="feature" className="p-6" role="status">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-control bg-brand-soft text-brand-fg">
+                <Search className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-title font-semibold text-fg-1">
+                  {progress.phase === "hashing" ? "Hashing files..." : "Scanning files..."}
                 </p>
-              )}
-
-              {groups.length === 0 ? (
-                <div className="flex flex-col items-center rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] p-10 text-center">
-                  <CheckCircle className="h-8 w-8 text-emerald-400" />
-                  <h3 className="mt-3 text-base font-bold text-text-primary">
-                    No duplicates found
-                  </h3>
-                  <p className="mt-1 text-xs text-text-muted">
-                    Your selected locations don't contain identical files.
-                  </p>
+                <p className="truncate font-mono text-[11px] text-fg-3" title={progress.currentPath}>
+                  {progress.currentPath || "Preparing…"}
+                </p>
+              </div>
+            </div>
+            <Progress
+              value={
+                progress.phase === "hashing" && progress.totalFiles > 0
+                  ? (progress.hashedFiles / progress.totalFiles) * 100
+                  : null
+              }
+              indeterminate={!(progress.phase === "hashing" && progress.totalFiles > 0)}
+              tone="brand"
+              size="md"
+              className="mt-5"
+              aria-label="Duplicate scan progress"
+            />
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              {[
+                ["Files scanned", progress.scannedFiles.toLocaleString()],
+                ["Files hashed", progress.hashedFiles.toLocaleString()],
+                ["Duplicates found", progress.duplicatesFound.toLocaleString()],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-control border border-line-subtle bg-surface-inset px-3 py-2.5">
+                  <p className="text-caption text-fg-3">{label}</p>
+                  <p className="mt-0.5 text-title font-semibold text-fg-1 tabular">{value}</p>
                 </div>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <h3 className="text-sm font-bold text-text-primary">
-                      Duplicate Groups
-                    </h3>
-                    <span className="text-xs text-text-muted">
-                      Selected: {selected.size} files · Potential space:{" "}
-                      {formatBytes(
-                        [...selected].reduce(
-                          (sum, path) =>
-                            sum +
-                            (scanResult.groups
-                              .flatMap((g) => g.files)
-                              .find((f) => f.path === path)?.size ?? 0),
-                          0
-                        )
-                      )}
-                    </span>
-                  </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
-                  <div className="overflow-hidden rounded-xl border border-border/50 divide-y divide-border/40">
-                    {groups.map((group) => {
-                      const duplicates = group.files.filter((f) => !f.isOriginal);
-                      const allSelected = duplicates.every((f) =>
-                        selected.has(f.path)
-                      );
-                      return (
-                        <div key={group.hash}>
-                          <div className="flex items-center gap-3 p-4 hover:bg-white/[0.025]">
-                            <input
-                              type="checkbox"
-                              checked={allSelected}
-                              onChange={() =>
-                                selectFiles(duplicates.map((f) => f.path))
-                              }
-                              className="accent-[rgb(var(--c-accent))]"
-                            />
-                            <button
-                              onClick={() => toggleGroup(group.hash)}
-                              className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                            >
-                              <Files className="h-4 w-4 shrink-0 text-brand-primary" />
-                              <span className="truncate text-sm font-semibold text-text-primary">
+        {scanResult && !scanning && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                ["Duplicate Groups", scanResult.groups.length],
+                ["Duplicate Files", scanResult.totalDuplicates],
+                ["Recoverable Space", formatBytes(scanResult.totalWastedBytes)],
+              ].map(([label, value]) => (
+                <Card key={label} className="p-4">
+                  <p className="text-caption text-fg-3">{label}</p>
+                  <p className="mt-1.5 font-display text-metric font-semibold text-fg-1 tabular">{value}</p>
+                </Card>
+              ))}
+            </div>
+
+            {deleteResult && (
+              <Callout tone="success" compact>
+                Removed {deleteResult.deletedCount} files and freed {formatBytes(deleteResult.freedBytes)}.
+              </Callout>
+            )}
+
+            {groups.length === 0 ? (
+              <Card>
+                <EmptyState
+                  icon={<CheckCircle />}
+                  tone="brand"
+                  title="No duplicates found"
+                  description="Your selected locations don't contain identical files."
+                />
+              </Card>
+            ) : (
+              <Card className="overflow-hidden">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-subtle px-5 py-3.5">
+                  <div>
+                    <CardEyebrow>Review</CardEyebrow>
+                    <h3 className="mt-0.5 text-title font-semibold text-fg-1">Duplicate Groups</h3>
+                  </div>
+                  <span className="text-caption text-fg-3 tabular">
+                    Selected: {selected.size} files · Potential space: {formatBytes(selectedBytes)}
+                  </span>
+                </div>
+
+                <ul className="divide-y divide-line-subtle">
+                  {groups.map((group) => {
+                    const duplicates = group.files.filter((f) => !f.isOriginal);
+                    const allSelected = duplicates.every((f) => selected.has(f.path));
+                    const expanded = expandedGroups.has(group.hash);
+                    return (
+                      <li key={group.hash}>
+                        <div className="flex items-center gap-3 px-5 py-3 transition-colors duration-fast hover:bg-state/[var(--a-hover)]">
+                          <Checkbox
+                            checked={allSelected}
+                            onChange={() => selectFiles(duplicates.map((f) => f.path))}
+                            aria-label={`Select duplicates of ${group.files[0]?.name}`}
+                          />
+                          <button
+                            onClick={() => toggleGroup(group.hash)}
+                            aria-expanded={expanded}
+                            className="flex min-w-0 flex-1 items-center gap-3 rounded-chip text-left focus-visible:shadow-ring"
+                          >
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-surface-inset text-fg-2">
+                              <Files className="h-4 w-4" />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-body font-semibold text-fg-1">
                                 {group.files[0]?.name}
                               </span>
-                              <span className="text-2xs text-text-muted">
-                                {group.count} copies · {formatBytes(group.size)}{" "}
-                                each
+                              <span className="block text-caption text-fg-3 tabular">
+                                {group.count} copies · {formatBytes(group.size)} each
                               </span>
-                              <ChevronRight
-                                className={cn(
-                                  "ml-auto h-4 w-4 text-text-muted transition-transform",
-                                  expandedGroups.has(group.hash) && "rotate-90"
-                                )}
-                              />
-                            </button>
-                          </div>
-                          {expandedGroups.has(group.hash) && (
-                            <div className="border-t border-border/40 bg-white/[0.015] px-4 py-2">
-                              {group.files.map((file) => (
-                                <div
-                                  key={file.path}
-                                  className="flex items-center gap-3 py-2 text-xs"
-                                >
-                                  <span className="w-4 shrink-0">
-                                    {file.isOriginal ? (
-                                      <Shield className="h-3.5 w-3.5 text-emerald-400" />
-                                    ) : (
-                                      <input
-                                        type="checkbox"
-                                        checked={selected.has(file.path)}
-                                        onChange={() =>
-                                          selectFiles([file.path])
-                                        }
-                                        className="accent-[rgb(var(--c-accent))]"
-                                      />
-                                    )}
-                                  </span>
-                                  <span
-                                    className="min-w-0 flex-1 truncate text-text-secondary"
-                                    title={file.path}
-                                  >
-                                    {file.path}
-                                  </span>
-                                  <span className="shrink-0 text-text-muted">
-                                    {formatBytes(file.size)}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                            </span>
+                            <ChevronRight
+                              className={cn(
+                                "h-4 w-4 shrink-0 text-fg-3 transition-transform duration-base",
+                                expanded && "rotate-90"
+                              )}
+                            />
+                          </button>
                         </div>
-                      );
-                    })}
-                  </div>
+                        {expanded && (
+                          <ul className="border-t border-line-subtle bg-surface-inset/70 px-5 py-1.5">
+                            {group.files.map((file) => (
+                              <li key={file.path} className="flex items-center gap-3 py-1.5">
+                                <span className="flex w-4 shrink-0 justify-center">
+                                  {file.isOriginal ? (
+                                    <Shield className="h-3.5 w-3.5 text-success-fg" aria-label="Original, kept" />
+                                  ) : (
+                                    <Checkbox
+                                      checked={selected.has(file.path)}
+                                      onChange={() => selectFiles([file.path])}
+                                      aria-label={`Select ${file.path}`}
+                                    />
+                                  )}
+                                </span>
+                                <span
+                                  className="min-w-0 flex-1 truncate font-mono text-[11px] text-fg-2"
+                                  title={file.path}
+                                >
+                                  {file.path}
+                                </span>
+                                {file.isOriginal && <StatusPill tone="healthy">Original</StatusPill>}
+                                <span className="shrink-0 text-caption text-fg-3 tabular">{formatBytes(file.size)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </Card>
+            )}
 
-                  {selected.size > 0 && (
-                    <button
-                      onClick={deleteSelected}
-                      disabled={deleting}
-                      className="rounded-lg bg-red-500/15 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-500/25 disabled:opacity-60"
-                    >
-                      {deleting
-                        ? "Deleting..."
-                        : `Delete ${selected.size} selected`}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
+            {deleting && (
+              <Callout tone="info" compact role="status">
+                Deleting...
+              </Callout>
+            )}
+          </div>
+        )}
       </div>
 
       <DuplicateSelectionBar />

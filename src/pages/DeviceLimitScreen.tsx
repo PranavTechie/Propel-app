@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { MonitorX, LogOut } from 'lucide-react'
+import { MonitorX, LogOut, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAppStore } from '@/store/appStore'
 import { PROPEL_DEVICES_URL } from '@/constants/appConstants'
@@ -19,44 +19,43 @@ export const DeviceLimitScreen: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg-base" style={{ background: 'var(--t-app-bg)' }}>
-      <div className="absolute inset-0 grid-bg opacity-45 pointer-events-none" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-red-500/[.03] rounded-full blur-[100px] pointer-events-none" />
-      
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="relative z-10 max-w-[420px] w-full p-8 text-center"
-      >
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-500/10 mb-6 border border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
-          <MonitorX className="h-8 w-8 text-red-500" />
-        </div>
-        
-        <h1 className="text-[28px] font-semibold tracking-tight text-text-primary mb-3">
-          Device limit reached
-        </h1>
-        
-        <p className="text-[15px] leading-relaxed text-text-secondary mb-8">
-          {isFree
-            ? `Free account device abuse limit reached (maximum ${limit} devices). You must remove an old device from your dashboard before logging in here.`
-            : `Your current plan allows ${limit} active devices. You must remove an old device from your dashboard before logging in here.`}
-        </p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-base">
+      <div className="pointer-events-none absolute inset-0 grid-bg opacity-60 [mask-image:radial-gradient(circle_at_50%_45%,black,transparent_65%)]" />
 
-        <div className="space-y-4">
-          <Button 
-            className="w-full bg-red-600 hover:bg-red-700 text-white border-none shadow-[0_4px_14px_rgba(239,68,68,0.3)]"
-            onClick={() => window.electronAPI.shell.openExternal(PROPEL_DEVICES_URL)}
-          >
-            Manage Devices
-          </Button>
-          <Button 
-            variant="ghost" 
-            className="w-full text-text-muted hover:text-text-primary"
-            icon={<LogOut className="w-4 h-4" />}
-            onClick={handleLogout}
-          >
-            Sign out
-          </Button>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+        className="relative z-10 w-full max-w-[440px] px-6"
+      >
+        <div className="rounded-panel border border-line bg-surface-raised p-8 text-center shadow-[var(--shadow-3),var(--highlight-top)]">
+          <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-card border border-danger/25 bg-danger-soft text-danger-fg">
+            <MonitorX className="h-7 w-7" />
+          </div>
+
+          <h1 className="mb-2 font-display text-[26px] font-semibold leading-8 tracking-[-.025em] text-fg-1">
+            Device limit reached
+          </h1>
+
+          <p className="mb-7 text-body text-fg-2">
+            {isFree
+              ? `Free account device abuse limit reached (maximum ${limit} devices). You must remove an old device from your dashboard before logging in here.`
+              : `Your current plan allows ${limit} active devices. You must remove an old device from your dashboard before logging in here.`}
+          </p>
+
+          <div className="space-y-2">
+            <Button
+              size="lg"
+              className="w-full"
+              icon={<ExternalLink />}
+              onClick={() => window.electronAPI.shell.openExternal(PROPEL_DEVICES_URL)}
+            >
+              Manage Devices
+            </Button>
+            <Button variant="ghost" className="w-full" icon={<LogOut />} onClick={handleLogout}>
+              Sign out
+            </Button>
+          </div>
         </div>
       </motion.div>
     </div>

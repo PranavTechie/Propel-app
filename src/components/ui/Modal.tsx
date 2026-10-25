@@ -201,3 +201,61 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     {note && <p className="mt-3 text-body-sm text-fg-3">{note}</p>}
   </Modal>
 );
+
+interface SheetProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  icon?: React.ReactNode;
+  footer?: React.ReactNode;
+  children?: React.ReactNode;
+  width?: number;
+}
+
+/** Side panel that slides in from the right. Same focus/Esc behavior as Modal. */
+export const Sheet: React.FC<SheetProps> = ({
+  open,
+  onOpenChange,
+  title,
+  description,
+  icon,
+  footer,
+  children,
+  width = 380,
+}) => (
+  <Dialog.Root open={open} onOpenChange={onOpenChange}>
+    <Dialog.Portal>
+      <Dialog.Overlay className="fixed inset-0 z-[120] bg-[rgb(var(--c-scrim)/var(--a-scrim))] data-[state=open]:animate-[ds-fade-in_var(--dur-base)_var(--ease-out)] data-[state=closed]:animate-[ds-fade-out_var(--dur-fast)_var(--ease-out)]" />
+      <Dialog.Content
+        className="fixed inset-y-0 right-0 z-[121] flex flex-col border-l border-line bg-surface-overlay shadow-[var(--shadow-3)] focus-visible:outline-none data-[state=open]:animate-[ds-slide-in_var(--dur-slow)_var(--ease-out)] data-[state=closed]:animate-[ds-slide-out_var(--dur-base)_var(--ease-out)]"
+        style={{ width }}
+      >
+        <div className="flex items-center gap-3 border-b border-line-subtle px-5 py-4">
+          {icon && (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-brand-soft text-brand-fg [&>svg]:h-4 [&>svg]:w-4">
+              {icon}
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <Dialog.Title className="text-title font-semibold text-fg-1">{title}</Dialog.Title>
+            {description ? (
+              <Dialog.Description className="truncate text-caption text-fg-3">
+                {description}
+              </Dialog.Description>
+            ) : (
+              <Dialog.Description className="sr-only">{title}</Dialog.Description>
+            )}
+          </div>
+          <Dialog.Close asChild>
+            <Button variant="ghost" size="icon" aria-label="Close" className="h-8 w-8">
+              <X className="h-4 w-4" />
+            </Button>
+          </Dialog.Close>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{children}</div>
+        {footer && <div className="border-t border-line-subtle px-4 py-3">{footer}</div>}
+      </Dialog.Content>
+    </Dialog.Portal>
+  </Dialog.Root>
+);

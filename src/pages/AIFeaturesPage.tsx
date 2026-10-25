@@ -1,11 +1,70 @@
 import React, { useState, useCallback } from "react";
 import { useSessionStore } from "@/store/sessionStore";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, Zap, RefreshCw, CheckCircle } from "lucide-react";
+import { Brain, Zap, CheckCircle, HardDrive, MemoryStick, Cpu } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { formatBytes } from "@/utils/format";
 import type { SmartBoostAnalysis, SmartBoostResult } from "@/types";
 import { PCAdvisorSection } from "@/components/ai/PCAdvisorSection";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ConfirmDialog } from "@/components/ui/Modal";
+import { Progress } from "@/components/ui/Progress";
+import { Callout } from "@/components/ui/Callout";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+
+/** Scan & Boost. After an analysis, boosting asks first and lists what is affected. */
+const BoostButton: React.FC<{
+  analysis: SmartBoostAnalysis | null;
+  analyzing: boolean;
+  onAnalyze: () => void;
+  onOptimize: () => void;
+}> = ({ analysis, analyzing, onAnalyze, onOptimize }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        size="lg"
+        icon={<Zap />}
+        loading={analyzing}
+        onClick={analysis ? () => setOpen(true) : onAnalyze}
+        className="mt-7 px-7"
+      >
+        {analyzing ? "Scanning..." : "Scan & Boost"}
+      </Button>
+      {analysis && (
+        <ConfirmDialog
+          open={open}
+          onOpenChange={setOpen}
+          tone="brand"
+          icon={<Zap />}
+          title="Run Quick Boost?"
+          description="Quick Boost cleans temporary files and trims memory. No apps are closed."
+          items={[
+            {
+              id: "storage",
+              icon: <HardDrive />,
+              label: "Temporary files",
+              meta: `about ${formatBytes(analysis.reclaimableStorage)}`,
+            },
+            {
+              id: "ram",
+              icon: <MemoryStick />,
+              label: "Memory working sets",
+              meta: `about ${formatBytes(analysis.reclaimableRam)}`,
+            },
+          ]}
+          confirmLabel="Boost now"
+          onConfirm={() => {
+            setOpen(false);
+            onOptimize();
+          }}
+        />
+      )}
+    </>
+  );
+};
 
 const SmartBoostSection: React.FC = () => {
   const { sbAnalysis: analysis, sbResult: result } = useSessionStore(
@@ -67,7 +126,7 @@ const SmartBoostSection: React.FC = () => {
   }, [analysis]);
 
   return (
-    <div className="flex flex-col items-center w-full max-w-2xl mx-auto py-12 text-center">
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-center py-6 text-center">
       <AnimatePresence mode="wait">
         {!optimizing && !result && (
           <motion.div
@@ -75,35 +134,44 @@ const SmartBoostSection: React.FC = () => {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
-            className="flex flex-col items-center"
+            transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+            className="w-full"
           >
-            <h2 className="text-3xl font-black text-text-primary tracking-tight">
-              Quick Boost
-            </h2>
-            <p className="mt-2 max-w-md text-sm leading-relaxed text-text-secondary">
-              Optimize your PC with one quick scan.
-              <br />
-              Safely improve system responsiveness by cleaning temporary files
-              and optimizing memory.
-            </p>
-            <Zap className="mt-8 h-10 w-10 text-[#5AA63C]" strokeWidth={1.8} />
-            <button
-              onClick={analysis ? runOptimize : runAnalysis}
-              disabled={analyzing}
-              className={cn(
-                "mt-7 inline-flex items-center gap-2 px-7 py-3 rounded-lg text-base font-bold text-white transition-all duration-200",
-                analyzing
-                  ? "bg-white/[0.08] text-text-muted cursor-not-allowed"
-                  : "bg-[#5AA63C] hover:bg-[#4f9635] hover:-translate-y-0.5 active:translate-y-0"
+            <Card level="feature" className="flex flex-col items-center px-8 py-10">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-1/2 top-0 h-64 w-64 -translate-x-1/2 -translate-y-1/3 rounded-full bg-[radial-gradient(closest-side,rgb(var(--c-brand-glow)/.12),transparent)]"
+              />
+              <span className="relative flex h-14 w-14 items-center justify-center rounded-card bg-brand-soft text-brand-fg shadow-[var(--highlight-top)]">
+                <Zap className="h-7 w-7" strokeWidth={1.9} />
+              </span>
+              <h2 className="relative mt-5 font-display text-[26px] font-semibold leading-8 tracking-[-.025em] text-fg-1">
+                Quick Boost
+              </h2>
+              <p className="relative mt-2 max-w-md text-body text-fg-2">
+                Optimize your PC with one quick scan.
+                <br />
+                Safely improve system responsiveness by cleaning temporary files and optimizing memory.
+              </p>
+              {analysis && (
+                <div className="relative mt-6 grid w-full max-w-sm grid-cols-2 gap-3 text-left">
+                  <div className="rounded-control border border-line-subtle bg-surface-inset px-3.5 py-2.5">
+                    <p className="text-caption text-fg-3">Reclaimable storage</p>
+                    <p className="text-title font-semibold text-fg-1 tabular">{formatBytes(analysis.reclaimableStorage)}</p>
+                  </div>
+                  <div className="rounded-control border border-line-subtle bg-surface-inset px-3.5 py-2.5">
+                    <p className="text-caption text-fg-3">Reclaimable memory</p>
+                    <p className="text-title font-semibold text-fg-1 tabular">{formatBytes(analysis.reclaimableRam)}</p>
+                  </div>
+                </div>
               )}
-            >
-              {analyzing ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
-              ) : (
-                <Zap className="h-4 w-4" />
-              )}
-              {analyzing ? "Scanning..." : "Scan & Boost"}
-            </button>
+              <BoostButton
+                analysis={analysis}
+                analyzing={analyzing}
+                onAnalyze={runAnalysis}
+                onOptimize={runOptimize}
+              />
+            </Card>
           </motion.div>
         )}
 
@@ -113,23 +181,17 @@ const SmartBoostSection: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col items-center"
+            className="w-full"
           >
-            <RefreshCw className="h-8 w-8 text-[#5AA63C] animate-spin" />
-            <p className="mt-4 text-base font-semibold text-text-primary">
-              Optimizing your PC...
-            </p>
-            <div className="mt-4 h-1 w-40 overflow-hidden rounded-full bg-white/[0.08]">
-              <motion.div
-                className="h-full w-1/3 rounded-full bg-[#5AA63C]"
-                animate={{ x: ["-100%", "300%"] }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 1.2,
-                  ease: "linear",
-                }}
-              />
-            </div>
+            <Card level="feature" className="flex flex-col items-center px-8 py-12" role="status">
+              <div className="relative h-14 w-14">
+                <span className="absolute inset-0 rounded-full border-[3px] border-brand/15" />
+                <span className="absolute inset-0 animate-spin rounded-full border-[3px] border-brand border-t-transparent" />
+                <Zap className="absolute inset-0 m-auto h-5 w-5 text-brand" />
+              </div>
+              <p className="mt-5 text-title font-semibold text-fg-1">Optimizing your PC...</p>
+              <Progress value={null} indeterminate className="mt-5 max-w-[200px]" aria-label="Optimizing" />
+            </Card>
           </motion.div>
         )}
 
@@ -138,55 +200,49 @@ const SmartBoostSection: React.FC = () => {
             key="result"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center"
+            transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
+            className="w-full"
           >
-            <CheckCircle
-              className="h-9 w-9 text-[#5AA63C]"
-              strokeWidth={1.8}
-            />
-            <h2 className="mt-4 text-2xl font-black text-text-primary">
-              Boost Complete
-            </h2>
-            <div className="mt-5 space-y-1 text-sm text-text-secondary">
-              <p>
-                Memory recovered:{" "}
-                <span className="font-semibold text-text-primary">
-                  {formatBytes(result.ramFreedBytes)}
-                </span>
-              </p>
-              <p>
-                Storage cleaned:{" "}
-                <span className="font-semibold text-text-primary">
-                  {formatBytes(result.storageFreedBytes)}
-                </span>
-              </p>
-              <p>
-                Processes optimized:{" "}
-                <span className="font-semibold text-text-primary">
-                  {result.processesOptimized}
-                </span>
-              </p>
-            </div>
-            <button
-              onClick={() => setResult(null)}
-              className="mt-7 rounded-lg bg-white/[0.06] px-5 py-2 text-sm font-semibold text-text-primary transition-colors hover:bg-white/[0.1]"
-            >
-              Done
-            </button>
+            <Card level="feature" className="flex flex-col items-center px-8 py-10">
+              <span className="flex h-14 w-14 items-center justify-center rounded-card bg-success-soft text-success-fg">
+                <CheckCircle className="h-7 w-7" strokeWidth={1.9} />
+              </span>
+              <h2 className="mt-5 font-display text-[24px] font-semibold leading-[30px] tracking-[-.025em] text-fg-1">
+                Boost Complete
+              </h2>
+              <div className="mt-6 grid w-full max-w-md grid-cols-3 gap-3 text-left">
+                {[
+                  { label: "Memory recovered", value: formatBytes(result.ramFreedBytes), icon: <MemoryStick className="h-3.5 w-3.5" /> },
+                  { label: "Storage cleaned", value: formatBytes(result.storageFreedBytes), icon: <HardDrive className="h-3.5 w-3.5" /> },
+                  { label: "Processes optimized", value: String(result.processesOptimized), icon: <Cpu className="h-3.5 w-3.5" /> },
+                ].map((m) => (
+                  <div key={m.label} className="rounded-control border border-line-subtle bg-surface-inset px-3 py-2.5">
+                    <p className="flex items-center gap-1 text-[10.5px] text-fg-3">
+                      {m.icon}
+                      {m.label}
+                    </p>
+                    <p className="mt-0.5 text-title font-semibold text-fg-1 tabular">{m.value}</p>
+                  </div>
+                ))}
+              </div>
+              <Button variant="secondary" className="mt-7" onClick={() => setResult(null)}>
+                Done
+              </Button>
+            </Card>
           </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {error && (
-          <motion.p
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="mt-8 max-w-md text-xs text-red-400"
+            className="mt-4 w-full text-left"
           >
-            {error}
-          </motion.p>
+            <Callout tone="danger">{error}</Callout>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
@@ -221,75 +277,44 @@ export const AIFeaturesPage: React.FC = () => {
   const activeTab: Tab = rawActiveTab === "boost" ? "boost" : "advisor";
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* -- Header & Tabs -- */}
-      <div className="shrink-0 px-6 pt-6 pb-4">
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="max-w-5xl mx-auto w-full"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-brand-primary to-brand-secondary flex items-center justify-center shadow-glow-md">
-              <Brain className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black text-text-primary">
-                AI Features
-              </h1>
-              <p className="text-sm text-text-secondary mt-0.5">
-                Intelligent system diagnostics & Quick Boost
-              </p>
-            </div>
-            {activeTab === "advisor" && (
-              <div className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-brand-primary/15 border border-brand-primary/25">
-                <div className="w-1.5 h-1.5 rounded-full bg-brand-primary animate-pulse" />
-                <span className="text-xs font-bold text-brand-primary tracking-wider">
-                  AI ADVISOR
-                </span>
-              </div>
-            )}
-          </div>
+    <div className="page-shell">
+      <div className="mx-auto w-full max-w-6xl">
+        <PageHeader
+          eyebrow="System"
+          title="AI Features"
+          subtitle="Intelligent system diagnostics & Quick Boost"
+          meta={
+            activeTab === "advisor" ? (
+              <span className="flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand-soft px-2.5 py-1 text-[10.5px] font-semibold tracking-[.08em] text-brand-fg">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand" />
+                AI ADVISOR
+              </span>
+            ) : undefined
+          }
+        />
 
-          {/* Horizontal Selector */}
-          <div className="mt-6 flex flex-wrap gap-2">
-            {TABS.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 border",
-                    isActive
-                      ? "bg-brand-primary/15 border-brand-primary/30 text-brand-primary shadow-glow-sm"
-                      : "bg-white/[0.02] border-white/[0.05] text-text-muted hover:text-text-secondary hover:bg-white/[0.05]"
-                  )}
-                >
-                  {tab.icon}
-                  {tab.label}
-                  {tab.badge && (
-                    <span
-                      className={cn(
-                        "text-2xs font-black px-1.5 py-0.5 rounded ml-1",
-                        isActive
-                          ? "bg-brand-primary/20 text-brand-primary"
-                          : "bg-white/10 text-text-muted"
-                      )}
-                    >
-                      {tab.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </motion.div>
-      </div>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Tab)}>
+          <TabsList aria-label="AI features">
+            {TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id} className="h-8 px-3.5 text-body">
+                {tab.icon}
+                {tab.label}
+                {tab.badge && (
+                  <span
+                    className={cn(
+                      "ml-0.5 rounded-tiny px-1.5 py-px text-[10px] font-bold",
+                      activeTab === tab.id ? "bg-brand-soft text-brand-fg" : "bg-surface-raised text-fg-3"
+                    )}
+                  >
+                    {tab.badge}
+                  </span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
 
-      {/* -- Content -- */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6">
-        <div className="max-w-5xl mx-auto w-full">
+        <div className="mt-5">
           <AnimatePresence mode="wait">
             {activeTab === "advisor" && (
               <motion.div

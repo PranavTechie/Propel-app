@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield,
   Cpu,
-  MemoryStick,
   HardDrive,
   Thermometer,
   Wifi,
@@ -13,17 +12,25 @@ import {
   Settings,
   Activity,
   ChevronDown,
-  ChevronRight,
   AlertTriangle,
   CheckCircle,
-  XCircle,
   RefreshCw,
-  Loader2,
   Info,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import { useSettingsStore } from "@/store/settingsStore";
+import { Button } from "@/components/ui/Button";
+import { Card, CardEyebrow } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { RingGauge } from "@/components/ui/RingGauge";
+import { CountUp } from "@/components/ui/CountUp";
+import { Progress } from "@/components/ui/Progress";
+import { StatusPill } from "@/components/ui/StatusPill";
+import { Callout } from "@/components/ui/Callout";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { Skeleton } from "@/components/ui/Skeleton";
+import type { Tone } from "@/theme/thresholds";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface FullScanData {
@@ -47,25 +54,20 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+/** Diagnostic score tone (same 80 / 60 cut-offs this page always used). */
+function diagTone(score: number | null | undefined): Tone {
+  if (score == null) return "neutral";
+  if (score >= 80) return "healthy";
+  if (score >= 60) return "warning";
+  return "critical";
+}
+
 function StatusBadge({ ok, label }: { ok: boolean | null; label?: string }) {
-  if (ok === null)
-    return <span className="text-xs text-text-muted">Unknown</span>;
+  if (ok === null) return <StatusPill tone="neutral">Unknown</StatusPill>;
   return (
-    <span
-      className={cn(
-        "flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full",
-        ok
-          ? "bg-emerald-500/15 text-emerald-400"
-          : "bg-red-500/15 text-red-400",
-      )}
-    >
-      {ok ? (
-        <CheckCircle className="w-3 h-3" />
-      ) : (
-        <XCircle className="w-3 h-3" />
-      )}
+    <StatusPill tone={ok ? "healthy" : "critical"}>
       {label ?? (ok ? "Good" : "Issue")}
-    </span>
+    </StatusPill>
   );
 }
 
@@ -83,43 +85,37 @@ function SectionCard({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const scoreColor =
-    score == null
-      ? ""
-      : score >= 80
-        ? "text-emerald-400"
-        : score >= 60
-          ? "text-yellow-400"
-          : "text-red-400";
+  const tone = diagTone(score);
 
   return (
     <motion.div
       variants={staggerItem}
-      className="rounded-xl border border-white/[0.06] bg-white/[0.03] overflow-hidden"
+      className={cn(
+        "overflow-hidden rounded-card border bg-surface-raised transition-[border-color,box-shadow] duration-base",
+        open
+          ? "border-line shadow-[var(--shadow-1),var(--highlight-top)]"
+          : "border-line-subtle hover:border-line",
+      )}
     >
       <button
-        className="w-full flex items-center justify-between p-4 hover:bg-white/[0.04] transition-colors text-left"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors duration-fast hover:bg-state/[var(--a-hover)] focus-visible:shadow-[inset_0_0_0_2px_rgb(var(--c-brand)/.45)]"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
       >
-        <div className="flex items-center gap-3">
-          <div className={cn("p-2 rounded-lg bg-white/[0.05]", "text-brand-primary")}>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-surface-inset text-fg-2">
             {icon}
-          </div>
-          <span className="font-semibold text-text-primary text-sm">
-            {title}
           </span>
+          <span className="truncate text-body font-semibold text-fg-1">{title}</span>
         </div>
-        <div className="flex items-center gap-3">
-          {score != null && (
-            <span className={cn("text-sm font-bold", scoreColor)}>
-              {score}/100
-            </span>
-          )}
-          {open ? (
-            <ChevronDown className="w-4 h-4 text-text-muted" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-text-muted" />
-          )}
+        <div className="flex shrink-0 items-center gap-2.5">
+          {score != null && <StatusPill tone={tone}>{score}/100</StatusPill>}
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 text-fg-3 transition-transform duration-base ease-out",
+              open && "rotate-180",
+            )}
+          />
         </div>
       </button>
       <AnimatePresence initial={false}>
@@ -128,10 +124,10 @@ function SectionCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-4 pb-4 space-y-3">{children}</div>
+            <div className="space-y-2 border-t border-line-subtle px-4 pb-4 pt-3">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -149,11 +145,11 @@ function Row({
   badge?: React.ReactNode;
 }) {
   return (
-    <div className="flex justify-between items-center py-1.5 border-b border-white/[0.04] last:border-0">
-      <span className="text-xs text-text-muted">{label}</span>
-      <div className="flex items-center gap-2">
+    <div className="flex items-center justify-between gap-3 border-b border-line-subtle py-1.5 last:border-0">
+      <span className="text-body-sm text-fg-3">{label}</span>
+      <div className="flex min-w-0 items-center gap-2">
         {value != null && (
-          <span className="text-xs text-text-primary font-medium">{value}</span>
+          <span className="truncate text-body-sm font-medium text-fg-1 tabular">{value}</span>
         )}
         {badge}
       </div>
@@ -161,78 +157,29 @@ function Row({
   );
 }
 
-// ── Score Ring ────────────────────────────────────────────────────────────
-function HealthRing({
-  score,
-}: {
-  score: number;
-}) {
-  const r = 56;
-  const circ = 2 * Math.PI * r;
-  const fill = circ * (score / 100);
-  const color = score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : "#ef4444";
+function Subhead({ children, first = false }: { children: React.ReactNode; first?: boolean }) {
+  return <p className={cn("section-label mb-1", !first && "mt-4")}>{children}</p>;
+}
 
-  return (
-    <div className="relative flex items-center justify-center">
-      <svg width="140" height="140" className="-rotate-90">
-        <circle
-          cx="70"
-          cy="70"
-          r={r}
-          fill="none"
-          stroke="rgba(255,255,255,0.06)"
-          strokeWidth="10"
-        />
-        <motion.circle
-          cx="70"
-          cy="70"
-          r={r}
-          fill="none"
-          stroke={color}
-          strokeWidth="10"
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          initial={{ strokeDashoffset: circ }}
-          animate={{ strokeDashoffset: circ - fill }}
-          transition={{ duration: 1.2, ease: "easeOut" }}
-          style={{ filter: `drop-shadow(0 0 8px ${color})` }}
-        />
-      </svg>
-      <div className="absolute text-center">
-        <div className="text-3xl font-black text-text-primary leading-none">
-          {score}
-        </div>
-      </div>
-    </div>
-  );
+function NoData({ children = "No data available" }: { children?: React.ReactNode }) {
+  return <p className="text-body-sm text-fg-3">{children}</p>;
 }
 
 // ── Section Renderers ─────────────────────────────────────────────────────
 function HardwareSection({ data }: { data: any }) {
-  if (!data)
-    return <p className="text-xs text-text-muted">No data available</p>;
+  if (!data) return <NoData />;
   return (
     <>
-      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">
-        CPU
-      </p>
+      <Subhead first>CPU</Subhead>
       <Row label="Model" value={data.cpu?.model} />
       <Row
         label="Cores / Threads"
         value={`${data.cpu?.cores ?? "?"} / ${data.cpu?.threads ?? data.cpu?.cores ?? "?"}`}
       />
-      <Row
-        label="Current Load"
-        value={`${data.cpu?.load ?? 0}%`}
-      />
-      <Row
-        label="Base Speed"
-        value={data.cpu?.speed ? `${data.cpu.speed} GHz` : undefined}
-      />
+      <Row label="Current Load" value={`${data.cpu?.load ?? 0}%`} />
+      <Row label="Base Speed" value={data.cpu?.speed ? `${data.cpu.speed} GHz` : undefined} />
 
-      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mt-4 mb-2">
-        Memory
-      </p>
+      <Subhead>Memory</Subhead>
       <Row label="Total RAM" value={formatBytes(data.ram?.total)} />
       <Row
         label="Used"
@@ -243,9 +190,7 @@ function HardwareSection({ data }: { data: any }) {
         value={`${data.ram?.slots ? `${data.ram.slots.filter((s: any) => s.size > 0).length} / ${data.ram.slots.length}` : (data.ram?.slotsUsed != null ? `${data.ram.slotsUsed} / ${data.ram.totalSlots}` : "?")}`}
       />
 
-      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mt-4 mb-2">
-        System
-      </p>
+      <Subhead>System</Subhead>
       <Row
         label="Motherboard"
         value={`${data.motherboard?.manufacturer ?? ""} ${data.motherboard?.model ?? ""}`}
@@ -254,44 +199,30 @@ function HardwareSection({ data }: { data: any }) {
         label="BIOS"
         value={`${data.motherboard?.biosVersion ?? ""} (${data.motherboard?.biosDate ?? ""})`}
       />
-      <Row
-        label="OS"
-        value={`${data.os?.distro ?? ""} ${data.os?.release ?? ""}`}
-      />
+      <Row label="OS" value={`${data.os?.distro ?? ""} ${data.os?.release ?? ""}`} />
     </>
   );
 }
 
 function GpuSection({ data }: { data: any }) {
-  if (!data)
-    return <p className="text-xs text-text-muted">No data available</p>;
+  if (!data) return <NoData />;
   return (
     <>
       {data.controllers?.map((c: any, i: number) => (
-        <div
-          key={i}
-          className={i > 0 ? "mt-3 pt-3 border-t border-white/[0.06]" : ""}
-        >
+        <div key={i} className={i > 0 ? "mt-3 border-t border-line-subtle pt-3" : ""}>
           <Row label="GPU" value={c.model} />
           <Row label="VRAM" value={c.vram ? `${c.vram} MB` : "Unknown"} />
           <Row label="Driver" value={c.driverVersion} />
           <Row
             label="Driver Status"
             badge={
-              <StatusBadge
-                ok={data.driverStatus === "ok"}
-                label={data.driverStatus ?? "unknown"}
-              />
+              <StatusBadge ok={data.driverStatus === "ok"} label={data.driverStatus ?? "unknown"} />
             }
           />
-          {c.temperatureGpu != null && (
-            <Row label="Temperature" value={`${c.temperatureGpu}°C`} />
-          )}
+          {c.temperatureGpu != null && <Row label="Temperature" value={`${c.temperatureGpu}°C`} />}
         </div>
       ))}
-      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mt-4 mb-2">
-        APIs
-      </p>
+      <Subhead>APIs</Subhead>
       <Row
         label="DirectX"
         value={data.directX?.version}
@@ -311,30 +242,18 @@ function GpuSection({ data }: { data: any }) {
 }
 
 function DiskSection({ data }: { data: any }) {
-  if (!data)
-    return <p className="text-xs text-text-muted">No data available</p>;
+  if (!data) return <NoData />;
   return (
     <>
       {data.drives?.map((d: any, i: number) => (
-        <div
-          key={i}
-          className={i > 0 ? "mt-3 pt-3 border-t border-white/[0.06]" : ""}
-        >
+        <div key={i} className={i > 0 ? "mt-3 border-t border-line-subtle pt-3" : ""}>
           <Row label="Drive" value={d.name} />
           <Row label="Type" value={d.type} />
           <Row label="Capacity" value={formatBytes(d.totalBytes)} />
-          <Row
-            label="Used"
-            value={`${formatBytes(d.usedBytes)} (${d.usedPercent}%)`}
-          />
+          <Row label="Used" value={`${formatBytes(d.usedBytes)} (${d.usedPercent}%)`} />
           <Row
             label="Health"
-            badge={
-              <StatusBadge
-                ok={d.healthPercent >= 70}
-                label={`${d.healthPercent}%`}
-              />
-            }
+            badge={<StatusBadge ok={d.healthPercent >= 70} label={`${d.healthPercent}%`} />}
           />
           <Row
             label="SMART"
@@ -348,17 +267,12 @@ function DiskSection({ data }: { data: any }) {
               />
             }
           />
-          {d.temperature != null && (
-            <Row label="Temperature" value={`${d.temperature}°C`} />
-          )}
+          {d.temperature != null && <Row label="Temperature" value={`${d.temperature}°C`} />}
           {d.warnings?.length > 0 &&
             d.warnings.map((w: string, j: number) => (
-              <div
-                key={j}
-                className="flex items-center gap-1.5 mt-1 text-xs text-yellow-400"
-              >
-                <AlertTriangle className="w-3 h-3 shrink-0" /> {w}
-              </div>
+              <Callout key={j} tone="warning" compact className="mt-2">
+                {w}
+              </Callout>
             ))}
         </div>
       ))}
@@ -367,10 +281,7 @@ function DiskSection({ data }: { data: any }) {
 }
 
 function ThermalSection({ data }: { data: any }) {
-  if (!data)
-    return (
-      <p className="text-xs text-text-muted">No temperature data available</p>
-    );
+  if (!data) return <NoData>No temperature data available</NoData>;
   return (
     <>
       <Row
@@ -382,22 +293,13 @@ function ThermalSection({ data }: { data: any }) {
           />
         }
       />
-      {data.cpuTemp != null && (
-        <Row label="CPU Temperature" value={`${data.cpuTemp}°C`} />
-      )}
-      {data.gpuTemp != null && (
-        <Row label="GPU Temperature" value={`${data.gpuTemp}°C`} />
-      )}
-      {data.maxTemp != null && (
-        <Row label="Max Sensor" value={`${data.maxTemp}°C`} />
-      )}
+      {data.cpuTemp != null && <Row label="CPU Temperature" value={`${data.cpuTemp}°C`} />}
+      {data.gpuTemp != null && <Row label="GPU Temperature" value={`${data.gpuTemp}°C`} />}
+      {data.maxTemp != null && <Row label="Max Sensor" value={`${data.maxTemp}°C`} />}
       <Row
         label="Throttling"
         badge={
-          <StatusBadge
-            ok={!data.throttling}
-            label={data.throttling ? "Detected" : "None"}
-          />
+          <StatusBadge ok={!data.throttling} label={data.throttling ? "Detected" : "None"} />
         }
       />
       {data.allTemps
@@ -407,28 +309,23 @@ function ThermalSection({ data }: { data: any }) {
           <Row key={i} label={t.label} value={`${t.temp}°C`} />
         ))}
       {data.recommendation && (
-        <div className="flex items-start gap-2 mt-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-xs text-yellow-300">
-          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <Callout tone="warning" compact className="mt-2">
           {data.recommendation}
-        </div>
+        </Callout>
       )}
     </>
   );
 }
 
 function NetworkSection({ data }: { data: any }) {
-  if (!data)
-    return <p className="text-xs text-text-muted">No data available</p>;
+  if (!data) return <NoData />;
   return (
     <>
       <Row label="Adapter" value={data.activeAdapter} />
       <Row label="Type" value={data.type} />
       <Row label="Local IP" value={data.localIP} />
       <Row label="Public IP" value={data.publicIP} />
-      <Row
-        label="Link Speed"
-        value={data.speed ? `${data.speed} Mbps` : "Unknown"}
-      />
+      <Row label="Link Speed" value={data.speed ? `${data.speed} Mbps` : "Unknown"} />
       <Row
         label="Latency"
         value={data.latencyMs >= 0 ? `${data.latencyMs} ms` : "Unreachable"}
@@ -447,20 +344,16 @@ function NetworkSection({ data }: { data: any }) {
         />
       )}
       {data.issues?.map((issue: string, i: number) => (
-        <div
-          key={i}
-          className="flex items-center gap-1.5 mt-1 text-xs text-yellow-400"
-        >
-          <AlertTriangle className="w-3 h-3 shrink-0" /> {issue}
-        </div>
+        <Callout key={i} tone="warning" compact className="mt-2">
+          {issue}
+        </Callout>
       ))}
     </>
   );
 }
 
 function SecuritySection({ data }: { data: any }) {
-  if (!data)
-    return <p className="text-xs text-text-muted">No data available</p>;
+  if (!data) return <NoData />;
   return (
     <>
       <Row
@@ -482,10 +375,7 @@ function SecuritySection({ data }: { data: any }) {
         }
       />
       <Row label="Firewall" badge={<StatusBadge ok={data.firewallEnabled} />} />
-      <Row
-        label="Secure Boot"
-        badge={<StatusBadge ok={data.secureBootEnabled} />}
-      />
+      <Row label="Secure Boot" badge={<StatusBadge ok={data.secureBootEnabled} />} />
       <Row
         label="TPM"
         value={data.tpmAvailable ? `v${data.tpmVersion}` : undefined}
@@ -494,10 +384,7 @@ function SecuritySection({ data }: { data: any }) {
       <Row
         label="BitLocker"
         badge={
-          <StatusBadge
-            ok={data.bitLockerEnabled}
-            label={data.bitLockerEnabled ? "On" : "Off"}
-          />
+          <StatusBadge ok={data.bitLockerEnabled} label={data.bitLockerEnabled ? "On" : "Off"} />
         }
       />
       <Row label="UAC" badge={<StatusBadge ok={data.uacEnabled} />} />
@@ -514,24 +401,20 @@ function SecuritySection({ data }: { data: any }) {
         <Row label="Last Update" value={`${data.lastUpdateDays} days ago`} />
       )}
       {data.recommendations?.map((r: string, i: number) => (
-        <div
-          key={i}
-          className="flex items-start gap-1.5 mt-1 text-xs text-blue-300"
-        >
-          <Info className="w-3 h-3 mt-0.5 shrink-0" /> {r}
-        </div>
+        <Callout key={i} tone="info" compact className="mt-2">
+          {r}
+        </Callout>
       ))}
     </>
   );
 }
 
 function BatterySection({ data }: { data: any }) {
-  if (!data)
-    return <p className="text-xs text-text-muted">No data available</p>;
+  if (!data) return <NoData />;
   if (!data.hasBattery) {
     return (
-      <div className="flex items-center gap-2 text-xs text-text-muted">
-        <Info className="w-4 h-4" />
+      <div className="flex items-center gap-2 text-body-sm text-fg-3">
+        <Info className="h-4 w-4" />
         No battery detected (desktop or server system)
       </div>
     );
@@ -542,10 +425,7 @@ function BatterySection({ data }: { data: any }) {
       <Row
         label="Status"
         badge={
-          <StatusBadge
-            ok={data.isCharging}
-            label={data.isCharging ? "Charging" : "On Battery"}
-          />
+          <StatusBadge ok={data.isCharging} label={data.isCharging ? "Charging" : "On Battery"} />
         }
       />
       {data.healthPercent != null && (
@@ -555,12 +435,8 @@ function BatterySection({ data }: { data: any }) {
           badge={<StatusBadge ok={data.healthPercent >= 80} />}
         />
       )}
-      {data.wearLevel != null && (
-        <Row label="Wear Level" value={`${data.wearLevel}%`} />
-      )}
-      {data.cycleCount != null && (
-        <Row label="Cycle Count" value={data.cycleCount} />
-      )}
+      {data.wearLevel != null && <Row label="Wear Level" value={`${data.wearLevel}%`} />}
+      {data.cycleCount != null && <Row label="Cycle Count" value={data.cycleCount} />}
       {data.designCapacity != null && (
         <Row label="Design Capacity" value={`${data.designCapacity} mWh`} />
       )}
@@ -568,87 +444,83 @@ function BatterySection({ data }: { data: any }) {
         <Row label="Current Capacity" value={`${data.currentCapacity} mWh`} />
       )}
       {data.timeRemaining != null && data.timeRemaining > 0 && (
-        <Row
-          label="Time Remaining"
-          value={`${Math.round(data.timeRemaining)} min`}
-        />
+        <Row label="Time Remaining" value={`${Math.round(data.timeRemaining)} min`} />
       )}
       {data.recommendation && (
-        <div className="flex items-start gap-2 mt-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-xs text-yellow-300">
-          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <Callout tone="warning" compact className="mt-2">
           {data.recommendation}
-        </div>
+        </Callout>
       )}
     </>
   );
 }
 
 function OptimizationSection({ data }: { data: any }) {
-  if (!data)
-    return <p className="text-xs text-text-muted">No data available</p>;
+  if (!data) return <NoData />;
   if (data.findings?.length === 0) {
     return (
-      <div className="flex items-center gap-2 text-xs text-emerald-400 mt-1">
-        <CheckCircle className="w-4 h-4" /> No optimization issues found. System
-        is well tuned.
-      </div>
+      <Callout tone="success" compact icon={<CheckCircle />}>
+        No optimization issues found. System is well tuned.
+      </Callout>
     );
   }
-  const severityColor: Record<string, string> = {
-    critical: "bg-red-500/15 border-red-500/20 text-red-300",
-    high: "bg-orange-500/15 border-orange-500/20 text-orange-300",
-    medium: "bg-yellow-500/15 border-yellow-500/20 text-yellow-300",
-    low: "bg-blue-500/15 border-blue-500/20 text-blue-300",
+  const severityTone: Record<string, "danger" | "warning" | "info"> = {
+    critical: "danger",
+    high: "danger",
+    medium: "warning",
+    low: "info",
   };
   return (
     <div className="space-y-2">
       {data.findings?.map((f: any, i: number) => (
-        <div
+        <Callout
           key={i}
-          className={cn(
-            "flex items-start gap-2 p-2 rounded-lg border text-xs",
-            severityColor[f.severity] ?? severityColor.low,
-          )}
+          tone={severityTone[f.severity] ?? "info"}
+          compact
+          icon={<AlertTriangle />}
+          title={
+            <>
+              {f.title} <span className="font-normal text-fg-3">({f.category})</span>
+            </>
+          }
         >
-          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <div>
-            <div className="font-semibold">
-              {f.title}{" "}
-              <span className="opacity-60 font-normal">({f.category})</span>
-            </div>
-            <div className="opacity-80 mt-0.5">{f.detail}</div>
-          </div>
-        </div>
+          {f.detail}
+        </Callout>
       ))}
     </div>
   );
 }
 
 // ── Mini Score Card ────────────────────────────────────────────────────────
-function MiniScore({
-  label,
-  score,
-}: {
-  label: string;
-  score: number | undefined;
-}) {
-  const color =
-    score == null
-      ? "text-text-muted"
-      : score >= 80
-        ? "text-emerald-400"
-        : score >= 60
-          ? "text-yellow-400"
-          : "text-red-400";
+function MiniScore({ label, score }: { label: string; score: number | undefined }) {
+  const tone = diagTone(score);
   return (
-    <div className="flex flex-col items-center gap-1 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
-      <span className={cn("text-xl font-black", color)}>{score ?? "–"}</span>
-      <span className="text-[10px] text-text-muted text-center leading-tight">
-        {label}
-      </span>
+    <div className="rounded-control border border-line-subtle bg-surface-inset px-3 py-2.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="truncate text-caption text-fg-3">{label}</span>
+        <span className="text-body font-semibold text-fg-1 tabular">{score ?? "–"}</span>
+      </div>
+      <Progress
+        value={score ?? null}
+        tone={tone}
+        size="xs"
+        className="mt-2"
+        aria-label={`${label} score`}
+      />
     </div>
   );
 }
+
+const COVERAGE = [
+  "Hardware",
+  "Drivers",
+  "Storage",
+  "Thermals",
+  "Network",
+  "Security",
+  "Battery",
+  "Optimization",
+];
 
 // ── Main Page ─────────────────────────────────────────────────────────────
 export function SystemCheckPage() {
@@ -755,197 +627,194 @@ export function SystemCheckPage() {
     });
   }
 
+  const overall = hs?.overall ?? 0;
+  const overallTone = diagTone(data ? overall : null);
+
   return (
     <div className="page-shell">
-      <div className="max-w-5xl mx-auto w-full space-y-6 pb-8">
-      <header className="flex items-end justify-between gap-5">
-        <div>
-          <p className="section-label">Diagnostics workspace</p>
-          <h1 className="mt-1 text-[25px] font-semibold tracking-[-.035em] text-text-primary">
-            System check
-          </h1>
-          <p className="mt-1 text-sm text-text-secondary">
-            {lastScanTime
+      <div className="mx-auto w-full max-w-6xl pb-8">
+        <PageHeader
+          eyebrow="Diagnostics workspace"
+          title="System check"
+          subtitle={
+            lastScanTime
               ? `Last completed ${lastScanTime.toLocaleTimeString()}`
-              : "Inspect hardware, security, storage and Windows health."}
-          </p>
-        </div>
-        <button
-          onClick={runScan}
-          disabled={scanning}
-          className={cn(
-            "flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white shadow-[var(--t-btn-shadow)]",
-            scanning
-              ? "cursor-not-allowed bg-brand-primary/60"
-              : "bg-brand-primary hover:bg-brand-secondary",
-          )}
-        >
-          {scanning ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
-          )}
-          {scanning
-            ? "Scanning system…"
-            : data
-              ? "Run again"
-              : "Run full system check"}
-        </button>
-      </header>
-      {error && (
-        <div
-          role="alert"
-          className="flex items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/[.07] px-4 py-3 text-xs text-red-500"
-        >
-          <XCircle className="h-4 w-4" />
-          {error}
-        </div>
-      )}
-      <div className="grid grid-cols-[1fr_1.6fr] gap-6 max-[1000px]:grid-cols-1 items-stretch">
-        <aside className="space-y-6 flex flex-col">
-          <section className="rounded-2xl border border-brand-primary/20 bg-bg-elevated p-8 flex-1 flex flex-col shadow-sm">
-            {data ? (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="section-label group relative cursor-help">
-                      Full diagnostic score
-                      <span className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-all absolute top-full left-0 mt-2 w-56 bg-bg-elevated border border-border shadow-lg rounded-lg p-3 text-xs text-text-secondary normal-case tracking-normal z-50 pointer-events-none">
-                        This is your authoritative score derived from a complete diagnostic scan across 8 system categories.
-                      </span>
-                    </p>
-                    <h2 className="mt-2 text-2xl font-semibold tracking-[-.035em] text-text-primary">
-                      {hs?.label ?? "Checked"}
-                    </h2>
-                    <p className="mt-1 text-xs text-text-secondary">
-                      Grade {hs?.grade ?? "—"}
-                    </p>
-                  </div>
-                  <HealthRing score={hs?.overall ?? 0} />
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {lowest4.map((s) => (
-                    <MiniScore key={s.title} label={s.title} score={s.score} />
-                  ))}
-                </div>
-              </>
-            ) : scanning ? (
-              <div className="py-4">
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-6 w-6 animate-spin text-brand-primary" />
-                  <div>
-                    <h2 className="text-sm font-semibold text-text-primary">
-                      Analyzing your PC
-                    </h2>
-                    <p className="text-xs text-text-muted">
-                      Collecting live diagnostic data…
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-5 space-y-3">
-                  {sections.slice(0, 5).map((s) => (
-                    <div key={s.title} className="flex items-center gap-3">
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-brand-primary" />
-                      <span className="text-xs text-text-secondary">
-                        {s.title}
-                      </span>
+              : "Inspect hardware, security, storage and Windows health."
+          }
+          action={
+            <Button onClick={runScan} loading={scanning} icon={<RefreshCw />}>
+              {scanning ? "Scanning system…" : data ? "Run again" : "Run full system check"}
+            </Button>
+          }
+        />
+
+        {error && (
+          <Callout tone="danger" title="The system check could not finish" className="mb-4">
+            Some Windows signals could not be read. Use Run again to retry.
+          </Callout>
+        )}
+
+        <div className="grid grid-cols-[minmax(300px,1fr)_1.6fr] items-start gap-4 max-[1000px]:grid-cols-1">
+          <aside className="flex flex-col gap-4">
+            <Card level="feature" className="p-6">
+              {data ? (
+                <>
+                  <div className="flex items-center gap-5">
+                    <RingGauge
+                      value={overall}
+                      tone={overallTone}
+                      size={128}
+                      thickness={10}
+                      ticks
+                      aria-label={`Full diagnostic score ${overall} out of 100`}
+                    >
+                      <CountUp
+                        value={overall}
+                        className="font-display text-[34px] font-semibold leading-none text-fg-1"
+                      />
+                      <span className="mt-1 text-caption text-fg-3">of 100</span>
+                    </RingGauge>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <CardEyebrow>Full diagnostic score</CardEyebrow>
+                        <Tooltip
+                          content="Your authoritative score from a complete scan across 8 system categories."
+                          side="bottom"
+                        >
+                          <button
+                            aria-label="About the diagnostic score"
+                            className="rounded-full p-0.5 text-fg-3 hover:text-fg-1 focus-visible:shadow-ring"
+                          >
+                            <Info className="h-3.5 w-3.5" />
+                          </button>
+                        </Tooltip>
+                      </div>
+                      <h2 className="mt-1.5 font-display text-[22px] font-semibold leading-7 tracking-[-.02em] text-fg-1">
+                        {hs?.label ?? "Checked"}
+                      </h2>
+                      <StatusPill tone={overallTone} className="mt-2">
+                        Grade {hs?.grade ?? "—"}
+                      </StatusPill>
                     </div>
-                  ))}
+                  </div>
+                  {lowest4.length > 0 && (
+                    <>
+                      <p className="section-label mb-2 mt-6">Lowest categories</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {lowest4.map((s) => (
+                          <MiniScore key={s.title} label={s.title} score={s.score} />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : scanning ? (
+                <div role="status">
+                  <div className="flex items-center gap-4">
+                    <RingGauge value={null} size={72} thickness={7}>
+                      <Shield className="h-6 w-6 text-brand" />
+                    </RingGauge>
+                    <div>
+                      <h2 className="text-title font-semibold text-fg-1">Analyzing your PC</h2>
+                      <p className="text-body-sm text-fg-3">Collecting live diagnostic data…</p>
+                    </div>
+                  </div>
+                  <Progress value={null} indeterminate className="mt-5" aria-label="Scanning" />
+                  <ul className="mt-5 space-y-2.5">
+                    {sections.slice(0, 5).map((s) => (
+                      <li key={s.title} className="flex items-center gap-3">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-chip bg-surface-inset text-fg-3 [&>svg]:h-3.5 [&>svg]:w-3.5">
+                          {s.icon}
+                        </span>
+                        <span className="flex-1 text-body-sm text-fg-2">{s.title}</span>
+                        <Skeleton className="h-2 w-16" />
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              </div>
-            ) : (
-              <div className="flex flex-col flex-1 min-h-[300px]">
-                <div>
-                  <Shield className="h-8 w-8 text-brand-primary mb-5" />
-                  <h2 className="text-2xl font-bold tracking-tight text-text-primary">
+              ) : (
+                <div className="flex min-h-[300px] flex-col">
+                  <span className="flex h-12 w-12 items-center justify-center rounded-card bg-brand-soft text-brand-fg">
+                    <Shield className="h-6 w-6" />
+                  </span>
+                  <h2 className="mt-5 font-display text-[22px] font-semibold leading-7 tracking-[-.02em] text-fg-1">
                     Ready for a complete assessment
                   </h2>
-                  <p className="mt-3 text-sm leading-relaxed text-text-secondary">
-                    The check reads existing Windows and hardware signals, then
-                    organizes them into clear health categories.
+                  <p className="mt-2 text-body text-fg-2">
+                    The check reads existing Windows and hardware signals, then organizes them
+                    into clear health categories.
                   </p>
+                  <div className="mt-auto grid grid-cols-2 gap-x-3 gap-y-2.5 pt-8">
+                    {COVERAGE.map((x) => (
+                      <span key={x} className="flex items-center gap-2 text-body-sm text-fg-2">
+                        <CheckCircle className="h-3.5 w-3.5 shrink-0 text-brand" />
+                        {x}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="mt-auto pt-8 grid grid-cols-2 gap-x-2 gap-y-3 text-[11px]">
-                  {[
-                    "Hardware",
-                    "Drivers",
-                    "Storage",
-                    "Thermals",
-                    "Network",
-                    "Security",
-                    "Battery",
-                    "Optimization",
-                  ].map((x) => (
-                    <span key={x} className="flex items-center gap-1.5 text-text-secondary">
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-primary/60 shrink-0" />
-                      {x}
-                    </span>
+              )}
+            </Card>
+
+            {attentionItems.length > 0 && (
+              <Card className="overflow-hidden p-4">
+                <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-danger" />
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-danger-fg" />
+                  <p className="text-body font-semibold text-fg-1">Needs attention</p>
+                  <StatusPill tone="critical" className="ml-auto">
+                    {attentionItems.length}
+                  </StatusPill>
+                </div>
+                <ul className="mt-3 space-y-2">
+                  {attentionItems.map((issue: string, i: number) => (
+                    <li key={i} className="flex gap-2 text-body-sm text-fg-2">
+                      <span
+                        aria-hidden
+                        className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-danger"
+                      />
+                      {issue}
+                    </li>
                   ))}
-                </div>
-              </div>
+                </ul>
+              </Card>
             )}
-          </section>
-          {attentionItems.length > 0 && (
-            <section className="rounded-xl border border-red-500/20 bg-red-500/[.05] p-4">
-              <p className="text-xs font-semibold text-red-500">
-                Needs attention
-              </p>
-              <div className="mt-2 space-y-2">
-                {attentionItems.map((issue: string, i: number) => (
-                  <p
-                    key={i}
-                    className="flex gap-2 text-xs leading-5 text-text-secondary"
-                  >
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-500" />
-                    {issue}
-                  </p>
-                ))}
+          </aside>
+
+          <Card className="p-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <CardEyebrow>Diagnostic categories</CardEyebrow>
+                <h2 className="mt-1 text-title font-semibold text-fg-1">
+                  {data ? "Detailed results" : "Coverage"}
+                </h2>
               </div>
-            </section>
-          )}
-        </aside>
-        <section className="rounded-2xl border border-border/50 bg-bg-surface/50 p-7 flex flex-col h-full">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] font-bold tracking-wider text-text-muted uppercase mb-1">
-                Diagnostic Categories
-              </p>
-              <h2 className="text-sm font-semibold text-text-primary">
-                {data ? "Detailed results" : "Coverage"}
-              </h2>
+              {data && <span className="text-caption text-fg-3">Select a category to inspect</span>}
             </div>
-            {data && (
-              <span className="text-[11px] font-medium text-text-muted">
-                Select to inspect
-              </span>
-            )}
-          </div>
-          <motion.div
-            variants={staggerContainer}
-            initial="initial"
-            animate="animate"
-            className="grid grid-cols-2 gap-4 max-[760px]:grid-cols-1"
-          >
-            {sections.map((section, i) => (
-              <SectionCard
-                key={section.title}
-                icon={section.icon}
-                title={section.title}
-                score={section.score}
-                defaultOpen={!!data && i === 0}
-              >
-                {data ? (
-                  section.children
-                ) : (
-                  <p className="text-xs leading-5 text-text-muted">
-                    Included in the next full system check.
-                  </p>
-                )}
-              </SectionCard>
-            ))}
-          </motion.div>
-        </section>
-      </div>
+            <motion.div
+              variants={staggerContainer}
+              initial="initial"
+              animate="animate"
+              className="grid grid-cols-2 items-start gap-3 max-[760px]:grid-cols-1"
+            >
+              {sections.map((section, i) => (
+                <SectionCard
+                  key={section.title}
+                  icon={section.icon}
+                  title={section.title}
+                  score={section.score}
+                  defaultOpen={!!data && i === 0}
+                >
+                  {data ? (
+                    section.children
+                  ) : (
+                    <p className="text-body-sm text-fg-3">Included in the next full system check.</p>
+                  )}
+                </SectionCard>
+              ))}
+            </motion.div>
+          </Card>
+        </div>
       </div>
     </div>
   );

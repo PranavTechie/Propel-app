@@ -5,6 +5,7 @@ import { useAppStore } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settingsStore";
 
 import { supabase } from "@/lib/supabase";
+import { Progress } from "@/components/ui/Progress";
 
 export const SplashScreen: React.FC = () => {
   const setPhase = useAppStore((s) => s.setPhase);
@@ -198,166 +199,91 @@ export const SplashScreen: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-bg-base"
-      style={{ background: "var(--t-app-bg)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-surface-base"
       role="status"
       aria-live="polite"
       aria-label={done ? "Propel is ready" : "Propel is loading"}
     >
-      <div
-        className="pointer-events-none absolute inset-0 opacity-70"
-        aria-hidden="true"
-      >
-        <div className="absolute inset-0 grid-bg opacity-45" />
-        <div className="absolute left-1/2 top-[42%] h-[460px] w-[620px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand-primary/[.06] blur-[110px]" />
-        <div
-          className="absolute inset-0"
-          style={{ boxShadow: "inset 0 0 140px rgb(var(--t-bg-base) / .65)" }}
-        />
+      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
+        <div className="absolute inset-0 grid-bg opacity-70 [mask-image:radial-gradient(circle_at_50%_42%,black,transparent_62%)]" />
+        <div className="absolute left-1/2 top-[42%] h-[460px] w-[620px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(var(--c-brand-glow)/.12),transparent)]" />
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{
-          duration: reduceMotion ? 0 : 0.5,
+          duration: reduceMotion ? 0 : 0.32,
           ease: [0.2, 0.8, 0.2, 1],
         }}
-        className="relative z-10 flex w-full max-w-[360px] flex-col items-center select-none px-6 text-center"
+        className="relative z-10 flex w-full max-w-[360px] select-none flex-col items-center px-6 text-center"
       >
-        {/* Existing Propel leaf icon — unchanged, with only presentation around it. */}
-        <motion.div
-          className="relative mb-8 flex h-[86px] w-[86px] items-center justify-center rounded-[26px] border border-brand-primary/25 bg-brand-primary/[.09]"
-          animate={reduceMotion ? undefined : { y: [0, -3, 0] }}
-          transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
-          style={{
-            boxShadow:
-              "0 18px 40px rgb(var(--t-accent2) / .14), inset 0 1px 0 rgb(255 255 255 / .45)",
-          }}
-        >
-          <motion.div
-            className="absolute -inset-4 rounded-[32px] border border-brand-primary/10"
-            animate={
-              reduceMotion
-                ? undefined
-                : { scale: [1, 1.05, 1], opacity: [0.45, 0.15, 0.45] }
-            }
-            transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+        {/* Existing Propel leaf icon, presented on the brand tile */}
+        <div className="relative mb-8 flex h-[84px] w-[84px] items-center justify-center rounded-[24px] border border-brand/25 bg-brand-soft p-2 shadow-[var(--shadow-2),var(--highlight-top)]">
+          <span
+            aria-hidden
+            className="absolute -inset-3 rounded-[30px] border border-dashed border-brand/20"
           />
-          <div className="absolute inset-2 rounded-[20px] bg-gradient-brand opacity-95 shadow-[inset_8px_8px_18px_rgb(255_255_255/.18),inset_-8px_-10px_18px_rgb(0_0_0/.14)]" />
-          <AnimatePresence mode="wait">
-            {done ? (
-              <motion.div
-                key="done"
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ type: "spring", stiffness: 320, damping: 22 }}
-                className="relative z-10 text-white"
-              >
-                <CheckCircle2 className="h-9 w-9" strokeWidth={1.8} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="leaf"
-                initial={{ opacity: 0, scale: 0.86 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{
-                  delay: reduceMotion ? 0 : 0.16,
-                  duration: reduceMotion ? 0 : 0.42,
-                }}
-                className="relative z-10 text-white"
-              >
-                <Leaf className="h-9 w-9" strokeWidth={1.8} />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+          <div className="flex h-full w-full items-center justify-center rounded-[18px] bg-[linear-gradient(180deg,rgb(var(--c-brand-solid-top)),rgb(var(--c-brand-solid)))] text-fg-on-brand shadow-[var(--shadow-brand),var(--highlight-brand)]">
+            <AnimatePresence mode="wait">
+              {done ? (
+                <motion.div
+                  key="done"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                >
+                  <CheckCircle2 className="h-9 w-9" strokeWidth={1.8} />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="leaf"
+                  initial={{ opacity: 0, scale: 0.88 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{
+                    delay: reduceMotion ? 0 : 0.12,
+                    duration: reduceMotion ? 0 : 0.32,
+                  }}
+                >
+                  <Leaf className="h-9 w-9" strokeWidth={1.8} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
 
         <motion.h1
-          initial={{ opacity: 0, y: 7, letterSpacing: "0.28em" }}
-          animate={{ opacity: 1, y: 0, letterSpacing: "0.18em" }}
-          transition={{
-            duration: reduceMotion ? 0 : 0.52,
-            delay: 0.2,
-            ease: [0.2, 0.8, 0.2, 1],
-          }}
-          className="text-[30px] font-semibold leading-none text-text-primary"
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.32, delay: 0.12, ease: [0.2, 0.8, 0.2, 1] }}
+          className="font-display text-[30px] font-semibold leading-none tracking-[.18em] text-fg-1"
         >
           PROPEL
         </motion.h1>
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: reduceMotion ? 0 : 0.4, delay: 0.36 }}
-          className="mt-3 text-[13px] text-text-secondary"
+          transition={{ duration: reduceMotion ? 0 : 0.32, delay: 0.2 }}
+          className="mt-3 text-body text-fg-2"
         >
           Advanced Windows System Optimizer
         </motion.p>
 
         <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: reduceMotion ? 0 : 0.4, delay: 0.58 }}
-          className="mt-9 flex w-full items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: reduceMotion ? 0 : 0.32, delay: 0.3 }}
+          className="mt-9 w-40"
           aria-label="Loading"
         >
-          <style>{`
-            .propel-square-loader {
-              display: inline-block;
-              width: 30px;
-              height: 30px;
-              position: relative;
-              border: 4px solid rgb(var(--t-accent));
-              animation: propel-loader 2s infinite ease;
-              box-shadow: 0 0 14px rgb(var(--t-accent) / .14);
-            }
-
-            .propel-square-loader-inner {
-              vertical-align: top;
-              display: inline-block;
-              width: 100%;
-              background-color: rgb(var(--t-accent));
-              animation: propel-loader-inner 2s infinite ease-in;
-            }
-
-            @keyframes propel-loader {
-              0% { transform: rotate(0deg); }
-              25% { transform: rotate(180deg); }
-              50% { transform: rotate(180deg); }
-              75% { transform: rotate(360deg); }
-              100% { transform: rotate(360deg); }
-            }
-
-            @keyframes propel-loader-inner {
-              0% { height: 0%; }
-              25% { height: 0%; }
-              50% { height: 100%; }
-              75% { height: 100%; }
-              100% { height: 0%; }
-            }
-
-            .propel-square-loader--reduced,
-            .propel-square-loader--reduced .propel-square-loader-inner {
-              animation: none;
-            }
-
-            .propel-square-loader--reduced .propel-square-loader-inner {
-              height: 100%;
-            }
-          `}</style>
-          <span
-            className={`propel-square-loader${reduceMotion ? " propel-square-loader--reduced" : ""}`}
-            aria-hidden="true"
-          >
-            <span className="propel-square-loader-inner" />
-          </span>
+          <Progress value={done ? 100 : null} indeterminate={!done} tone="brand" size="xs" aria-label="Loading Propel" />
         </motion.div>
 
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: reduceMotion ? 0 : 0.72 }}
-          className="mt-8 text-[10px] text-text-muted"
+          transition={{ delay: reduceMotion ? 0 : 0.4 }}
+          className="mt-8 text-[10.5px] text-fg-3"
         >
           Version 1.4
         </motion.p>

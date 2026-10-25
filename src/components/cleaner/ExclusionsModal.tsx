@@ -2,9 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X, ShieldCheck, FolderOpen, FileText, Hash, Globe, Tag,
-  Plus, Trash2, Search, AlertCircle, CheckCircle2, Loader2,
+  Plus, Trash2, Search, AlertCircle, CheckCircle2,
 } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { SkeletonRow } from '@/components/ui/Skeleton'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
 import type { ExclusionEntry, ExclusionType } from '@/types'
 
@@ -127,220 +133,171 @@ export const ExclusionsModal: React.FC<ExclusionsModalProps> = ({ open, onClose 
   const typeEntries = Object.entries(TYPE_META) as [ExclusionType, typeof TYPE_META[ExclusionType]][]
 
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          key="backdrop"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[150] flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.70)', backdropFilter: 'blur(10px)' }}
-          onClick={onClose}
-        >
-          <motion.div
-            key="panel"
-            initial={{ opacity: 0, scale: 0.95, y: 14 }}
-            animate={{ opacity: 1, scale: 1,    y: 0  }}
-            exit={{ opacity: 0,   scale: 0.95,  y: 8  }}
-            transition={{ type: 'spring', stiffness: 360, damping: 28 }}
-            onClick={e => e.stopPropagation()}
-            className="relative w-full max-w-[600px] max-h-[88vh] flex flex-col bg-bg-surface border border-border/60 rounded-2xl shadow-2xl overflow-hidden"
-          >
-            {/* Glow */}
-            <div className="absolute -top-12 -left-12 w-48 h-48 bg-brand-primary/[0.06] rounded-full blur-3xl pointer-events-none" />
-
-            {/* Header */}
-            <div className="flex items-center gap-3 px-6 py-4 border-b border-border/40 shrink-0 relative z-10">
-              <div className="w-9 h-9 rounded-xl bg-brand-primary/15 border border-brand-primary/25 flex items-center justify-center">
-                <ShieldCheck className="w-4.5 h-4.5 text-brand-primary" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-text-primary">Exclusions Manager</h2>
-                <p className="text-2xs text-text-muted">Paths, extensions & categories never cleaned</p>
-              </div>
-              <button
-                onClick={onClose}
-                className="ml-auto w-7 h-7 rounded-lg flex items-center justify-center text-text-muted hover:text-text-secondary hover:bg-white/5 transition-colors"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {/* Add row */}
-            <div className="px-5 py-4 border-b border-border/30 space-y-3 shrink-0">
-              {/* Type picker */}
-              <div className="flex gap-1.5 flex-wrap">
-                {typeEntries.map(([type, meta]) => (
-                  <button
-                    key={type}
-                    onClick={() => { setAddType(type); setAddValue('') }}
-                    className={cn(
-                      'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-2xs font-medium border transition-all',
-                      addType === type
-                        ? 'bg-brand-primary/15 border-brand-primary/40 text-brand-primary'
-                        : 'border-border/50 text-text-muted hover:text-text-secondary hover:bg-white/[0.03]',
-                    )}
-                  >
-                    {meta.icon}
-                    {meta.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Value input */}
-              <div className="flex gap-2">
-                {addType === 'browser' ? (
-                  <select
-                    value={addValue}
-                    onChange={e => setAddValue(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-xl bg-bg-surface border border-border/60 text-xs text-text-primary focus:outline-none focus:border-brand-primary/50 transition-colors"
-                  >
-                    <option value="">Select browser…</option>
-                    {BROWSER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                ) : addType === 'category' ? (
-                  <select
-                    value={addValue}
-                    onChange={e => setAddValue(e.target.value)}
-                    className="flex-1 px-3 py-2 rounded-xl bg-bg-surface border border-border/60 text-xs text-text-primary focus:outline-none focus:border-brand-primary/50 transition-colors"
-                  >
-                    <option value="">Select category…</option>
-                    {CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={addValue}
-                    onChange={e => setAddValue(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleAdd()}
-                    placeholder={TYPE_META[addType].placeholder}
-                    className="flex-1 px-3 py-2 rounded-xl bg-bg-surface border border-border/60 text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-primary/50 transition-colors"
-                  />
-                )}
-                <button
-                  onClick={handleAdd}
-                  disabled={saving}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white [background:var(--t-btn-bg)] hover:brightness-105 disabled:opacity-50 transition-all shrink-0"
-                >
-                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  Add
-                </button>
-              </div>
-
-              {/* Hint + feedback */}
-              <div className="flex items-start justify-between gap-2">
-                <p className="text-2xs text-text-muted">{TYPE_META[addType].hint}</p>
-                <AnimatePresence mode="wait">
-                  {feedback && (
-                    <motion.div
-                      key={feedback.msg}
-                      initial={{ opacity: 0, x: 8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0 }}
-                      className={cn(
-                        'flex items-center gap-1.5 text-2xs font-medium shrink-0',
-                        feedback.ok ? 'text-emerald-400' : 'text-red-400',
-                      )}
-                    >
-                      {feedback.ok
-                        ? <CheckCircle2 className="w-3 h-3" />
-                        : <AlertCircle className="w-3 h-3" />
-                      }
-                      {feedback.msg}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* Search */}
-            <div className="px-5 py-3 border-b border-border/20 shrink-0">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-border/40">
-                <Search className="w-3.5 h-3.5 text-text-muted shrink-0" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder={`Search ${entries.length} exclusion${entries.length !== 1 ? 's' : ''}…`}
-                  className="flex-1 bg-transparent text-xs text-text-primary placeholder-text-muted focus:outline-none"
-                />
-                {search && (
-                  <button onClick={() => setSearch('')} className="text-text-muted hover:text-text-secondary">
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* List */}
-            <div className="flex-1 overflow-y-auto px-4 py-2">
-              {loading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
-                </div>
-              ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-brand-primary/10 flex items-center justify-center">
-                    <ShieldCheck className="w-6 h-6 text-brand-primary/60" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-text-secondary">
-                      {search ? 'No matching exclusions' : 'No exclusions yet'}
-                    </p>
-                    <p className="text-2xs text-text-muted mt-1">
-                      {search ? 'Try a different search term.' : 'Add folders, extensions or categories to always skip during scans.'}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-1 py-1">
-                  {filtered.map(entry => (
-                    <motion.div
-                      key={entry.id}
-                      layout
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 8 }}
-                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.03] group transition-colors"
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-brand-primary/10 flex items-center justify-center text-brand-primary shrink-0">
-                        {TYPE_META[entry.type].icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-text-primary truncate">{entry.label}</p>
-                        <p className="text-2xs text-text-muted truncate font-mono">{entry.value}</p>
-                      </div>
-                      <span className="text-2xs text-text-muted/60 bg-white/[0.04] px-1.5 py-0.5 rounded-md shrink-0 capitalize">
-                        {entry.type}
-                      </span>
-                      <button
-                        onClick={() => handleRemove(entry.id)}
-                        className="w-6 h-6 rounded-lg flex items-center justify-center text-text-muted/40 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </motion.div>
-                  ))}
-                </div>
+    <Modal
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) onClose()
+      }}
+      title="Exclusions Manager"
+      description="Paths, extensions & categories never cleaned"
+      icon={<ShieldCheck />}
+      tone="brand"
+      size="lg"
+      footer={
+        <>
+          <p className="mr-auto text-caption text-fg-3">
+            {entries.length} exclusion{entries.length !== 1 ? 's' : ''} active — applied on every scan
+          </p>
+          <Button variant="secondary" onClick={onClose}>
+            Done
+          </Button>
+        </>
+      }
+    >
+      {/* Add row */}
+      <div className="space-y-3 rounded-card border border-line-subtle bg-surface-inset p-3.5">
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Exclusion type">
+          {typeEntries.map(([type, meta]) => (
+            <button
+              key={type}
+              role="radio"
+              aria-checked={addType === type}
+              onClick={() => { setAddType(type); setAddValue('') }}
+              className={cn(
+                'flex h-7 items-center gap-1.5 rounded-chip border px-2.5 text-caption font-medium transition-colors duration-fast focus-visible:shadow-ring',
+                addType === type
+                  ? 'border-brand/30 bg-brand-soft text-brand-fg'
+                  : 'border-line-subtle bg-surface-raised text-fg-2 hover:border-line hover:text-fg-1',
               )}
-            </div>
+            >
+              {meta.icon}
+              {meta.label}
+            </button>
+          ))}
+        </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between px-6 py-3.5 border-t border-border/30 bg-white/[0.01] shrink-0">
-              <p className="text-2xs text-text-muted">
-                {entries.length} exclusion{entries.length !== 1 ? 's' : ''} active — applied on every scan
-              </p>
-              <button
-                onClick={onClose}
-                className="px-4 py-1.5 rounded-xl border border-border text-xs font-medium text-text-secondary hover:text-text-primary hover:border-border/80 transition-colors"
+        <div className="flex gap-2">
+          {addType === 'browser' ? (
+            <Select value={addValue} onChange={e => setAddValue(e.target.value)} aria-label="Browser">
+              <option value="">Select browser…</option>
+              {BROWSER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+          ) : addType === 'category' ? (
+            <Select value={addValue} onChange={e => setAddValue(e.target.value)} aria-label="Category">
+              <option value="">Select category…</option>
+              {CATEGORY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </Select>
+          ) : (
+            <Input
+              type="text"
+              value={addValue}
+              onChange={e => setAddValue(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAdd()}
+              placeholder={TYPE_META[addType].placeholder}
+              aria-label={`${TYPE_META[addType].label} to exclude`}
+              invalid={feedback ? !feedback.ok : false}
+              className={addType === 'folder' || addType === 'file' ? 'font-mono text-body-sm' : undefined}
+            />
+          )}
+          <Button onClick={handleAdd} loading={saving} icon={<Plus />} className="shrink-0">
+            Add
+          </Button>
+        </div>
+
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-caption text-fg-3">{TYPE_META[addType].hint}</p>
+          <AnimatePresence mode="wait">
+            {feedback && (
+              <motion.p
+                key={feedback.msg}
+                role={feedback.ok ? 'status' : 'alert'}
+                initial={{ opacity: 0, y: 2 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 text-caption font-medium',
+                  feedback.ok ? 'text-success-fg' : 'text-danger-fg',
+                )}
               >
-                Done
-              </button>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+                {feedback.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                {feedback.msg}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="relative mt-4">
+        <Input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={`Search ${entries.length} exclusion${entries.length !== 1 ? 's' : ''}…`}
+          aria-label="Search exclusions"
+          icon={<Search />}
+          className="pr-9"
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            aria-label="Clear search"
+            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-chip text-fg-3 hover:bg-state/[var(--a-hover)] hover:text-fg-1 focus-visible:shadow-ring"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* List */}
+      <div className="mt-3">
+        {loading ? (
+          <div className="space-y-1" role="status" aria-label="Loading exclusions">
+            <SkeletonRow />
+            <SkeletonRow />
+            <SkeletonRow />
+          </div>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            compact
+            icon={search ? <Search /> : <ShieldCheck />}
+            tone={search ? 'neutral' : 'brand'}
+            title={search ? 'No matching exclusions' : 'No exclusions yet'}
+            description={search ? 'Try a different search term.' : 'Add folders, extensions or categories to always skip during scans.'}
+          />
+        ) : (
+          <ul className="divide-y divide-line-subtle overflow-hidden rounded-card border border-line-subtle">
+            {filtered.map(entry => (
+              <motion.li
+                key={entry.id}
+                layout="position"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="group flex items-center gap-3 bg-surface-raised px-3 py-2.5 transition-colors duration-fast hover:bg-state/[var(--a-hover)]"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-chip bg-surface-inset text-fg-2">
+                  {TYPE_META[entry.type].icon}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-body-sm font-medium text-fg-1">{entry.label}</p>
+                  <p className="truncate font-mono text-[11px] text-fg-3">{entry.value}</p>
+                </div>
+                <span className="shrink-0 rounded-chip bg-surface-inset px-1.5 py-0.5 text-[10.5px] font-medium capitalize text-fg-3">
+                  {entry.type}
+                </span>
+                <button
+                  onClick={() => handleRemove(entry.id)}
+                  aria-label={`Remove exclusion ${entry.label}`}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-chip text-fg-3 opacity-0 transition-[opacity,background-color,color] duration-fast hover:bg-danger-soft hover:text-danger-fg focus-visible:opacity-100 focus-visible:shadow-ring group-hover:opacity-100"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </motion.li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Modal>
   )
 }

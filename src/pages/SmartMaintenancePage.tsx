@@ -8,48 +8,37 @@ import {
   FolderX,
   Rocket,
   Bell,
-  BellOff,
-  RefreshCw,
-  CheckCircle2,
   AlertTriangle,
-  Calendar,
-  Zap,
-  Chrome,
   Flame,
-  Layers,
-  Activity,
   Lock,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { useSessionStore } from "@/store/sessionStore";
 import { useAppStore } from "@/store/appStore";
 import { PROPEL_PRICING_URL } from "@/constants/appConstants";
+import { Card } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Toggle as UiToggle } from "@/components/ui/Toggle";
+import { Select } from "@/components/ui/Select";
+import { Callout } from "@/components/ui/Callout";
+import { StatusPill as UiStatusPill } from "@/components/ui/StatusPill";
+import { Skeleton } from "@/components/ui/Skeleton";
 import type { MaintenanceSettings, MaintenanceStatus } from "@/types";
 
-// ── Glow Toggle ────────────────────────────────────────────────────────────
+// ── Toggle (same props as before, design-system switch) ────────────────────
 const Toggle: React.FC<{
   checked: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
-}> = ({ checked, onChange, disabled }) => (
-  <button
-    role="switch"
-    aria-checked={checked}
+  label?: string;
+}> = ({ checked, onChange, disabled, label }) => (
+  <UiToggle
+    checked={checked}
     disabled={disabled}
-    onClick={() => !disabled && onChange(!checked)}
-    className={cn(
-      "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-all duration-200 focus:outline-none",
-      checked ? "toggle-on" : "bg-white/10 border border-white/10",
-      disabled && "opacity-40 cursor-not-allowed",
-    )}
-  >
-    <span
-      className={cn(
-        "absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-200",
-        checked ? "translate-x-5" : "translate-x-0",
-      )}
-    />
-  </button>
+    aria-label={label}
+    onCheckedChange={(v) => !disabled && onChange(v)}
+  />
 );
 
 // ── Section card ───────────────────────────────────────────────────────────
@@ -60,20 +49,21 @@ const SectionCard: React.FC<{
   children: React.ReactNode;
 }> = ({ icon, title, subtitle, children }) => (
   <motion.div
-    initial={{ opacity: 0, y: 12 }}
+    initial={{ opacity: 0, y: 8 }}
     animate={{ opacity: 1, y: 0 }}
-    className="glass rounded-2xl p-5 border border-border/50 hover:border-brand-primary/20 transition-colors duration-300 flex flex-col h-full"
+    transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+    className="flex h-full flex-col rounded-card border border-line bg-surface-raised shadow-[var(--shadow-1),var(--highlight-top)]"
   >
-    <div className="flex items-start gap-3 mb-4">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-brand-primary/10 border border-brand-primary/20">
-        <span className="text-brand-primary">{icon}</span>
-      </div>
+    <div className="flex items-center gap-3 border-b border-line-subtle px-5 py-4">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-surface-inset text-fg-2 [&>svg]:h-4 [&>svg]:w-4">
+        {icon}
+      </span>
       <div>
-        <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-        <p className="text-2xs text-text-muted mt-0.5">{subtitle}</p>
+        <h3 className="text-title font-semibold text-fg-1">{title}</h3>
+        <p className="text-caption text-fg-3">{subtitle}</p>
       </div>
     </div>
-    <div className="space-y-3 flex-1 flex flex-col justify-center">{children}</div>
+    <div className="flex flex-1 flex-col divide-y divide-line-subtle px-5 py-1">{children}</div>
   </motion.div>
 );
 
@@ -84,41 +74,21 @@ const ControlRow: React.FC<{
   badge?: React.ReactNode;
   children: React.ReactNode;
 }> = ({ label, sublabel, badge, children }) => (
-  <div className="flex items-center justify-between gap-4 py-1">
+  <div className="flex items-center justify-between gap-4 py-3">
     <div className="min-w-0">
       <div className="flex items-center gap-2">
-        <p className="text-xs font-medium text-text-secondary">{label}</p>
+        <p className="text-body font-medium text-fg-1">{label}</p>
         {badge}
       </div>
-      {sublabel && (
-        <p className="text-2xs text-text-muted mt-0.5">{sublabel}</p>
-      )}
+      {sublabel && <p className="mt-0.5 text-caption text-fg-3">{sublabel}</p>}
     </div>
     <div className="shrink-0">{children}</div>
   </div>
 );
 
 // ── Status pill ────────────────────────────────────────────────────────────
-const StatusPill: React.FC<{ active: boolean; label: string }> = ({
-  active,
-  label,
-}) => (
-  <span
-    className={cn(
-      "inline-flex items-center gap-1.5 text-2xs font-medium px-2.5 py-1 rounded-full border",
-      active
-        ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-400"
-        : "bg-white/[0.04] border-border/60 text-text-muted",
-    )}
-  >
-    <span
-      className={cn(
-        "w-1.5 h-1.5 rounded-full",
-        active ? "bg-emerald-400" : "bg-text-muted",
-      )}
-    />
-    {label}
-  </span>
+const StatusPill: React.FC<{ active: boolean; label: string }> = ({ active, label }) => (
+  <UiStatusPill tone={active ? "healthy" : "neutral"}>{label}</UiStatusPill>
 );
 
 // ── Format helpers ─────────────────────────────────────────────────────────
@@ -252,336 +222,325 @@ export const SmartMaintenancePage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
-        >
-          <RefreshCw className="w-5 h-5 text-brand-primary" />
-        </motion.div>
+      <div className="page-shell" role="status" aria-label="Loading maintenance settings">
+        <div className="mb-6 space-y-2">
+          <Skeleton className="h-6 w-52" />
+          <Skeleton className="h-3.5 w-72" />
+        </div>
+        <div className="grid grid-cols-2 gap-4 max-[980px]:grid-cols-1">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-56 rounded-card" />
+          ))}
+        </div>
       </div>
     );
   }
 
+  const upgradeToast = () =>
+    addToast({
+      type: "warning",
+      title: "Upgrade Required",
+      description: "Upgrade to PRO or MAX to use the scheduler.",
+    });
+
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="page-shell flex flex-col gap-5">
-        {/* ── Header ── */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-brand-primary/15 border border-brand-primary/25 flex items-center justify-center shadow-glow-sm">
-              <Bot className="w-5 h-5 text-brand-primary" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-text-primary">
-                Smart Maintenance
-              </h1>
-              <p className="text-xs text-text-muted">
-                Automated cleaning, scheduling &amp; system control
-              </p>
-            </div>
-          </div>
+    <div className="page-shell">
+      <PageHeader
+        eyebrow="Automation"
+        title="Smart Maintenance"
+        subtitle="Automated cleaning, scheduling & system control"
+        meta={
+          <span className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            {canSchedule && settings.scheduleEnabled ? "Scheduler on" : "Scheduler off"}
+          </span>
+        }
+      />
 
-        </div>
-
-        {/* ── Grid ── */}
-        <div className="maintenance-controls grid grid-cols-2 items-stretch gap-4 max-[980px]:grid-cols-1">
-          {/* 1. Automatic Cleaning */}
-          <SectionCard
-            icon={<Clock className="w-4 h-4" />}
-            title="Automatic Cleaning"
-            subtitle="Schedule temp file removal"
+      <div className="grid grid-cols-2 items-stretch gap-4 max-[980px]:grid-cols-1">
+        {/* 1. Automatic Cleaning */}
+        <SectionCard icon={<Clock />} title="Automatic Cleaning" subtitle="Schedule temp file removal">
+          <ControlRow
+            label="Enable Scheduler"
+            badge={
+              !canSchedule ? (
+                <button
+                  type="button"
+                  onClick={upgradeToast}
+                  className="inline-flex h-5 items-center gap-1 rounded-full border border-brand/25 bg-brand-soft px-2 text-[10.5px] font-semibold text-brand-fg transition-colors hover:border-brand/45 focus-visible:shadow-ring"
+                >
+                  <Lock className="h-2.5 w-2.5" /> PRO
+                </button>
+              ) : null
+            }
+            sublabel="Runs in the background automatically"
           >
-            <ControlRow
+            <Toggle
               label="Enable Scheduler"
-              badge={
-                !canSchedule ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      addToast({
-                        type: "warning",
-                        title: "Upgrade Required",
-                        description: "Upgrade to PRO or MAX to use the scheduler.",
-                      });
-                    }}
-                    className="inline-flex items-center gap-1 text-2xs font-semibold px-2 py-0.5 rounded-full border bg-brand-primary/10 text-brand-primary border-brand-primary/25 hover:bg-brand-primary/20 transition-colors cursor-pointer"
-                  >
-                    <Lock className="w-2.5 h-2.5" /> PRO
-                  </button>
-                ) : null
-              }
-              sublabel="Runs in the background automatically"
-            >
-              <Toggle
-                checked={Boolean(canSchedule && settings.scheduleEnabled)}
-                onChange={(v) => {
-                  if (!canSchedule) {
-                    addToast({
-                      type: "warning",
-                      title: "Upgrade Required",
-                      description: "Upgrade to PRO or MAX to use the scheduler.",
-                    });
-                    return;
-                  }
-                  toggle("scheduleEnabled", v);
-                }}
-              />
-            </ControlRow>
+              checked={Boolean(canSchedule && settings.scheduleEnabled)}
+              onChange={(v) => {
+                if (!canSchedule) {
+                  upgradeToast();
+                  return;
+                }
+                toggle("scheduleEnabled", v);
+              }}
+            />
+          </ControlRow>
 
-            {canSchedule && settings.scheduleEnabled && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-              >
-                <ControlRow label="Frequency">
-                  <select
-                    disabled={!canSchedule}
-                    value={settings.scheduleFrequency}
-                    onChange={(e) =>
-                      toggle("scheduleFrequency", e.target.value)
-                    }
-                    className="bg-bg-surface border border-border/60 rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:outline-none focus:border-brand-primary/50"
-                  >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                  </select>
-                </ControlRow>
-              </motion.div>
-            )}
+          {canSchedule && settings.scheduleEnabled && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
+              <ControlRow label="Frequency">
+                <Select
+                  disabled={!canSchedule}
+                  value={settings.scheduleFrequency}
+                  onChange={(e) => toggle("scheduleFrequency", e.target.value)}
+                  aria-label="Schedule frequency"
+                  className="h-8 w-32 text-body-sm"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                </Select>
+              </ControlRow>
+            </motion.div>
+          )}
 
-            <ControlRow
-              label="Auto Empty Recycle Bin"
-              sublabel="Automatically empty the Recycle Bin after each cleanup run."
-            >
-              <Toggle
-                checked={settings.recycleBinEnabled}
-                onChange={(v) => toggle("recycleBinEnabled", v)}
-              />
-            </ControlRow>
-
-            <ControlRow
-              label="Protect Downloads Folder"
-              sublabel="Never scan or delete items in your Downloads folder"
-            >
-              <Toggle
-                checked={settings.ignoreDownloads}
-                onChange={(v) => toggle("ignoreDownloads", v)}
-              />
-            </ControlRow>
-
-            <ControlRow
-              label="Safe Cleaning Mode"
-              sublabel="Move cleaned files to Recycle Bin instead of permanent deletion"
-            >
-              <Toggle
-                checked={settings.safeCleaningMode}
-                onChange={(v) => toggle("safeCleaningMode", v)}
-              />
-            </ControlRow>
-          </SectionCard>
-
-          {/* 2. Alerts & Notifications */}
-          <SectionCard
-            icon={<Bell className="w-4 h-4" />}
-            title="Alerts &amp; Notifications"
-            subtitle="Native desktop notifications"
+          <ControlRow
+            label="Auto Empty Recycle Bin"
+            sublabel="Automatically empty the Recycle Bin after each cleanup run."
           >
-            <AnimatePresence initial={false}>
-              {(settings.ramAlertsEnabled || settings.diskAlertsEnabled || settings.junkAlertsEnabled || settings.startupAlertsEnabled || settings.permissionAlertsEnabled) && !settings.runInBackground && (
+            <Toggle
+              label="Auto Empty Recycle Bin"
+              checked={settings.recycleBinEnabled}
+              onChange={(v) => toggle("recycleBinEnabled", v)}
+            />
+          </ControlRow>
+
+          <ControlRow
+            label="Protect Downloads Folder"
+            sublabel="Never scan or delete items in your Downloads folder"
+          >
+            <Toggle
+              label="Protect Downloads Folder"
+              checked={settings.ignoreDownloads}
+              onChange={(v) => toggle("ignoreDownloads", v)}
+            />
+          </ControlRow>
+
+          <ControlRow
+            label="Safe Cleaning Mode"
+            sublabel="Move cleaned files to Recycle Bin instead of permanent deletion"
+          >
+            <Toggle
+              label="Safe Cleaning Mode"
+              checked={settings.safeCleaningMode}
+              onChange={(v) => toggle("safeCleaningMode", v)}
+            />
+          </ControlRow>
+        </SectionCard>
+
+        {/* 2. Alerts & Notifications */}
+        <SectionCard icon={<Bell />} title="Alerts & Notifications" subtitle="Native desktop notifications">
+          <AnimatePresence initial={false}>
+            {(settings.ramAlertsEnabled ||
+              settings.diskAlertsEnabled ||
+              settings.junkAlertsEnabled ||
+              settings.startupAlertsEnabled ||
+              settings.permissionAlertsEnabled) &&
+              !settings.runInBackground && (
                 <motion.div
                   key="alerts-bg-banner"
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
+                  animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.25, ease: 'easeInOut' }}
+                  transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
                   className="overflow-hidden"
                 >
-                  <div className="mb-1 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
-                    <p className="text-xs text-amber-400 font-medium flex items-start gap-1.5 leading-snug">
-                      <AlertTriangle className="w-4 h-4 shrink-0 -mt-0.5" />
-                      <span>
-                        Alerts require Propel to keep running in the background to work when the app window is closed.{" "}
-                        <button 
-                          onClick={() => toggle("runInBackground", true)}
-                          className="font-bold underline underline-offset-2 hover:text-amber-300 transition-colors"
-                        >
-                          Enable Run in Background
-                        </button>
-                      </span>
-                    </p>
-                  </div>
+                  <Callout tone="warning" icon={<AlertTriangle />} className="my-3">
+                    Alerts require Propel to keep running in the background to work when the app window
+                    is closed.{" "}
+                    <button
+                      onClick={() => toggle("runInBackground", true)}
+                      className="font-semibold text-warning-fg underline underline-offset-2 hover:text-fg-1 focus-visible:shadow-ring"
+                    >
+                      Enable Run in Background
+                    </button>
+                  </Callout>
                 </motion.div>
               )}
-            </AnimatePresence>
+          </AnimatePresence>
 
-            <ControlRow
+          <ControlRow
+            label="High RAM Usage Alerts"
+            sublabel={`Alert when RAM exceeds ${settings.ramAlertThreshold ?? 85}% (5 min cooldown)`}
+          >
+            <Toggle
               label="High RAM Usage Alerts"
-              sublabel={`Alert when RAM exceeds ${settings.ramAlertThreshold ?? 85}% (5 min cooldown)`}
-            >
-              <Toggle
-                checked={settings.ramAlertsEnabled}
-                onChange={(v) => toggle("ramAlertsEnabled", v)}
-              />
-            </ControlRow>
-            
-            <ControlRow
+              checked={settings.ramAlertsEnabled}
+              onChange={(v) => toggle("ramAlertsEnabled", v)}
+            />
+          </ControlRow>
+
+          <ControlRow
+            label="High Disk Usage Alerts"
+            sublabel={`Alert when disk exceeds ${settings.diskAlertThreshold}% (5 min cooldown)`}
+          >
+            <Toggle
               label="High Disk Usage Alerts"
-              sublabel={`Alert when disk exceeds ${settings.diskAlertThreshold}% (5 min cooldown)`}
-            >
-              <Toggle
-                checked={settings.diskAlertsEnabled}
-                onChange={(v) => toggle("diskAlertsEnabled", v)}
-              />
-            </ControlRow>
+              checked={settings.diskAlertsEnabled}
+              onChange={(v) => toggle("diskAlertsEnabled", v)}
+            />
+          </ControlRow>
 
-            <ControlRow
+          <ControlRow
+            label="Junk File Alerts"
+            sublabel={`Alert when junk files exceed ${settings.junkAlertThreshold} GB`}
+          >
+            <Toggle
               label="Junk File Alerts"
-              sublabel={`Alert when junk files exceed ${settings.junkAlertThreshold} GB`}
-            >
-              <Toggle
-                checked={settings.junkAlertsEnabled}
-                onChange={(v) => toggle("junkAlertsEnabled", v)}
-              />
-            </ControlRow>
+              checked={settings.junkAlertsEnabled}
+              onChange={(v) => toggle("junkAlertsEnabled", v)}
+            />
+          </ControlRow>
 
-            <ControlRow
+          <ControlRow
+            label="Startup App Alerts"
+            sublabel="Notify when a new app adds itself to Windows startup"
+          >
+            <Toggle
               label="Startup App Alerts"
-              sublabel="Notify when a new app adds itself to Windows startup"
-            >
-              <Toggle
-                checked={settings.startupAlertsEnabled}
-                onChange={(v) => toggle("startupAlertsEnabled", v)}
-              />
-            </ControlRow>
+              checked={settings.startupAlertsEnabled}
+              onChange={(v) => toggle("startupAlertsEnabled", v)}
+            />
+          </ControlRow>
 
-            <ControlRow
+          <ControlRow
+            label="Permission Change Alerts"
+            sublabel="Notify when an app requests new sensitive permissions (camera, mic, location)"
+          >
+            <Toggle
               label="Permission Change Alerts"
-              sublabel="Notify when an app requests new sensitive permissions (camera, mic, location)"
-            >
-              <Toggle
-                checked={settings.permissionAlertsEnabled}
-                onChange={(v) => toggle("permissionAlertsEnabled", v)}
-              />
-            </ControlRow>
-          </SectionCard>
+              checked={settings.permissionAlertsEnabled}
+              onChange={(v) => toggle("permissionAlertsEnabled", v)}
+            />
+          </ControlRow>
+        </SectionCard>
 
-          {/* 3. Startup & Background */}
-          <SectionCard
-            icon={<Rocket className="w-4 h-4" />}
-            title="Startup &amp; Background"
-            subtitle="Control app launch behavior"
-          >
-            <ControlRow
+        {/* 3. Startup & Background */}
+        <SectionCard icon={<Rocket />} title="Startup & Background" subtitle="Control app launch behavior">
+          <ControlRow label="Launch on Windows Startup" sublabel="Register in Windows login items">
+            <Toggle
               label="Launch on Windows Startup"
-              sublabel="Register in Windows login items"
-            >
-              <Toggle
-                checked={settings.startupEnabled}
-                onChange={(v) => toggle("startupEnabled", v)}
-              />
-            </ControlRow>
+              checked={settings.startupEnabled}
+              onChange={(v) => toggle("startupEnabled", v)}
+            />
+          </ControlRow>
 
-            <ControlRow
-              label="Run in Background"
-              sublabel="Keep Propel running in the system tray when you close the window, so alerts and scheduled maintenance can continue."
-            >
-              <Toggle
-                checked={settings.runInBackground}
-                onChange={(v) => toggle("runInBackground", v)}
-              />
-            </ControlRow>
-          </SectionCard>
-
-          {/* 4. Browser & Updates */}
-          <SectionCard
-            icon={<Globe className="w-4 h-4" />}
-            title="Browser &amp; Updates"
-            subtitle="Browser cache cleanup and app update alerts"
+          <ControlRow
+            label="Run in Background"
+            sublabel="Keep Propel running in the system tray when you close the window, so alerts and scheduled maintenance can continue."
           >
-            <ControlRow
+            <Toggle
+              label="Run in Background"
+              checked={settings.runInBackground}
+              onChange={(v) => toggle("runInBackground", v)}
+            />
+          </ControlRow>
+        </SectionCard>
+
+        {/* 4. Browser & Updates */}
+        <SectionCard
+          icon={<Globe />}
+          title="Browser & Updates"
+          subtitle="Browser cache cleanup and app update alerts"
+        >
+          <ControlRow
+            label="Auto-clean browser cache"
+            sublabel="Automatically clean supported browser caches"
+          >
+            <Toggle
               label="Auto-clean browser cache"
-              sublabel="Automatically clean supported browser caches"
-            >
-              <Toggle
-                checked={settings.browserMasterEnabled}
-                onChange={(v) => toggle("browserMasterEnabled", v)}
-              />
-            </ControlRow>
-            
-            <p className="text-2xs text-text-muted pt-2 border-t border-border/30 mt-1">
-              Only cache is removed. Profiles, passwords, and bookmarks are
-              never touched.
-            </p>
+              checked={settings.browserMasterEnabled}
+              onChange={(v) => toggle("browserMasterEnabled", v)}
+            />
+          </ControlRow>
 
-            <ControlRow
+          <p className="py-3 text-caption text-fg-3">
+            Only cache is removed. Profiles, passwords, and bookmarks are never touched.
+          </p>
+
+          <ControlRow
+            label="Update Notifications"
+            sublabel="Show update modal when a new version is available"
+          >
+            <Toggle
               label="Update Notifications"
-              sublabel="Show update modal when a new version is available"
-            >
-              <Toggle
-                checked={settings.updateNotificationsEnabled ?? true}
-                onChange={(v) => toggle("updateNotificationsEnabled", v)}
-              />
-            </ControlRow>
-          </SectionCard>
-        </div>
+              checked={settings.updateNotificationsEnabled ?? true}
+              onChange={(v) => toggle("updateNotificationsEnabled", v)}
+            />
+          </ControlRow>
+        </SectionCard>
+      </div>
 
-        {/* ── What gets cleaned ── */}
-        <div className="maintenance-scope glass rounded-2xl p-5 border border-border/50">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-text-primary flex items-center gap-2">
-              <Trash2 className="w-3.5 h-3.5 text-brand-primary" />
-              Directories Cleaned Automatically
-            </p>
-          </div>
-          
+      {/* ── What gets cleaned ── */}
+      <Card className="mt-4 p-5">
+        <div className="flex items-center justify-between gap-4">
+          <p className="flex items-center gap-2 text-body font-semibold text-fg-1">
+            <Trash2 className="h-4 w-4 text-fg-3" />
+            Directories Cleaned Automatically
+          </p>
           <button
             onClick={() => setIsTechnicalDetailsOpen(!isTechnicalDetailsOpen)}
-            className="text-xs font-semibold text-text-muted hover:text-text-primary flex items-center gap-1 transition-colors"
+            aria-expanded={isTechnicalDetailsOpen}
+            className="flex items-center gap-1 rounded-chip px-2 py-1 text-caption font-semibold text-fg-3 transition-colors hover:bg-state/[var(--a-hover)] hover:text-fg-1 focus-visible:shadow-ring"
           >
-            Technical Details {isTechnicalDetailsOpen ? '▴' : '▾'}
+            Technical Details
+            <ChevronDown
+              className={cn("h-3.5 w-3.5 transition-transform duration-base", isTechnicalDetailsOpen && "rotate-180")}
+            />
           </button>
-
-          <AnimatePresence initial={false}>
-            {isTechnicalDetailsOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 pt-4">
-                  {[
-                    "%TEMP%",
-                    "%LOCALAPPDATA%\\Temp",
-                    "%WINDIR%\\Temp",
-                    "Windows INetCache",
-                    "Thumbnail Cache (pending)",
-                    "App Crash Dumps",
-                    "Chrome Cache (if enabled)",
-                    "Edge Cache (if enabled)",
-                    "Brave Cache (if enabled)",
-                    "Firefox Cache (if enabled)",
-                  ].map((d) => (
-                    <div key={d} className="flex items-center gap-2">
-                      <FolderX className="w-3 h-3 text-brand-primary/60 shrink-0" />
-                      <span className="text-2xs text-text-muted font-mono">{d}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-3 pt-3 border-t border-border/30 flex items-start gap-2">
-                  <Flame className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-2xs text-text-muted">
-                    Downloads folder is always excluded. Locked or permission-denied
-                    files are silently skipped.
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
-      </div>
+
+        <AnimatePresence initial={false}>
+          {isTechnicalDetailsOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 pt-4 max-[700px]:grid-cols-1">
+                {[
+                  "%TEMP%",
+                  "%LOCALAPPDATA%\\Temp",
+                  "%WINDIR%\\Temp",
+                  "Windows INetCache",
+                  "Thumbnail Cache (pending)",
+                  "App Crash Dumps",
+                  "Chrome Cache (if enabled)",
+                  "Edge Cache (if enabled)",
+                  "Brave Cache (if enabled)",
+                  "Firefox Cache (if enabled)",
+                ].map((d) => (
+                  <div key={d} className="flex items-center gap-2">
+                    <FolderX className="h-3.5 w-3.5 shrink-0 text-fg-4" />
+                    <span className="font-mono text-[11px] text-fg-2">{d}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex items-start gap-2 border-t border-line-subtle pt-3">
+                <Flame className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-fg" />
+                <p className="text-caption text-fg-3">
+                  Downloads folder is always excluded. Locked or permission-denied files are silently
+                  skipped.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Card>
     </div>
   );
 };
@@ -593,18 +552,14 @@ const StatusCard: React.FC<{
   value: string;
   active: boolean;
 }> = ({ icon, label, value, active }) => (
-  <motion.div
-    initial={{ opacity: 0, scale: 0.97 }}
-    animate={{ opacity: 1, scale: 1 }}
-    className="glass rounded-xl p-3.5 border border-border/50 space-y-2"
-  >
+  <div className="space-y-2 rounded-card border border-line-subtle bg-surface-raised p-3.5">
     <div className="flex items-center justify-between">
       {icon}
       <StatusPill active={active} label={active ? "Active" : "Off"} />
     </div>
     <div>
-      <p className="text-xs font-semibold text-text-primary">{value}</p>
-      <p className="text-2xs text-text-muted mt-0.5">{label}</p>
+      <p className="text-body-sm font-semibold text-fg-1">{value}</p>
+      <p className="mt-0.5 text-caption text-fg-3">{label}</p>
     </div>
-  </motion.div>
+  </div>
 );

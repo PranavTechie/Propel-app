@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import '../../styles/globals.css'
+import { toneColor, type Tone } from '@/theme/thresholds'
 export interface OverlayMetrics {
   cpu:     number
   ram:     number
@@ -14,34 +15,49 @@ function fmtNet(bps: number): string {
   return                     `${(bps / 1_000_000).toFixed(1)}M`
 }
 
+/** Same 65 / 85 cut-offs as before, expressed as design-system tones. */
+function toneFor(pct: number): Tone {
+  if (pct > 85) return 'critical'
+  if (pct > 65) return 'warning'
+  return 'healthy'
+}
+
 function accentFor(pct: number): string {
-  if (pct > 85) return '#ff4455'
-  if (pct > 65) return '#ffaa33'
-  return '#00e87a'
+  return toneColor(toneFor(pct))
 }
 
 // ── Bar ────────────────────────────────────────────────────────────────────
 const Bar: React.FC<{ pct: number; color: string }> = ({ pct, color }) => (
-  <div style={{ height: 2, background: 'rgba(255,255,255,0.07)', borderRadius: 999, overflow: 'hidden', marginTop: 4 }}>
-    <div style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: color, borderRadius: 999, transition: 'width 0.8s cubic-bezier(.25,.46,.45,.94)' }} />
+  <div className="mt-1 h-[3px] overflow-hidden rounded-full bg-[rgb(var(--c-line)/.12)]">
+    <div
+      className="h-full rounded-full transition-[width] duration-slow ease-out"
+      style={{ width: `${Math.min(pct, 100)}%`, background: color }}
+    />
   </div>
 )
 
 // ── Row ────────────────────────────────────────────────────────────────────
-const Row: React.FC<{ label: string; value: string; sub?: string; bar?: number; barColor?: string }> = ({ label, value, sub, bar, barColor = '#6366f1' }) => (
-  <div style={{ marginBottom: 10 }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-      <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
-      <div style={{ textAlign: 'right' }}>
-        <span style={{ color: barColor, fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
-        {sub && <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 8, marginLeft: 3 }}>{sub}</span>}
-      </div>
+const Row: React.FC<{ label: string; value: string; sub?: string; bar?: number; barColor?: string }> = ({
+  label,
+  value,
+  sub,
+  bar,
+  barColor = 'rgb(var(--c-chart-2))',
+}) => (
+  <div className="mb-2.5">
+    <div className="flex items-baseline justify-between">
+      <span className="text-[9px] uppercase tracking-[.08em] text-fg-3">{label}</span>
+      <span className="text-right">
+        <span className="text-[15px] font-bold text-fg-1 tabular" style={bar !== undefined ? { color: barColor } : undefined}>
+          {value}
+        </span>
+        {sub && <span className="ml-0.5 text-[8px] text-fg-4">{sub}</span>}
+      </span>
     </div>
     {bar !== undefined && <Bar pct={bar} color={barColor} />}
   </div>
 )
 
-// ── Overlay App ─────────────────────────────────────────────────────────────
 export const OverlayApp: React.FC = () => {
   const [m, setM]     = useState<OverlayMetrics | null>(null)
 
@@ -57,35 +73,23 @@ export const OverlayApp: React.FC = () => {
   const ramColor = accentFor(ram)
 
   return (
+    // The HUD floats over other apps, so it always uses the dark token set.
     <div
-      className="drag-region"
-      style={{
-        width:          '224px',
-        height:         '148px',
-        background:     'var(--overlay-bg, rgba(4,4,12,0.88))',
-        border:         `1px solid rgb(var(--t-border, 255 255 255) / 0.08)`,
-        borderRadius:   12,
-        fontFamily:     '"JetBrains Mono", "Fira Code", monospace',
-        userSelect:     'none',
-        overflow:       'hidden',
-        backdropFilter: 'blur(14px)',
-        boxShadow:      '0 8px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.08)',
-      }}
+      data-theme="dark"
+      className="drag-region h-[148px] w-[224px] select-none overflow-hidden rounded-card border border-line bg-[rgb(var(--c-surface-overlay)/.94)] font-mono shadow-[var(--shadow-3)]"
     >
-      {/* Header */}
-      <div style={{ padding: '8px 12px 6px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: 8.5, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Propel</span>
-        <span style={{ color: m ? '#00e87a' : 'rgba(255,255,255,0.2)', fontSize: 7.5, letterSpacing: '0.1em' }}>
+      <div className="flex items-center justify-between border-b border-line-subtle px-3 pb-1.5 pt-2">
+        <span className="text-[8.5px] uppercase tracking-[.12em] text-fg-3">Propel</span>
+        <span className={m ? 'text-[7.5px] tracking-[.1em] text-success' : 'text-[7.5px] tracking-[.1em] text-fg-4'}>
           {m ? '● LIVE' : '○ --'}
         </span>
       </div>
 
-      {/* Metrics */}
-      <div style={{ padding: '10px 12px 0' }}>
+      <div className="px-3 pt-2.5">
         <Row label="CPU"   value={`${cpu}%`}              bar={cpu} barColor={cpuColor} />
         <Row label="RAM"   value={`${ram}%`}              bar={ram} barColor={ramColor} />
-        <Row label="↓ NET" value={fmtNet(m?.netDown ?? 0)} sub="/s" barColor="rgba(139,92,246,0.9)" />
-        <Row label="↑ NET" value={fmtNet(m?.netUp   ?? 0)} sub="/s" barColor="rgba(139,92,246,0.6)" />
+        <Row label="↓ NET" value={fmtNet(m?.netDown ?? 0)} sub="/s" />
+        <Row label="↑ NET" value={fmtNet(m?.netUp   ?? 0)} sub="/s" />
       </div>
     </div>
   )

@@ -10,6 +10,8 @@
 import React from 'react'
 import { Sentry } from '@/services/telemetry'
 import { logError } from '@/services/crashLogger'
+import { AlertTriangle, RotateCcw } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
 
 interface Props {
   children: React.ReactNode
@@ -74,28 +76,23 @@ export class TelemetryErrorBoundary extends React.Component<Props, State> {
     // Custom fallback if provided
     if (this.props.fallback) return this.props.fallback
 
-    // Default polished recovery UI
+    // Default recovery UI. The technical message goes to the logs only.
     return (
-      <div className="flex flex-col items-center justify-center p-8 gap-4 text-center rounded-2xl border border-red-500/20 bg-red-500/5">
-        <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-400 text-2xl">
-          ⚠
+      <div className="flex flex-col items-center justify-center gap-4 rounded-card border border-line bg-surface-raised p-8 text-center shadow-[var(--shadow-1),var(--highlight-top)]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-card border border-danger/25 bg-danger-soft text-danger-fg">
+          <AlertTriangle className="h-6 w-6" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-text-primary">Something went wrong here</p>
-          <p className="text-xs text-text-muted mt-1 max-w-xs">
-            {this.state.errorMessage || 'An unexpected error occurred in this section.'}
+          <p className="text-title font-semibold text-fg-1">Something went wrong here</p>
+          <p className="mt-1 max-w-xs text-body-sm text-fg-3">
+            This section hit an unexpected error. Try again, and restart Propel if it keeps happening.
           </p>
         </div>
-        <button
-          onClick={this.handleReset}
-          className="px-4 py-2 text-xs font-medium rounded-lg bg-white/5 border border-border/40 text-text-secondary hover:bg-white/10 hover:text-text-primary transition-colors"
-        >
+        <Button variant="secondary" size="sm" icon={<RotateCcw />} onClick={this.handleReset}>
           Try Again
-        </button>
+        </Button>
         {this.state.eventId && (
-          <p className="text-2xs text-text-muted/50 font-mono">
-            Error ID: {this.state.eventId.slice(0, 8)}
-          </p>
+          <p className="font-mono text-[10.5px] text-fg-4">Error ID: {this.state.eventId.slice(0, 8)}</p>
         )}
       </div>
     )

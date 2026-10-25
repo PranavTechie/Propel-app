@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Brain, Shield, AlertTriangle, AlertCircle, CheckCircle, ChevronRight, Play, Loader2, ArrowRight, Info, Cpu, Activity, HardDrive, Lock, Sparkles, Calendar } from 'lucide-react';
+import { Brain, Shield, AlertTriangle, AlertCircle, CheckCircle, ArrowRight, Info, Cpu, Activity, HardDrive, Lock, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAppStore } from '@/store/appStore';
@@ -13,6 +13,13 @@ import {
   parseQuotaFromErrorMessage,
   type QuotaPayload,
 } from '@/utils/pcAdvisorQuota';
+import { Button } from '@/components/ui/Button';
+import { Card, CardEyebrow } from '@/components/ui/Card';
+import { RingGauge } from '@/components/ui/RingGauge';
+import { CountUp } from '@/components/ui/CountUp';
+import { Progress } from '@/components/ui/Progress';
+import { Callout } from '@/components/ui/Callout';
+import type { Tone } from '@/theme/thresholds';
 
 interface Action {
   priority: number;
@@ -27,30 +34,23 @@ interface DiagnosisResult {
   actions: Action[];
 }
 
+/** Score ring for the assessment (same 80 / 60 cut-offs as before). */
 function HealthRing({ score }: { score: number }) {
-  const r = 40;
-  const circ = 2 * Math.PI * r;
-  const fill = circ * (score / 100);
-  const color = score >= 80 ? "#10b981" : score >= 60 ? "#f59e0b" : "#ef4444";
-
+  const tone: Tone = score >= 80 ? 'healthy' : score >= 60 ? 'warning' : 'critical';
   return (
-    <div className="relative flex items-center justify-center">
-      <svg width="100" height="100" className="-rotate-90">
-        <circle cx="50" cy="50" r={r} fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="6" />
-        <motion.circle 
-          cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" 
-          strokeDasharray={circ} initial={{ strokeDashoffset: circ }} 
-          animate={{ strokeDashoffset: circ - fill }} 
-          transition={{ duration: 1.2, ease: "easeOut" }} 
-          style={{ filter: `drop-shadow(0 0 8px ${color})` }} 
-        />
-      </svg>
-      <div className="absolute text-center flex flex-col items-center">
-        <div className="text-2xl font-black text-text-primary leading-none tracking-tighter">{score}</div>
-      </div>
-    </div>
+    <RingGauge value={score} tone={tone} size={104} thickness={8} aria-label={`Live health score ${score}`}>
+      <CountUp value={score} className="font-display text-[28px] font-semibold leading-none text-fg-1" />
+      <span className="mt-0.5 text-[10.5px] text-fg-3">of 100</span>
+    </RingGauge>
   );
 }
+
+const SCOPE = [
+  { label: 'CPU', icon: <Cpu className="h-4 w-4" /> },
+  { label: 'Memory', icon: <Activity className="h-4 w-4" /> },
+  { label: 'Disk', icon: <HardDrive className="h-4 w-4" /> },
+  { label: 'Security', icon: <Shield className="h-4 w-4" /> },
+];
 
 function getFriendlyErrorMessage(code?: string, rawMsg?: string): string {
   switch (code) {
@@ -188,34 +188,33 @@ export const PCAdvisorSection: React.FC = () => {
 
   const getImpactColor = (impact: string) => {
     switch (impact) {
-      case 'critical': return 'text-red-400 bg-red-400/10 border-red-400/20';
-      case 'moderate': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
-      case 'minor': return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
-      default: return 'text-brand-primary bg-brand-primary/10 border-brand-primary/20';
+      case 'critical': return 'bg-danger-soft text-danger-fg';
+      case 'moderate': return 'bg-warning-soft text-warning-fg';
+      case 'minor': return 'bg-success-soft text-success-fg';
+      default: return 'bg-brand-soft text-brand-fg';
     }
   };
 
   const getCardBgColor = (impact: string) => {
     switch (impact) {
-      case 'critical': return 'bg-red-500/[0.03] border-red-500/20 shadow-[0_0_30px_rgba(239,68,68,0.05)]';
-      case 'moderate': return 'bg-amber-500/[0.03] border-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.05)]';
-      case 'minor': return 'bg-emerald-500/[0.03] border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.05)]';
-      default: return 'bg-brand-primary/[0.03] border-brand-primary/20 shadow-[0_0_30px_rgba(90,166,60,0.05)]';
+      case 'critical': return 'before:bg-[linear-gradient(90deg,transparent,rgb(var(--c-danger)/.6),transparent)]';
+      case 'moderate': return 'before:bg-[linear-gradient(90deg,transparent,rgb(var(--c-warning)/.6),transparent)]';
+      default: return '';
     }
   };
 
   const getPriorityColor = (priority: number) => {
-    if (priority === 1) return 'bg-red-500 text-red-500';
-    if (priority === 2) return 'bg-amber-500 text-amber-500';
-    return 'bg-brand-primary text-brand-primary';
+    if (priority === 1) return 'bg-danger text-danger-fg';
+    if (priority === 2) return 'bg-warning text-warning-fg';
+    return 'bg-brand text-brand-fg';
   };
 
   const getImpactIcon = (impact: string) => {
     switch (impact) {
-      case 'critical': return <AlertCircle className="w-6 h-6 text-red-400" />;
-      case 'moderate': return <AlertTriangle className="w-6 h-6 text-amber-400" />;
-      case 'minor': return <CheckCircle className="w-6 h-6 text-emerald-400" />;
-      default: return <Info className="w-6 h-6 text-brand-primary" />;
+      case 'critical': return <AlertCircle className="h-5 w-5" />;
+      case 'moderate': return <AlertTriangle className="h-5 w-5" />;
+      case 'minor': return <CheckCircle className="h-5 w-5" />;
+      default: return <Info className="h-5 w-5" />;
     }
   };
 
@@ -234,40 +233,47 @@ export const PCAdvisorSection: React.FC = () => {
 
   if (!aiAdvisorConsent) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-brand-primary/10 flex items-center justify-center mb-6">
-          <Brain className="w-8 h-8 text-brand-primary" />
+      <Card level="feature" className="mt-2 px-8 py-12">
+        <div className="mx-auto flex max-w-lg flex-col items-center text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-card bg-brand-soft text-brand-fg shadow-[var(--highlight-top)]">
+            <Brain className="h-7 w-7" />
+          </span>
+          <h2 className="mt-5 font-display text-[24px] font-semibold leading-[30px] tracking-[-.025em] text-fg-1">
+            Welcome to PC Advisor
+          </h2>
+          <p className="mt-3 text-body text-fg-2">
+            PC Advisor uses Google Gemini to analyze your system's health metrics and provide
+            prioritized, plain-language recommendations.
+          </p>
+          <div className="mt-4 flex items-start gap-2.5 rounded-control border border-line-subtle bg-surface-inset px-3.5 py-3 text-left">
+            <Lock className="mt-0.5 h-4 w-4 shrink-0 text-success-fg" />
+            <p className="text-body-sm text-fg-2">
+              We only send aggregate system diagnostics (like CPU usage, memory stats, and top
+              processes). Personal files, file paths, and file contents are{' '}
+              <strong className="font-semibold text-fg-1">never</strong> sent.
+            </p>
+          </div>
+          <Button size="lg" className="mt-6" onClick={() => setAiAdvisorConsent(true)}>
+            Allow & Continue
+          </Button>
         </div>
-        <h2 className="text-2xl font-black text-text-primary mb-3">Welcome to PC Advisor</h2>
-        <p className="text-text-secondary max-w-md mb-8">
-          PC Advisor uses Google Gemini to analyze your system's health metrics and provide prioritized, plain-language recommendations.
-          <br /><br />
-          We only send aggregate system diagnostics (like CPU usage, memory stats, and top processes). Personal files, file paths, and file contents are <strong>never</strong> sent.
-        </p>
-        <button
-          onClick={() => setAiAdvisorConsent(true)}
-          className="px-6 py-3 bg-brand-primary hover:bg-brand-primary/90 text-white font-bold rounded-xl shadow-glow-md transition-all"
-        >
-          Allow & Continue
-        </button>
-      </div>
+      </Card>
     );
   }
 
   return (
-    <div className="space-y-6 pt-4">
-      {/* Persistent Header */}
-      <div className="flex flex-col gap-1.5">
-        <h2 className="text-2xl font-black text-text-primary flex items-center gap-2">
-          <Brain className="w-6 h-6 text-brand-primary" />
+    <div className="space-y-4 pt-2">
+      <div>
+        <h2 className="flex items-center gap-2 text-title font-semibold text-fg-1">
+          <Brain className="h-4 w-4 text-brand" />
           PC Advisor
         </h2>
-        <p className="text-sm text-text-secondary max-w-2xl leading-relaxed">
+        <p className="mt-0.5 max-w-2xl text-body-sm text-fg-3">
           Analyzes your current system metrics and explains important health and performance issues.
         </p>
       </div>
 
-      {/* Quota Notice (Understated, compact inline status) */}
+      {/* Quota notice */}
       <AnimatePresence>
         {quotaInfo && !loading && !result && (
           <motion.div
@@ -275,230 +281,198 @@ export const PCAdvisorSection: React.FC = () => {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-white/[0.03] border border-white/[0.08]"
+            transition={{ duration: 0.2 }}
           >
             {(() => {
               const card = getQuotaCardContent(quotaInfo, entitlement.plan);
               return (
-                <>
-                  <div className="flex items-start gap-3 min-w-0">
-                    <Info className="w-4 h-4 text-text-muted mt-0.5 shrink-0" />
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-text-primary">
-                        {card.heading}
-                      </div>
-                      <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
-                        {card.message}{' '}
-                        <span className="text-text-muted">{card.supportingText}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {card.showCta && card.ctaText && (
-                    <button
-                      type="button"
-                      onClick={() => window.electronAPI?.shell?.openExternal(PROPEL_PRICING_URL)}
-                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/20 text-xs font-medium text-text-primary transition-colors cursor-pointer"
-                    >
-                      <span>{card.ctaText}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-text-muted" />
-                    </button>
-                  )}
-                </>
+                <Callout
+                  tone="info"
+                  title={card.heading}
+                  action={
+                    card.showCta && card.ctaText ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        iconRight={<ArrowRight />}
+                        onClick={() => window.electronAPI?.shell?.openExternal(PROPEL_PRICING_URL)}
+                      >
+                        {card.ctaText}
+                      </Button>
+                    ) : undefined
+                  }
+                >
+                  {card.message} <span className="text-fg-3">{card.supportingText}</span>
+                </Callout>
               );
             })()}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Initial / Empty State (only when quota is available) */}
+      {/* Initial state */}
       {!result && !loading && !error && !quotaInfo && (
         <motion.div
           key="hero"
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="p-6 md:p-8 rounded-2xl bg-surface-card border border-white/[0.05]"
+          transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
         >
-          <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-5">
-            Diagnostic Scope
-          </h3>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-            {/* CPU */}
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-              <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
-                <Cpu className="w-4 h-4 text-text-secondary" />
-              </div>
-              <span className="text-sm font-semibold text-text-primary">CPU</span>
+          <Card level="feature" className="p-6">
+            <CardEyebrow>Diagnostic Scope</CardEyebrow>
+            <div className="mt-3 grid grid-cols-4 gap-3 max-[760px]:grid-cols-2">
+              {SCOPE.map((s) => (
+                <div
+                  key={s.label}
+                  className="flex items-center gap-3 rounded-control border border-line-subtle bg-surface-inset px-3.5 py-3"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-chip bg-surface-raised text-fg-2 shadow-[var(--shadow-1)]">
+                    {s.icon}
+                  </span>
+                  <span className="text-body font-semibold text-fg-1">{s.label}</span>
+                </div>
+              ))}
             </div>
-            {/* Memory */}
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-              <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
-                <Activity className="w-4 h-4 text-text-secondary" />
-              </div>
-              <span className="text-sm font-semibold text-text-primary">Memory</span>
-            </div>
-            {/* Disk */}
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-              <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
-                <HardDrive className="w-4 h-4 text-text-secondary" />
-              </div>
-              <span className="text-sm font-semibold text-text-primary">Disk</span>
-            </div>
-            {/* Security */}
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/[0.04]">
-              <div className="w-8 h-8 rounded-lg bg-white/[0.05] flex items-center justify-center shrink-0">
-                <Shield className="w-4 h-4 text-text-secondary" />
-              </div>
-              <span className="text-sm font-semibold text-text-primary">Security</span>
-            </div>
-          </div>
 
-          <div className="flex flex-col items-center pt-8 border-t border-white/[0.05]">
-            <button
-              onClick={handleAnalyze}
-              className="group flex items-center gap-2 px-8 py-3.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white font-bold transition-all hover:-translate-y-0.5 shadow-glow-sm"
-            >
-              Explain my PC's health <ArrowRight className="w-4 h-4 opacity-70 group-hover:translate-x-1 transition-transform" />
-            </button>
-            
-            <p className="mt-4 text-[11px] text-text-muted/60 flex items-center gap-1.5">
-              <Lock className="w-3 h-3 opacity-70" />
-              Uses your current system metrics • No files or personal content
-            </p>
-          </div>
+            <div className="mt-6 flex flex-col items-center border-t border-line-subtle pt-6">
+              <Button size="lg" onClick={handleAnalyze} iconRight={<ArrowRight />}>
+                Explain my PC's health
+              </Button>
+              <p className="mt-3 flex items-center gap-1.5 text-caption text-fg-3">
+                <Lock className="h-3 w-3" />
+                Uses your current system metrics • No files or personal content
+              </p>
+            </div>
+          </Card>
         </motion.div>
       )}
 
-      {/* Error State for genuine temporary/network errors */}
+      {/* Error state */}
       <AnimatePresence>
         {error && !quotaInfo && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center justify-between gap-4"
+            className="overflow-hidden"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <AlertCircle className="w-5 h-5 shrink-0" />
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-medium">{error}</span>
-                {retryCountdown > 0 && (
-                  <span className="text-xs text-red-400/70 mt-0.5">Please wait a moment before trying again.</span>
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={retryCountdown > 0 || loading}
-              className={cn(
-                "shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg border transition-all",
-                retryCountdown > 0
-                  ? "opacity-50 cursor-not-allowed border-red-500/20 text-red-400/60"
-                  : "underline hover:text-red-300 border-red-500/30 hover:border-red-500/50 cursor-pointer"
-              )}
+            <Callout
+              tone="danger"
+              title={error}
+              action={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleAnalyze}
+                  disabled={retryCountdown > 0 || loading}
+                >
+                  {retryCountdown > 0 ? `Retry in ${retryCountdown}s` : 'Retry'}
+                </Button>
+              }
             >
-              {retryCountdown > 0 ? `Retry in ${retryCountdown}s` : 'Retry'}
-            </button>
+              {retryCountdown > 0 ? 'Please wait a moment before trying again.' : undefined}
+            </Callout>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Loading State */}
+      {/* Loading state */}
       {loading && !result && (
-        <div className="p-12 md:p-16 mt-4 flex flex-col items-center justify-center text-center rounded-3xl bg-brand-primary/[0.02] border border-brand-primary/[0.1] relative overflow-hidden shadow-[0_8px_32px_-12px_rgba(90,166,60,0.1)]">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-brand-primary/10 rounded-full blur-[80px] pointer-events-none animate-pulse" />
-          
-          <div className="relative z-10 w-20 h-20 mb-8">
-            <div className="absolute inset-0 rounded-full border-[3px] border-brand-primary/10" />
-            <div className="absolute inset-0 rounded-full border-[3px] border-brand-primary border-t-transparent animate-spin" />
-            <div className="absolute inset-2 rounded-full border-[2px] border-brand-primary/40 border-r-transparent border-l-transparent animate-[spin_2s_linear_reverse_infinite]" />
-            <Brain className="absolute inset-0 m-auto w-8 h-8 text-brand-primary animate-pulse" />
+        <Card level="feature" className="px-8 py-12" role="status">
+          <div className="mx-auto flex max-w-md flex-col items-center text-center">
+            <div className="relative h-16 w-16">
+              <span className="absolute inset-0 rounded-full border-[3px] border-brand/15" />
+              <span className="absolute inset-0 animate-spin rounded-full border-[3px] border-brand border-t-transparent" />
+              <Brain className="absolute inset-0 m-auto h-6 w-6 text-brand" />
+            </div>
+            <h3 className="mt-6 text-title font-semibold text-fg-1">Analyzing System Diagnostics...</h3>
+            <p className="mt-1.5 text-body text-fg-2">
+              PC Advisor is evaluating your CPU, Memory, Disk, and background processes using AI.
+            </p>
+            <Progress value={null} indeterminate className="mt-6 max-w-[220px]" aria-label="Analyzing" />
           </div>
-          <h3 className="relative z-10 text-xl font-black text-text-primary mb-3">Analyzing System Diagnostics...</h3>
-          <p className="relative z-10 text-base text-text-secondary max-w-md">
-            PC Advisor is evaluating your CPU, Memory, Disk, and background processes using AI.
-          </p>
-        </div>
+        </Card>
       )}
 
-      {/* Results State */}
+      {/* Results */}
       <AnimatePresence>
         {result && !loading && (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-8"
+            transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+            className="space-y-4"
           >
-            {/* Overall Assessment */}
-            <div className={cn("p-6 md:p-8 rounded-2xl border relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8", getCardBgColor(result.healthImpact))}>
-              <div className="absolute top-0 right-0 w-64 h-64 bg-brand-primary/10 rounded-full blur-[80px] pointer-events-none" />
-              <Sparkles className="absolute top-4 right-4 w-5 h-5 text-brand-primary/40 pointer-events-none" />
-
-              <div className="shrink-0">
-                <HealthRing score={stats ? getHealthScore(stats.cpu, stats.ram.percent, stats.disk.percent) : 0} />
-              </div>
-
-              <div className="flex-1 relative z-10 text-center md:text-left pt-2">
-                <div className="flex items-center justify-center md:justify-start gap-3 mb-3">
-                  <div className={cn("p-2 rounded-xl border", getImpactColor(result.healthImpact))}>
-                    {getImpactIcon(result.healthImpact)}
-                  </div>
-                  <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Overall Assessment</h3>
+            <Card level="feature" className={cn('p-6', getCardBgColor(result.healthImpact))}>
+              <Sparkles className="pointer-events-none absolute right-5 top-5 h-4 w-4 text-fg-4" />
+              <div className="flex items-start gap-6 max-[760px]:flex-col max-[760px]:items-center">
+                <div className="shrink-0">
+                  <HealthRing score={stats ? getHealthScore(stats.cpu, stats.ram.percent, stats.disk.percent) : 0} />
                 </div>
-                <p className="text-[17px] text-text-primary leading-relaxed font-medium">
-                  {result.overallAssessment}
-                </p>
+                <div className="min-w-0 flex-1 pt-1">
+                  <div className="mb-3 flex items-center gap-2.5">
+                    <span className={cn('flex h-9 w-9 items-center justify-center rounded-control', getImpactColor(result.healthImpact))}>
+                      {getImpactIcon(result.healthImpact)}
+                    </span>
+                    <CardEyebrow>Overall Assessment</CardEyebrow>
+                  </div>
+                  <p className="text-[15px] font-medium leading-6 text-fg-1">{result.overallAssessment}</p>
+                </div>
               </div>
-            </div>
+            </Card>
 
-            {/* Prioritized Actions */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider pl-2 flex items-center gap-2">
-                <Brain className="w-4 h-4 text-brand-primary" /> Prioritized Action Plan
+            <div>
+              <h3 className="mb-3 flex items-center gap-2 text-title font-semibold text-fg-1">
+                <Brain className="h-4 w-4 text-brand" /> Prioritized Action Plan
               </h3>
-              {result.actions.map((action, idx) => (
-                <div key={idx} className="flex gap-4 p-5 rounded-2xl bg-surface-card border border-white/[0.04] hover:border-white/[0.1] shadow-sm hover:shadow-md transition-all group relative overflow-hidden">
-                  <div className={cn("absolute left-0 top-0 bottom-0 w-1.5 opacity-80", getPriorityColor(action.priority).split(' ')[0])} />
-                  
-                  <div className={cn("flex-shrink-0 w-10 h-10 rounded-full bg-white/[0.03] border border-white/[0.05] flex items-center justify-center font-black text-lg", getPriorityColor(action.priority).split(' ')[1])}>
-                    {action.priority || idx + 1}
-                  </div>
-                  
-                  <div className="flex-1 flex flex-col">
-                    <h4 className="text-base font-bold text-text-primary mb-1.5">{action.title}</h4>
-                    <p className="text-sm text-text-secondary mb-4 leading-relaxed">{action.detail}</p>
-                    
-                    <div className="flex items-center justify-between mt-auto pt-1">
-                      {action.relatedMetric ? (
-                        <div className="inline-block px-3 py-1 rounded-full bg-white/[0.04] border border-white/[0.05] text-xs font-semibold text-text-muted">
-                          {action.relatedMetric}
+              <div className="space-y-3">
+                {result.actions.map((action, idx) => {
+                  const pc = getPriorityColor(action.priority).split(' ');
+                  const route = getRouteForMetric(action.relatedMetric);
+                  return (
+                    <Card key={idx} className="flex gap-4 overflow-hidden p-5">
+                      <span aria-hidden className={cn('absolute inset-y-0 left-0 w-[3px]', pc[0])} />
+                      <span
+                        className={cn(
+                          'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-line bg-surface-inset font-display text-title font-semibold tabular',
+                          pc[1],
+                        )}
+                      >
+                        {action.priority || idx + 1}
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-col">
+                        <h4 className="text-body font-semibold text-fg-1">{action.title}</h4>
+                        <p className="mt-1 text-body-sm text-fg-2">{action.detail}</p>
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          {action.relatedMetric ? (
+                            <span className="rounded-full border border-line-subtle bg-surface-inset px-2.5 py-0.5 text-caption font-medium text-fg-3">
+                              {action.relatedMetric}
+                            </span>
+                          ) : (
+                            <span />
+                          )}
+                          {route && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              iconRight={<ArrowRight />}
+                              onClick={() => setActivePage(route)}
+                            >
+                              Resolve Issue
+                            </Button>
+                          )}
                         </div>
-                      ) : <div />}
-                      
-                      {getRouteForMetric(action.relatedMetric) && (
-                        <button 
-                          onClick={() => setActivePage(getRouteForMetric(action.relatedMetric))}
-                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-brand-primary/10 text-brand-primary hover:bg-brand-primary hover:text-white text-xs font-bold transition-colors"
-                        >
-                          Resolve Issue <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
             </div>
-            
-            <div className="flex justify-center mt-8">
-              <button
-                onClick={() => setResult(null)}
-                className="rounded-lg bg-white/[0.06] px-8 py-2.5 text-sm font-semibold text-text-primary transition-colors hover:bg-white/[0.1]"
-              >
+
+            <div className="flex justify-center pt-2">
+              <Button variant="secondary" onClick={() => setResult(null)}>
                 Done
-              </button>
+              </Button>
             </div>
           </motion.div>
         )}

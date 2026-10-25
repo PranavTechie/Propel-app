@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Leaf,
   ArrowRight,
-  Loader2,
   Globe,
   UserPlus,
   ShieldCheck,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { Button } from "@/components/ui/Button";
+import { Callout } from "@/components/ui/Callout";
 import { supabase } from "@/lib/supabase";
 function base64UrlEncode(buffer: ArrayBuffer | Uint8Array): string {
   const bytes = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
@@ -224,30 +224,36 @@ export const LoginPage: React.FC = () => {
     }
   };
   return (
-    <div className="fixed inset-0 z-40 grid grid-cols-[1.1fr_.9fr] overflow-hidden bg-bg-base max-[900px]:grid-cols-1">
-      <section className="relative flex flex-col justify-between overflow-hidden border-r border-border/60 bg-[#1d241b] p-10 text-white max-[900px]:hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_30%,rgba(114,188,88,.16),transparent_38%)]" />
+    <div className="fixed inset-0 z-40 grid grid-cols-[1.1fr_.9fr] overflow-hidden bg-surface-base max-[900px]:grid-cols-1">
+      {/* Brand panel: deep brand green in both themes, built from primitive tokens */}
+      <section className="relative flex flex-col justify-between overflow-hidden bg-[rgb(var(--green-950))] p-10 text-[rgb(var(--neutral-0))] max-[900px]:hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_30%,rgb(var(--green-500)/.22),transparent_42%)]"
+        />
+        <svg aria-hidden className="pointer-events-none absolute -bottom-40 -right-40 h-[520px] w-[520px] opacity-[.12]" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="60" fill="none" stroke="rgb(var(--green-300))" strokeWidth=".6" />
+          <circle cx="100" cy="100" r="80" fill="none" stroke="rgb(var(--green-300))" strokeWidth=".6" strokeDasharray="1.5 4" />
+          <circle cx="100" cy="100" r="98" fill="none" stroke="rgb(var(--green-300))" strokeWidth=".6" />
+        </svg>
         <div className="relative flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#5AA63C]">
-            <Leaf className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-control bg-[linear-gradient(180deg,rgb(var(--green-500)),rgb(var(--green-700)))] shadow-[var(--highlight-brand)]">
+            <Leaf className="h-5 w-5" strokeWidth={2.25} />
           </div>
           <div>
-            <p className="text-sm font-bold tracking-[.08em]">PROPEL</p>
-            <p className="text-[10px] uppercase tracking-[.18em] text-white/45">
-              System care
-            </p>
+            <p className="text-[13px] font-bold tracking-[.08em]">PROPEL</p>
+            <p className="text-[10px] uppercase tracking-[.18em] text-[rgb(var(--green-200)/.6)]">System care</p>
           </div>
         </div>
         <div className="relative max-w-xl">
-          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[#9bd287]">
+          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[rgb(var(--green-300))]">
             Premium Windows optimization
           </p>
-          <h1 className="mt-4 text-[44px] font-semibold leading-[1.05] tracking-[-.05em]">
+          <h1 className="mt-4 font-display text-[44px] font-semibold leading-[1.05] tracking-[-.045em]">
             A calmer, faster PC starts here.
           </h1>
-          <p className="mt-5 max-w-md text-sm leading-6 text-white/62">
-            Monitor health, remove clutter and keep performance in shape from
-            one trusted workspace.
+          <p className="mt-5 max-w-md text-body text-[rgb(var(--green-100)/.72)]">
+            Monitor health, remove clutter and keep performance in shape from one trusted workspace.
           </p>
           <div className="mt-9 grid grid-cols-3 gap-3">
             {[
@@ -259,39 +265,35 @@ export const LoginPage: React.FC = () => {
               return (
                 <div
                   key={label as string}
-                  className="rounded-xl border border-white/10 bg-white/[.045] p-4"
+                  className="rounded-card border border-[rgb(var(--green-200)/.14)] bg-[rgb(var(--green-200)/.06)] p-4"
                 >
-                  <I className="h-4 w-4 text-[#9bd287]" />
-                  <p className="mt-3 text-xs font-medium text-white/75">
-                    {label as string}
-                  </p>
+                  <I className="h-4 w-4 text-[rgb(var(--green-300))]" />
+                  <p className="mt-3 text-body-sm font-medium text-[rgb(var(--green-50)/.85)]">{label as string}</p>
                 </div>
               );
             })}
           </div>
         </div>
-        <p className="relative text-[10px] text-white/35">
-          Propel 1.4 · Built for Windows
-        </p>
+        <p className="relative text-[10.5px] text-[rgb(var(--green-100)/.45)]">Propel 1.4 · Built for Windows</p>
       </section>
+
       <section className="relative flex items-center justify-center p-8">
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.28 }}
+          transition={{ duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
           className="w-full max-w-[390px]"
         >
-          <div className="mb-8">
+          <div className="mb-7">
             <p className="section-label">Welcome back</p>
-            <h2 className="mt-2 text-[30px] font-semibold tracking-[-.04em] text-text-primary">
+            <h2 className="mt-2 font-display text-[30px] font-semibold leading-9 tracking-[-.035em] text-fg-1">
               Sign in to Propel
             </h2>
-            <p className="mt-2 text-sm leading-6 text-text-secondary">
-              Continue securely in your browser. Propel will return here
-              automatically.
+            <p className="mt-2 text-body text-fg-2">
+              Continue securely in your browser. Propel will return here automatically.
             </p>
           </div>
-          <div className="rounded-2xl border border-border/70 bg-bg-elevated p-6 shadow-[var(--t-card-elevated-shadow)]">
+          <div className="rounded-panel border border-line bg-surface-raised p-6 shadow-[var(--shadow-2),var(--highlight-top)]">
             <AnimatePresence mode="wait">
               {waiting ? (
                 <motion.div
@@ -300,23 +302,19 @@ export const LoginPage: React.FC = () => {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   className="text-center"
+                  role="status"
                 >
-                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-secondary">
-                    <Globe className="h-6 w-6" />
-                    <Loader2 className="absolute h-10 w-10 animate-spin text-brand-primary/35" />
+                  <div className="relative mx-auto flex h-14 w-14 items-center justify-center">
+                    <span className="absolute inset-0 rounded-full border-[3px] border-brand/15" />
+                    <span className="absolute inset-0 animate-spin rounded-full border-[3px] border-brand border-t-transparent" />
+                    <Globe className="h-5 w-5 text-brand-fg" />
                   </div>
-                  <h3 className="mt-5 text-base font-semibold text-text-primary">
-                    Waiting for your browser
-                  </h3>
-                  <p className="mt-2 text-sm leading-5 text-text-secondary">
-                    Complete sign in there. This window will continue
-                    automatically.
-                  </p>                    <div className="mt-6 grid grid-cols-2 gap-2">
-                    <Button
-                      variant="ghost"
-                      onClick={cancelWaiting}
-                      icon={<X className="h-4 w-4" />}
-                    >
+                  <h3 className="mt-5 text-title font-semibold text-fg-1">Waiting for your browser</h3>
+                  <p className="mt-1.5 text-body text-fg-2">
+                    Complete sign in there. This window will continue automatically.
+                  </p>
+                  <div className="mt-6 grid grid-cols-2 gap-2">
+                    <Button variant="ghost" onClick={cancelWaiting} icon={<X />}>
                       Cancel
                     </Button>
                     <Button variant="secondary" onClick={logIn}>
@@ -330,30 +328,26 @@ export const LoginPage: React.FC = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="space-y-3"
+                  className="space-y-2.5"
                 >
                   <Button
                     id="desktop-login-btn"
+                    size="lg"
                     onClick={logIn}
-                    disabled={loading}
+                    loading={loading}
                     className="w-full"
-                    iconRight={
-                      loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <ArrowRight className="h-4 w-4" />
-                      )
-                    }
+                    iconRight={<ArrowRight />}
                   >
                     {error ? "Retry sign in" : "Log in securely"}
                   </Button>
                   <Button
                     id="desktop-signup-btn"
+                    size="lg"
                     onClick={signUp}
                     variant="secondary"
                     disabled={loading}
                     className="w-full"
-                    icon={<UserPlus className="h-4 w-4" />}
+                    icon={<UserPlus />}
                   >
                     Create an account
                   </Button>
@@ -361,16 +355,15 @@ export const LoginPage: React.FC = () => {
               )}
             </AnimatePresence>
             {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                role="alert"
-                className="mt-4 rounded-lg border border-red-500/20 bg-red-500/[.07] px-3 py-2.5 text-xs leading-5 text-red-600"
-              >
+              <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="mt-4">
+                <Callout tone="danger" title="Sign-in didn't complete">
+                  Please try again. If it keeps happening, check your internet connection.
+                </Callout>
               </motion.div>
             )}
           </div>
-          <p className="mt-5 text-center text-[11px] leading-5 text-text-muted">
+          <p className="mt-5 flex items-center justify-center gap-1.5 text-center text-caption text-fg-3">
+            <ShieldCheck className="h-3.5 w-3.5" />
             Authentication is completed through Propel's secure web flow.
           </p>
         </motion.div>
