@@ -248,58 +248,15 @@
 }
 
 /* ═════════════════════════════════════════════════════════════════════
- * Legacy aliases (--t-*). Kept so not-yet-converted pages pick up the new
- * system. Remove each alias once nothing references it (Phase 4).
+ * Legacy aliases. Only the ones still referenced remain: the parked,
+ * unrouted PermissionsPage uses these. Delete when that page is redone.
  * ═════════════════════════════════════════════════════════════════════ */
 :root,
 [data-theme] {
-  --t-bg-base: var(--c-surface-base);
-  --t-bg-surface: var(--c-surface-chrome);
-  --t-bg-elevated: var(--c-surface-raised);
-  --t-border: var(--c-line);
-  --t-text-primary: var(--c-fg-1);
-  --t-text-secondary: var(--c-fg-2);
-  --t-text-muted: var(--c-fg-3);
   --t-text-accent: var(--c-brand-fg);
-  --t-accent: var(--c-brand);
-  --t-accent2: var(--c-brand-solid);
-  --t-accent3: var(--c-brand);
-  --c-accent: var(--c-brand);
-
-  --graph-1: rgb(var(--c-chart-1));
-  --graph-2: rgb(var(--c-chart-2));
-  --graph-3: rgb(var(--c-fg-3));
-  --t-chart-grid: rgb(var(--c-chart-grid) / var(--a-chart-grid));
-
-  --t-app-bg: rgb(var(--c-surface-base));
-  --t-card-bg: rgb(var(--c-surface-raised));
-  --t-card-border: 1px solid rgb(var(--c-line) / var(--a-line-2));
-  --t-card-shadow: var(--shadow-1);
-  --t-card-hover-bg: rgb(var(--c-surface-raised));
-  --t-card-hover-border: 1px solid rgb(var(--c-line) / var(--a-line-3));
-  --t-card-hover-shadow: var(--shadow-2);
-  --t-card-elevated-bg: rgb(var(--c-surface-raised));
-  --t-card-elevated-border: 1px solid rgb(var(--c-line) / var(--a-line-2));
-  --t-card-elevated-shadow: var(--shadow-2);
-  --t-glass-shadow: var(--shadow-1);
-  --t-glass-elevated-shadow: var(--shadow-2);
   --t-btn-bg: rgb(var(--c-brand-solid));
   --t-btn-shadow: var(--shadow-brand);
-  --t-progress-track: rgb(var(--c-surface-inset));
-  --t-progress-gradient: linear-gradient(
-    90deg,
-    rgb(var(--c-brand-solid-top)),
-    rgb(var(--c-brand-solid))
-  );
+  --t-card-elevated-bg: rgb(var(--c-surface-raised));
+  --t-card-elevated-border: 1px solid rgb(var(--c-line) / var(--a-line-2));
   --t-glow-primary: 0 0 0 4px rgb(var(--c-brand) / 0.12);
-  --t-modal-bg: rgb(var(--c-surface-overlay));
-  --t-modal-border: 1px solid rgb(var(--c-line) / var(--a-line-2));
-  --t-modal-shadow: var(--shadow-3);
-  --overlay-bg: rgb(var(--c-surface-base) / 0.97);
-  --t-selection-bg: rgb(var(--c-brand) / 0.22);
-  --t-selection-text: rgb(var(--c-fg-1));
-  --t-skeleton-from: rgb(var(--c-state) / 0.05);
-  --t-skeleton-to: rgb(var(--c-state) / 0.1);
-  --t-scroll-thumb: rgb(var(--c-line) / 0.2);
-  --t-scroll-thumb-hover: rgb(var(--c-line) / 0.34);
 }

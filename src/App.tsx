@@ -1,5 +1,5 @@
 import React from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
 import { useAppStore } from '@/store/appStore'
 import { SplashScreen }      from '@/pages/SplashScreen'
 import { NoInternetScreen }  from '@/pages/NoInternetScreen'
@@ -17,6 +17,8 @@ const MainApp: React.FC = () => { // Main app component
   const phase = useAppStore(s => s.phase)
 
   return (
+    // Respect Windows "reduce animations" on every screen, incl. login/splash.
+    <MotionConfig reducedMotion="user">
     <AnimatePresence mode="wait">
       {phase === 'splash' && (
         <motion.div key="splash" className="fixed inset-0 z-50">
@@ -48,6 +50,7 @@ const MainApp: React.FC = () => { // Main app component
         </motion.div>
       )}
     </AnimatePresence>
+    </MotionConfig>
   )
 }
 
