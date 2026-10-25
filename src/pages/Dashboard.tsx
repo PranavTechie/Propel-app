@@ -30,6 +30,7 @@ import { CountUp } from "@/components/ui/CountUp";
 import { Progress } from "@/components/ui/Progress";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { StatusPill } from "@/components/ui/StatusPill";
+import { PlanIcon } from "@/components/ui/PlanIcon";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { Skeleton, SkeletonStatCard } from "@/components/ui/Skeleton";
 import { TONE_SOFT } from "@/components/ui/tone";
@@ -530,7 +531,12 @@ export const Dashboard = memo(function Dashboard() {
             <FactRow
               icon={Sparkles}
               label="Account"
-              value={entitlement.trial_active ? "PRO trial" : `${entitlement.plan} plan`}
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  <PlanIcon plan={entitlement.trial_active ? "PRO" : entitlement.plan} size={14} />
+                  {entitlement.trial_active ? "PRO trial" : `${entitlement.plan} plan`}
+                </span>
+              }
             />
           </dl>
         </MotionCard>

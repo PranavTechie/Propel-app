@@ -9,8 +9,6 @@ import {
   WifiOff,
   Key,
   ExternalLink,
-  Sparkles,
-  Crown,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useManualUpdateCheck } from "@/hooks/useUpdateCheck";
@@ -23,6 +21,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Callout } from "@/components/ui/Callout";
+import { PlanIcon } from "@/components/ui/PlanIcon";
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import appIconUrl from "@/assets/icons/propel.ico";
 import { PROPEL_ACCOUNT_URL, PROPEL_PRICING_URL, PROPEL_WEBSITE_URL } from "@/constants/appConstants";
@@ -115,14 +114,12 @@ export const AboutPage: React.FC = () => {
                   transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
                   className="flex items-center gap-3.5 rounded-control border border-success/25 bg-success-soft px-4 py-3.5"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-surface-raised text-success-fg shadow-[var(--shadow-1)]">
-                    <Crown className="h-4 w-4" />
-                  </span>
+                  <PlanIcon plan={entitlement.plan} size={36} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-body font-semibold text-fg-1">Premium Active</p>
                       <span className="inline-flex items-center gap-1 rounded-full bg-surface-raised px-2 py-0.5 text-[10.5px] font-semibold text-success-fg">
-                        <Sparkles className="h-2.5 w-2.5" />
+                        <PlanIcon plan={entitlement.plan} variant="glyph" size={10} />
                         {entitlement.plan}
                       </span>
                     </div>
@@ -143,7 +140,7 @@ export const AboutPage: React.FC = () => {
                   className="space-y-3"
                 >
                   <div className="flex items-center gap-3 rounded-control border border-line-subtle bg-surface-inset px-3.5 py-3">
-                    <span className="h-2 w-2 shrink-0 rounded-full bg-fg-4" />
+                    <PlanIcon plan="FREE" size={22} />
                     <p className="text-body font-semibold text-fg-1">FREE Plan</p>
                   </div>
                   <div className="flex gap-2">

@@ -22,6 +22,7 @@ import { getHealthScore } from "@/utils/format";
 import { scoreTone } from "@/theme/thresholds";
 import { RingGauge } from "@/components/ui/RingGauge";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { AccountAvatar } from "@/components/ui/PlanIcon";
 import { useGatedStore } from "@/components/ui/hooks/useGatedStore";
 import type { NavPage } from "@/types";
 
@@ -115,12 +116,11 @@ const AccountCard = memo<{ collapsed: boolean }>(({ collapsed }) => {
   const email = useAppStore((s) => s.session?.user?.email);
   const setActivePage = useAppStore((s) => s.setActivePage);
   const plan = entitlement.trial_active ? "PRO Trial" : `${entitlement.plan} plan`;
-  const initial = (email?.[0] ?? "P").toUpperCase();
+  // Trial users see the PRO icon (display only; the entitlement is unchanged).
+  const iconPlan = entitlement.trial_active ? "PRO" : entitlement.plan;
 
   const avatar = (
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-soft text-body-sm font-bold text-brand-fg ring-1 ring-brand/20">
-      {initial}
-    </span>
+    <AccountAvatar identity={email} plan={iconPlan} size={32} ringClassName="ring-surface-chrome" />
   );
 
   return (

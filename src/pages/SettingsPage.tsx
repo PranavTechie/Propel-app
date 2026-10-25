@@ -13,7 +13,6 @@ import {
   Sparkles,
   Radio,
   LogOut,
-  User,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -28,6 +27,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Toggle as UiToggle } from "@/components/ui/Toggle";
 import { Slider } from "@/components/ui/Slider";
 import { StatusPill } from "@/components/ui/StatusPill";
+import { PlanIcon, AccountAvatar } from "@/components/ui/PlanIcon";
 import { Callout } from "@/components/ui/Callout";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { staggerContainer, staggerItem } from "@/animations/variants";
@@ -51,10 +51,12 @@ const SectionTitle: React.FC<{ icon: React.ReactNode; label: string }> = ({ icon
 );
 
 function EntitlementBadge({ plan, trial_active }: { plan: string; trial_active: boolean }) {
-  if (trial_active) return <StatusPill tone="warning">PRO Trial</StatusPill>;
-  if (plan === "MAX") return <StatusPill tone="healthy">MAX Plan</StatusPill>;
-  if (plan === "PRO") return <StatusPill tone="healthy">PRO Plan</StatusPill>;
-  return <StatusPill tone="neutral">FREE Plan</StatusPill>;
+  // Trial keeps the PRO icon (display only).
+  const glyph = (p: string) => <PlanIcon plan={p} variant="glyph" size={11} />;
+  if (trial_active) return <StatusPill tone="healthy" icon={glyph("PRO")}>PRO Trial</StatusPill>;
+  if (plan === "MAX") return <StatusPill tone="healthy" icon={glyph("MAX")}>MAX Plan</StatusPill>;
+  if (plan === "PRO") return <StatusPill tone="healthy" icon={glyph("PRO")}>PRO Plan</StatusPill>;
+  return <StatusPill tone="neutral" icon={glyph("FREE")}>FREE Plan</StatusPill>;
 }
 
 const SettingsCard: React.FC<{
@@ -293,9 +295,12 @@ export const SettingsPage: React.FC = () => {
           <SettingsCard id="account" icon={<Shield />} title="Account & Entitlement">
             <div className="flex items-center justify-between gap-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand-fg ring-1 ring-brand/20">
-                  <User className="h-5 w-5" />
-                </span>
+                <AccountAvatar
+                  identity={session?.user?.email}
+                  plan={entitlement.trial_active ? "PRO" : entitlement.plan}
+                  size={40}
+                  ringClassName="ring-surface-raised"
+                />
                 <div className="min-w-0">
                   <p className="flex items-center gap-1.5 text-body font-semibold text-fg-1">
                     <CheckCircle2 className="h-4 w-4 text-success-fg" />
