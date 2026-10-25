@@ -1,0 +1,303 @@
+/*
+ * Propel design tokens
+ * ─────────────────────────────────────────────────────────────────────────
+ * Single source of truth for color, surface, radius, shadow, spacing, type
+ * and motion. Components read these through Tailwind (see tailwind.config.js)
+ * or directly via var(). Never hardcode colors in components.
+ *
+ * Colors are stored as space-separated RGB channels (--c-*) so Tailwind can
+ * apply alpha modifiers: rgb(var(--c-brand) / .2).
+ *
+ * Themes: light is the default. [data-theme="dark"] is fully designed but
+ * not wired to a switch yet (main process forces nativeTheme "dark", so
+ * prefers-color-scheme cannot be trusted). Force it in DevTools with:
+ *   document.documentElement.dataset.theme = 'dark'
+ */
+
+:root {
+  /* ── Primitive scales ─────────────────────────────────────────────── */
+  --green-50: 241 248 236;
+  --green-100: 224 240 213;
+  --green-200: 194 225 174;
+  --green-300: 156 205 129;
+  --green-400: 121 185 90;
+  --green-500: 90 166 60; /* brand base (#5AA63C) */
+  --green-600: 74 143 49;
+  --green-700: 63 127 42; /* brand deep (#3F7F2A) */
+  --green-800: 50 101 34;
+  --green-900: 39 79 28;
+  --green-950: 20 43 14;
+
+  /* Neutrals tinted toward the brand hue (~100deg), never pure gray */
+  --neutral-0: 255 255 255;
+  --neutral-25: 251 252 250;
+  --neutral-50: 245 247 243;
+  --neutral-100: 238 241 235;
+  --neutral-150: 229 233 225;
+  --neutral-200: 217 222 212;
+  --neutral-300: 189 196 184;
+  --neutral-400: 154 163 150;
+  --neutral-500: 120 130 116;
+  --neutral-600: 94 104 90;
+  --neutral-700: 70 80 66;
+  --neutral-800: 46 53 43;
+  --neutral-850: 34 40 32;
+  --neutral-900: 26 31 24;
+  --neutral-925: 21 25 19;
+  --neutral-950: 15 18 14;
+  --neutral-975: 10 12 9;
+
+  --amber-300: 247 196 102;
+  --amber-400: 242 178 61;
+  --amber-500: 214 134 0;
+  --amber-600: 196 120 0;
+  --amber-700: 146 84 0;
+
+  --red-300: 248 150 142;
+  --red-400: 240 113 103;
+  --red-500: 222 72 62;
+  --red-600: 204 54 46;
+  --red-700: 168 40 34;
+
+  /* ── Radius (6 / 10 / 14 / 20). Nested: inner = outer - padding ───── */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* ── Spacing (4px grid) ──────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --card-pad: var(--space-5);
+  --card-pad-compact: var(--space-4);
+
+  /* ── Type ────────────────────────────────────────────────────────── */
+  --font-sans: Inter, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: Inter, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+
+  /* ── Motion (120 / 200 / 320ms) ──────────────────────────────────── */
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ── Layout ──────────────────────────────────────────────────────── */
+  --titlebar-h: 44px;
+  --sidebar-w: 244px;
+  --sidebar-w-collapsed: 64px;
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+ * LIGHT (default)
+ * ═════════════════════════════════════════════════════════════════════ */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces: 4 elevation levels + inset + chrome */
+  --c-surface-base: 242 245 239; /* window background */
+  --c-surface-inset: 234 238 230; /* tracks, wells, inputs */
+  --c-surface-chrome: 248 250 246; /* sidebar + title bar */
+  --c-surface-raised: 255 255 255; /* cards */
+  --c-surface-overlay: 255 255 255; /* modals, sheets */
+  --c-surface-popover: 255 255 255; /* menus, tooltips, toasts */
+  --c-scrim: 16 22 14;
+  --a-scrim: 0.36;
+
+  /* Interaction overlays (applied with alpha on any surface) */
+  --c-state: 38 56 30;
+  --a-hover: 0.05;
+  --a-pressed: 0.09;
+
+  /* Text */
+  --c-fg-1: 22 28 20; /* primary   ~16:1 on white */
+  --c-fg-2: 82 92 78; /* secondary  ~7:1 */
+  --c-fg-3: 104 114 100; /* muted      ~5:1 on white, 4.6:1 on base */
+  --c-fg-4: 150 158 146; /* disabled / placeholder */
+  --c-fg-on-brand: 255 255 255;
+
+  /* Lines (alpha over the line color adapts to any surface) */
+  --c-line: 38 56 30;
+  --a-line-1: 0.08; /* subtle */
+  --a-line-2: 0.13; /* default */
+  --a-line-3: 0.22; /* strong / inputs */
+
+  /* Brand */
+  --c-brand: var(--green-600); /* icons, indicators: 4:1 on white */
+  --c-brand-solid: var(--green-700); /* primary fill: 4.9:1 with white */
+  --c-brand-solid-hover: var(--green-800);
+  --c-brand-solid-top: var(--green-600); /* gradient top stop */
+  --c-brand-fg: var(--green-800); /* brand text: 7:1 */
+  --c-brand-soft: 234 244 227; /* tinted backgrounds */
+  --c-brand-glow: var(--green-500);
+
+  /* Semantic: healthy / warning / critical */
+  --c-success: var(--green-600);
+  --c-success-fg: var(--green-800);
+  --c-success-soft: 234 244 227;
+  --c-warning: var(--amber-600); /* 3.5:1 UI part */
+  --c-warning-fg: var(--amber-700); /* 6:1 text */
+  --c-warning-soft: 253 243 224;
+  --c-danger: var(--red-600); /* 4.6:1 */
+  --c-danger-fg: var(--red-700);
+  --c-danger-soft: 252 236 234;
+  --c-info: var(--c-fg-2);
+  --c-info-fg: var(--c-fg-2);
+  --c-info-soft: var(--neutral-100);
+
+  /* Charts */
+  --c-chart-1: var(--green-600);
+  --c-chart-2: 95 124 138; /* desaturated slate, second series */
+  --c-chart-grid: 38 56 30;
+  --a-chart-grid: 0.08;
+
+  /* Shadows: layered, low opacity, brand-tinted */
+  --shadow-1: 0 1px 2px rgb(24 40 18 / 0.05), 0 1px 3px rgb(24 40 18 / 0.04);
+  --shadow-2: 0 1px 2px rgb(24 40 18 / 0.05),
+    0 4px 12px -2px rgb(24 40 18 / 0.07), 0 12px 28px -8px rgb(24 40 18 / 0.08);
+  --shadow-3: 0 2px 6px rgb(24 40 18 / 0.06),
+    0 16px 40px -8px rgb(24 40 18 / 0.16), 0 32px 72px -16px rgb(24 40 18 / 0.14);
+  --shadow-4: 0 2px 4px rgb(24 40 18 / 0.06), 0 8px 24px -4px rgb(24 40 18 / 0.14);
+  --shadow-brand: 0 1px 2px rgb(30 70 18 / 0.24),
+    0 4px 12px -2px rgb(63 127 42 / 0.3);
+  --highlight-top: inset 0 1px 0 rgb(255 255 255 / 0.9);
+  --highlight-brand: inset 0 1px 0 rgb(255 255 255 / 0.2);
+
+  /* Focus ring: 2px gap + 2px brand at ~45% */
+  --ring: 0 0 0 2px rgb(var(--c-surface-raised)),
+    0 0 0 4px rgb(var(--c-brand) / 0.45);
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+ * DARK (designed, not wired yet)
+ * ═════════════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --c-surface-base: 13 16 12;
+  --c-surface-inset: 9 11 8;
+  --c-surface-chrome: 16 20 15;
+  --c-surface-raised: 21 26 20;
+  --c-surface-overlay: 27 33 26;
+  --c-surface-popover: 33 40 31;
+  --c-scrim: 0 0 0;
+  --a-scrim: 0.56;
+
+  --c-state: 225 240 215;
+  --a-hover: 0.055;
+  --a-pressed: 0.09;
+
+  --c-fg-1: 236 241 233;
+  --c-fg-2: 170 180 166;
+  --c-fg-3: 128 139 124; /* ~4.9:1 on raised */
+  --c-fg-4: 92 102 89;
+  --c-fg-on-brand: 12 24 8; /* dark text on green-500: 5.9:1 */
+
+  --c-line: 225 240 215;
+  --a-line-1: 0.06;
+  --a-line-2: 0.1;
+  --a-line-3: 0.17;
+
+  --c-brand: var(--green-400);
+  --c-brand-solid: var(--green-500);
+  --c-brand-solid-hover: var(--green-400);
+  --c-brand-solid-top: var(--green-400);
+  --c-brand-fg: var(--green-300);
+  --c-brand-soft: 27 43 22;
+  --c-brand-glow: var(--green-500);
+
+  --c-success: var(--green-400);
+  --c-success-fg: var(--green-300);
+  --c-success-soft: 27 43 22;
+  --c-warning: var(--amber-400);
+  --c-warning-fg: var(--amber-300);
+  --c-warning-soft: 46 35 14;
+  --c-danger: var(--red-400);
+  --c-danger-fg: var(--red-300);
+  --c-danger-soft: 52 24 22;
+  --c-info: var(--c-fg-2);
+  --c-info-fg: var(--c-fg-2);
+  --c-info-soft: var(--neutral-850);
+
+  --c-chart-1: var(--green-400);
+  --c-chart-2: 143 176 191;
+  --c-chart-grid: 225 240 215;
+  --a-chart-grid: 0.07;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.35), 0 2px 6px rgb(0 0 0 / 0.2);
+  --shadow-2: 0 2px 4px rgb(0 0 0 / 0.35), 0 8px 24px -6px rgb(0 0 0 / 0.45);
+  --shadow-3: 0 8px 24px rgb(0 0 0 / 0.45), 0 32px 64px -12px rgb(0 0 0 / 0.6);
+  --shadow-4: 0 4px 12px rgb(0 0 0 / 0.45), 0 12px 32px -6px rgb(0 0 0 / 0.5);
+  --shadow-brand: 0 1px 2px rgb(0 0 0 / 0.4),
+    0 4px 14px -2px rgb(90 166 60 / 0.3);
+  --highlight-top: inset 0 1px 0 rgb(255 255 255 / 0.045);
+  --highlight-brand: inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+
+/* ═════════════════════════════════════════════════════════════════════
+ * Legacy aliases (--t-*). Kept so not-yet-converted pages pick up the new
+ * system. Remove each alias once nothing references it (Phase 4).
+ * ═════════════════════════════════════════════════════════════════════ */
+:root,
+[data-theme] {
+  --t-bg-base: var(--c-surface-base);
+  --t-bg-surface: var(--c-surface-chrome);
+  --t-bg-elevated: var(--c-surface-raised);
+  --t-border: var(--c-line);
+  --t-text-primary: var(--c-fg-1);
+  --t-text-secondary: var(--c-fg-2);
+  --t-text-muted: var(--c-fg-3);
+  --t-text-accent: var(--c-brand-fg);
+  --t-accent: var(--c-brand);
+  --t-accent2: var(--c-brand-solid);
+  --t-accent3: var(--c-brand);
+  --c-accent: var(--c-brand);
+
+  --graph-1: rgb(var(--c-chart-1));
+  --graph-2: rgb(var(--c-chart-2));
+  --graph-3: rgb(var(--c-fg-3));
+  --t-chart-grid: rgb(var(--c-chart-grid) / var(--a-chart-grid));
+
+  --t-app-bg: rgb(var(--c-surface-base));
+  --t-card-bg: rgb(var(--c-surface-raised));
+  --t-card-border: 1px solid rgb(var(--c-line) / var(--a-line-2));
+  --t-card-shadow: var(--shadow-1);
+  --t-card-hover-bg: rgb(var(--c-surface-raised));
+  --t-card-hover-border: 1px solid rgb(var(--c-line) / var(--a-line-3));
+  --t-card-hover-shadow: var(--shadow-2);
+  --t-card-elevated-bg: rgb(var(--c-surface-raised));
+  --t-card-elevated-border: 1px solid rgb(var(--c-line) / var(--a-line-2));
+  --t-card-elevated-shadow: var(--shadow-2);
+  --t-glass-shadow: var(--shadow-1);
+  --t-glass-elevated-shadow: var(--shadow-2);
+  --t-btn-bg: rgb(var(--c-brand-solid));
+  --t-btn-shadow: var(--shadow-brand);
+  --t-progress-track: rgb(var(--c-surface-inset));
+  --t-progress-gradient: linear-gradient(
+    90deg,
+    rgb(var(--c-brand-solid-top)),
+    rgb(var(--c-brand-solid))
+  );
+  --t-glow-primary: 0 0 0 4px rgb(var(--c-brand) / 0.12);
+  --t-modal-bg: rgb(var(--c-surface-overlay));
+  --t-modal-border: 1px solid rgb(var(--c-line) / var(--a-line-2));
+  --t-modal-shadow: var(--shadow-3);
+  --overlay-bg: rgb(var(--c-surface-base) / 0.97);
+  --t-selection-bg: rgb(var(--c-brand) / 0.22);
+  --t-selection-text: rgb(var(--c-fg-1));
+  --t-skeleton-from: rgb(var(--c-state) / 0.05);
+  --t-skeleton-to: rgb(var(--c-state) / 0.1);
+  --t-scroll-thumb: rgb(var(--c-line) / 0.2);
+  --t-scroll-thumb-hover: rgb(var(--c-line) / 0.34);
+}

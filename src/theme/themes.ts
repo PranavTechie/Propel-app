@@ -145,68 +145,14 @@ export const THEMES: Record<ThemeId, Theme> = {
 
 export const THEME_ORDER: ThemeId[] = ["light"];
 
+/**
+ * Applies a theme by setting `data-theme` on <html>. All color values live
+ * in src/styles/tokens.css; this function no longer writes inline CSS vars
+ * (inline vars would override the token file). `THEMES` is kept for the
+ * Settings preview only.
+ */
 export function applyTheme(id: ThemeId): void {
-  const v = THEMES[id]?.vars;
-  if (!v) return;
+  if (!THEMES[id]) return;
   const r = document.documentElement;
   r.setAttribute("data-theme", id);
-  const values: Record<string, string> = {
-    "--t-bg-base": v.bgBase,
-    "--t-bg-surface": v.bgSurface,
-    "--t-bg-elevated": v.bgElevated,
-    "--t-border": v.border,
-    "--t-text-primary": v.textPrimary,
-    "--t-text-secondary": v.textSecondary,
-    "--t-text-muted": v.textMuted,
-    "--t-text-accent": v.textAccent,
-    "--t-accent": v.accent,
-    "--t-accent2": v.accent2,
-    "--t-accent3": v.accent3,
-    "--c-accent": v.accent,
-    "--t-app-bg": v.appBg,
-    "--t-app-bloom-1": v.appBloom1,
-    "--t-app-bloom-2": v.appBloom2,
-    "--t-app-bloom-3": v.appBloom3,
-    "--t-card-bg": v.cardBg,
-    "--t-card-border": v.cardBorder,
-    "--t-card-shadow": v.cardShadow,
-    "--t-card-blur": v.cardBlur,
-    "--t-card-highlight": v.cardHighlight,
-    "--t-card-hover-bg": v.cardHoverBg,
-    "--t-card-hover-border": v.cardHoverBorder,
-    "--t-card-hover-shadow": v.cardHoverShadow,
-    "--t-card-elevated-bg": v.cardElevatedBg,
-    "--t-card-elevated-border": v.cardElevatedBorder,
-    "--t-card-elevated-shadow": v.cardElevatedShadow,
-    "--t-glass-shadow": v.glassShadow,
-    "--t-glass-elevated-shadow": v.glassElevatedShadow,
-    "--t-sidebar-bg": v.sidebarBg,
-    "--t-sidebar-border-right": v.sidebarBorderRight,
-    "--t-sidebar-active-bg": v.sidebarActiveBg,
-    "--t-sidebar-active-border": v.sidebarActiveBorder,
-    "--t-sidebar-active-shadow": v.sidebarActiveShadow,
-    "--t-sidebar-hover-bg": v.sidebarHoverBg,
-    "--t-btn-bg": v.btnPrimaryBg,
-    "--t-btn-shadow": v.btnPrimaryShadow,
-    "--t-progress-track": v.progressTrack,
-    "--t-progress-gradient": v.progressGradient,
-    "--t-glow-primary": v.glowPrimary,
-    "--graph-1": v.graph1,
-    "--graph-2": v.graph2,
-    "--graph-3": v.graph3,
-    "--t-chart-grid": v.chartGrid,
-    "--t-scroll-thumb": v.scrollThumb,
-    "--t-scroll-thumb-hover": v.scrollThumbHover,
-    "--t-modal-bg": v.modalBg,
-    "--t-modal-border": v.modalBorder,
-    "--t-modal-shadow": v.modalShadow,
-    "--overlay-bg": v.overlayBg,
-    "--t-selection-bg": v.selectionBg,
-    "--t-selection-text": v.selectionText,
-    "--t-skeleton-from": v.skeletonFrom,
-    "--t-skeleton-to": v.skeletonTo,
-  };
-  Object.entries(values).forEach(([key, value]) =>
-    r.style.setProperty(key, value),
-  );
 }
