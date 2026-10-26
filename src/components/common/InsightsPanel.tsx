@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/appStore'
 import { Button } from '@/components/ui/Button'
 import { SkeletonRow } from '@/components/ui/Skeleton'
 import { useGatedStore } from '@/components/ui/hooks/useGatedStore'
+import { useLayoutReady } from '@/components/ui/hooks/useLiveGate'
 import { cn } from '@/utils/cn'
 import { formatBytes } from '@/utils/format'
 import type { NavPage, SystemStats } from '@/types'
@@ -176,17 +177,18 @@ const InsightCard = memo<{
   insight: Insight
   index: number
   onAction: (page: NavPage) => void
-}>(({ insight, index, onAction }) => {
+  animateLayout: boolean
+}>(({ insight, index, onAction, animateLayout }) => {
   const cfg = SEV_CONFIG[insight.severity]
   const Icon = insight.icon
 
   return (
     <motion.div
-      layout="position"
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98 }}
-      transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1], delay: index * 0.04 }}
+      layout={animateLayout ? 'position' : false}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1], delay: index * 0.04 }}
       className="group relative flex items-center gap-3.5 overflow-hidden rounded-card border border-line bg-surface-raised py-3 pl-4 pr-3 shadow-[var(--shadow-1),var(--highlight-top)]"
     >
       <span aria-hidden className={cn('absolute inset-y-0 left-0 w-[3px]', cfg.bar)} />
@@ -229,6 +231,7 @@ export const InsightsPanel = memo(() => {
   const setActivePage = useAppStore(s => s.setActivePage)
 
   const insights = useMemo(() => deriveInsights(stats), [stats])
+  const layoutReady = useLayoutReady()
 
   if (!stats) {
     return (
@@ -266,6 +269,7 @@ export const InsightsPanel = memo(() => {
               insight={insight}
               index={i}
               onAction={setActivePage}
+              animateLayout={layoutReady}
             />
           ))
         )}

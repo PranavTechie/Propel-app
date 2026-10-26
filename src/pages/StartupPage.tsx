@@ -17,6 +17,7 @@ import { Callout } from "@/components/ui/Callout";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonRow } from "@/components/ui/Skeleton";
 import type { Tone } from "@/theme/thresholds";
+import { useLayoutReady } from "@/components/ui/hooks/useLiveGate";
 import type { StartupAnalysis, StartupEntry } from "@/types";
 
 function impactTone(impact: StartupEntry["impact"]): Tone {
@@ -75,6 +76,9 @@ export const StartupPage: React.FC = () => {
   const impact = analysis
     ? `${analysis.totalEstimatedDelaySec.toFixed(1)}s`
     : "Not scanned";
+
+  // Reorder animation only while this page is visible and settled.
+  const layoutReady = useLayoutReady();
 
   return (
     <div className="page-shell">
@@ -161,7 +165,7 @@ export const StartupPage: React.FC = () => {
                   return (
                     <motion.li
                       key={entry.id}
-                      layout="position"
+                      layout={layoutReady ? "position" : false}
                       className="grid grid-cols-[minmax(0,1fr)_150px_96px] items-center gap-4 px-5 py-3 transition-colors duration-fast hover:bg-state/[var(--a-hover)]"
                     >
                       <div className="flex min-w-0 items-center gap-3">

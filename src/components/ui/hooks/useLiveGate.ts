@@ -27,3 +27,33 @@ export function useLiveGate(): boolean {
   const windowVisible = useWindowVisible();
   return pageActive && windowVisible;
 }
+
+/**
+ * Gate for framer-motion `layout` animations on pages that stay mounted
+ * with display:none. AppLayout re-renders every page in the same commit that
+ * toggles `display`, so a layout snapshot taken in that commit measures a
+ * hidden (zero) rect and the element flies in from the top-left.
+ *
+ * Returns false while the page is inactive or the window is hidden, AND
+ * until the page entrance transition has settled. Layout animation is
+ * therefore only on for live reorders while the user is looking.
+ */
+const PAGE_SETTLE_MS = 240;
+
+export function useLayoutReady(): boolean {
+  const live = useLiveGate();
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!live) {
+      setReady(false);
+      return;
+    }
+    // Arm after the 200ms page fade/slide has settled, so reorder snapshots
+    // are never taken while an ancestor is still translating.
+    const id = window.setTimeout(() => setReady(true), PAGE_SETTLE_MS);
+    return () => window.clearTimeout(id);
+  }, [live]);
+  // `live` is read in the same render that toggles display, so layout is
+  // already off in that commit (both on leave and on re-entry).
+  return live && ready;
+}

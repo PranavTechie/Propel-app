@@ -29,7 +29,8 @@ import { SkeletonRow, Skeleton } from "@/components/ui/Skeleton";
 import { toneColor, type Tone } from "@/theme/thresholds";
 import { formatBytes } from "@/utils/format";
 import { cn } from "@/utils/cn";
-import { staggerContainer, staggerItem } from "@/animations/variants";
+import { staggerContainer } from "@/animations/variants";
+import { useLayoutReady } from "@/components/ui/hooks/useLiveGate";
 import type {
   MemoryDetails,
   ProcessMemInfo,
@@ -73,18 +74,27 @@ const StatTile: React.FC<{
   </div>
 );
 
+// Rows only fade in (no translate). Mount-only: stable keys mean live
+// updates every 3s never replay it.
+const rowFade = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: { duration: 0.16, ease: [0.2, 0.8, 0.2, 1] } },
+};
+
 // ── Process Row ────────────────────────────────────────────────────────────
 const ProcessRow: React.FC<{
   proc: ProcessMemInfo & { count?: number };
   max: number;
   rank: number;
-}> = ({ proc, max, rank }) => {
+  animateLayout: boolean;
+}> = ({ proc, max, rank, animateLayout }) => {
   const pct = max > 0 ? (proc.memBytes / max) * 100 : 0;
 
   return (
     <motion.li
-      variants={staggerItem}
-      layout="position"
+      variants={rowFade}
+      layout={animateLayout ? "position" : false}
+      transition={{ layout: { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] } }}
       className="flex items-center gap-3.5 py-2.5"
     >
       <span
@@ -117,6 +127,30 @@ const ProcessRow: React.FC<{
         {formatBytes(proc.memBytes)}
       </span>
     </motion.li>
+  );
+};
+
+/**
+ * Process list. Keys are the process name (rows are grouped by name), so a
+ * row keeps its identity across polls. Reorder animation only runs while the
+ * page is active, visible and settled (see useLayoutReady).
+ */
+const ProcessList: React.FC<{
+  processes: (ProcessMemInfo & { count?: number })[];
+  max: number;
+}> = ({ processes, max }) => {
+  const layoutReady = useLayoutReady();
+  return (
+    <motion.ul
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+      className="divide-y divide-line-subtle"
+    >
+      {processes.map((proc, i) => (
+        <ProcessRow key={proc.name} proc={proc} max={max} rank={i} animateLayout={layoutReady} />
+      ))}
+    </motion.ul>
   );
 };
 
@@ -479,16 +513,7 @@ export const MemoryPage: React.FC = () => {
             </div>
 
             {processes.length > 0 ? (
-              <motion.ul
-                variants={staggerContainer}
-                initial="initial"
-                animate="animate"
-                className="divide-y divide-line-subtle"
-              >
-                {groupedProcesses.slice(0, 12).map((proc, i) => (
-                  <ProcessRow key={proc.pid} proc={proc} max={maxProcMem} rank={i} />
-                ))}
-              </motion.ul>
+              <ProcessList processes={groupedProcesses.slice(0, 12)} max={maxProcMem} />
             ) : (
               <div role="status" aria-label="Loading process data">
                 <SkeletonRow />

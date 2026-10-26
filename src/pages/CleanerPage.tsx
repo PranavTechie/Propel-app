@@ -40,6 +40,7 @@ import { RestoreInfoModal } from "@/components/cleaner/RestoreInfoModal";
 import { CleanupPreviewModal } from "@/components/cleaner/CleanupPreviewModal";
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import { formatBytes } from "@/utils/format";
+import { useLayoutReady } from "@/components/ui/hooks/useLiveGate";
 import { cn } from "@/utils/cn";
 import type { ScanCategory, CleanupReport } from "@/types";
 
@@ -129,11 +130,13 @@ export const CategoryCard: React.FC<{
 }> = ({ cat, selected, scanning, onToggle }) => {
   const pct =
     cat.totalSize > 0 ? Math.min(100, (cat.fileCount / 500) * 100) : 0;
+  // Never measure layout in the commit that shows/hides this page.
+  const layoutReady = useLayoutReady();
 
   return (
     <motion.div
       variants={staggerItem}
-      layout
+      layout={layoutReady}
       role="checkbox"
       aria-checked={selected}
       tabIndex={0}
