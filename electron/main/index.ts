@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, nativeTheme, Tray, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, shell, nativeTheme, Tray, Menu, screen } from "electron";
 
 // Acquire the process-wide lock before any app, window, tray, renderer, or
 // background-service initialization. A second launch exits without startup.
@@ -109,6 +109,17 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let shutdownCleanedUp = false;
 let isHiddenStartup = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
+// maximize() on a hidden window also SHOWS it, so it is deferred to the first
+// reveal (after ready-to-show + splash:ready) instead of window creation.
+let firstRevealDone = false;
+
+function revealMainWindow(win: BrowserWindow): void {
+  if (!firstRevealDone) {
+    firstRevealDone = true;
+    win.maximize(); // window already has work-area bounds: no visible resize
+  }
+  if (!win.isVisible()) win.show();
+}
 
 function focusMainWindow(): void {
   isHiddenStartup = false; // User manually requested the window
@@ -119,7 +130,7 @@ function focusMainWindow(): void {
   if (!rendererReady || !splashReady) return;
   
   if (mainWindow.isMinimized()) mainWindow.restore();
-  if (!mainWindow.isVisible()) mainWindow.show();
+  revealMainWindow(mainWindow);
   mainWindow.focus();
 }
 
@@ -127,7 +138,7 @@ function showMainWindowWhenReady(): void {
   if (!mainWindow || !rendererReady || !splashReady) return;
   if (isHiddenStartup) return;
   
-  mainWindow.show();
+  revealMainWindow(mainWindow);
   mainWindow.focus();
 }
 
@@ -208,14 +219,23 @@ function createWindow(): void {
   // Create the main window
   rendererReady = false;
   splashReady = false;
+  firstRevealDone = false;
+  // Lay out at the final (maximized) size while hidden, so the reveal does
+  // not trigger a resize/reflow on the first visible frame.
+  const workArea = screen.getPrimaryDisplay().workArea;
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    x: workArea.x,
+    y: workArea.y,
+    width: Math.max(1100, workArea.width),
+    height: Math.max(700, workArea.height),
     minWidth: 1100,
     minHeight: 700,
     frame: false,
     transparent: false,
-    backgroundColor: "#F5F6F1",
+    // Same as the light --c-surface-base token (first painted UI color).
+    // "theme:set" switches it for dark before the window is revealed.
+    backgroundColor: THEME_WINDOW_BG.light,
+    paintWhenInitiallyHidden: true,
     icon: getAppIconPath(),
     webPreferences: {
       preload: path.join(__dirname, "../preload/index.js"),
@@ -235,13 +255,27 @@ function createWindow(): void {
     autoHideMenuBar: true,
   });
 
-  // Size the native window before the first paint so the compositor never
-  // presents an unthemed intermediate frame during startup.
-  mainWindow.maximize();
-
   mainWindow.once("ready-to-show", () => {
     rendererReady = true;
     showMainWindowWhenReady();
+  });
+
+  // The window is created at work-area size (so the hidden first layout
+  // matches the maximized reveal). Keep the classic restore size: the first
+  // un-maximize goes to 1280x800 centered instead of a full-size no-op.
+  mainWindow.once("unmaximize", () => {
+    const win = mainWindow;
+    if (!win || win.isDestroyed()) return;
+    const { width, height } = win.getBounds();
+    if (width < workArea.width || height < workArea.height) return;
+    const w = Math.min(1280, workArea.width);
+    const h = Math.min(800, workArea.height);
+    win.setBounds({
+      x: workArea.x + Math.round((workArea.width - w) / 2),
+      y: workArea.y + Math.round((workArea.height - h) / 2),
+      width: w,
+      height: h,
+    });
   });
 
   mainWindow.on("closed", () => {

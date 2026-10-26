@@ -11,7 +11,11 @@ import { OverlayApp }        from '@/components/overlay/OverlayApp'
 // Overlay window loads the same renderer URL with ?mode=overlay
 const IS_OVERLAY = new URLSearchParams(window.location.search).get('mode') === 'overlay'
 
-const FADE = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.3 } }
+const FADE = { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.24 } }
+// Splash is on screen when the window is revealed, so it never fades in;
+// it only fades out while the next screen fades in underneath (cross-fade,
+// no blank frame between them).
+const SPLASH_EXIT = { exit: { opacity: 0 }, transition: { duration: 0.2 } }
 
 const MainApp: React.FC = () => { // Main app component
   const phase = useAppStore(s => s.phase)
@@ -19,9 +23,9 @@ const MainApp: React.FC = () => { // Main app component
   return (
     // Respect Windows "reduce animations" on every screen, incl. login/splash.
     <MotionConfig reducedMotion="user">
-    <AnimatePresence mode="wait">
+    <AnimatePresence initial={false}>
       {phase === 'splash' && (
-        <motion.div key="splash" className="fixed inset-0 z-50">
+        <motion.div key="splash" {...SPLASH_EXIT} className="fixed inset-0 z-50">
           <SplashScreen />
         </motion.div>
       )}
