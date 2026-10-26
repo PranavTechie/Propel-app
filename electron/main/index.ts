@@ -109,16 +109,111 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let shutdownCleanedUp = false;
 let isHiddenStartup = process.argv.includes('--hidden') || app.getLoginItemSettings().wasOpenedAsHidden;
-// maximize() on a hidden window also SHOWS it, so it is deferred to the first
-// reveal (after ready-to-show + splash:ready) instead of window creation.
+// ── First reveal strategy (startup resize flicker) ────────────────────
+// Chromium applies the maximized state inside Show, so the window becomes
+// visible at its normal size and is resized right after (trace: two
+// OnWindowPosChanged within ~25ms of Show). PROPEL_REVEAL_MODE picks how the
+// FIRST reveal hides that; later show/hide calls are plain show().
+//   opacity (default) : show at opacity 0, wait until resizes settle and the
+//                       renderer presented 2 frames, then opacity 1.
+//   nomax             : never maximize; the window already has work-area
+//                       bounds, so show() causes no resize at all.
+//   current           : maximize() + show() (previous behavior, comparison).
+type RevealMode = "opacity" | "nomax" | "current";
+const REVEAL_MODE: RevealMode = (() => {
+  const v = (process.env.PROPEL_REVEAL_MODE ?? "").trim().toLowerCase();
+  return v === "nomax" || v === "current" ? v : "opacity";
+})();
+const REVEAL_SETTLE_MS = 34; // ~2 frames at 60 Hz with no resize/maximize
+const REVEAL_HARD_TIMEOUT_MS = 600; // window can never stay invisible longer
+
 let firstRevealDone = false;
 
-function revealMainWindow(win: BrowserWindow): void {
-  if (!firstRevealDone) {
-    firstRevealDone = true;
-    win.maximize(); // window already has work-area bounds: no visible resize
+/** Classic restore size: 1280x800 (or smaller screen) centered in the area. */
+function classicRestoreBounds(area: Electron.Rectangle): Electron.Rectangle {
+  const width = Math.min(1280, area.width);
+  const height = Math.min(800, area.height);
+  return {
+    x: area.x + Math.round((area.width - width) / 2),
+    y: area.y + Math.round((area.height - height) / 2),
+    width,
+    height,
+  };
+}
+
+function revealWithOpacity(win: BrowserWindow): void {
+  let finished = false;
+  let generation = 0;
+  let settleTimer: NodeJS.Timeout | undefined;
+
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(settleTimer);
+    clearTimeout(hardTimer);
+    win.removeListener("resize", onGeometryChange);
+    win.removeListener("maximize", onGeometryChange);
+    win.removeListener("closed", finish);
+    try {
+      if (!win.isDestroyed()) win.setOpacity(1);
+    } catch {
+      /* window gone */
+    }
+  };
+
+  // Settled = no geometry change for REVEAL_SETTLE_MS, then the renderer has
+  // run two animation frames at the final size. Any resize restarts this.
+  const waitForPresentedFrame = () => {
+    const gen = generation;
+    win.webContents
+      .executeJavaScript(
+        "new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))",
+      )
+      .catch(() => undefined)
+      .then(() => {
+        if (gen === generation) finish();
+      });
+  };
+  const scheduleSettle = () => {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(waitForPresentedFrame, REVEAL_SETTLE_MS);
+  };
+  function onGeometryChange() {
+    generation++;
+    scheduleSettle();
   }
-  if (!win.isVisible()) win.show();
+
+  const hardTimer = setTimeout(finish, REVEAL_HARD_TIMEOUT_MS);
+  win.on("resize", onGeometryChange);
+  win.on("maximize", onGeometryChange);
+  win.once("closed", finish);
+
+  try {
+    win.setOpacity(0);
+    win.maximize(); // also shows the window (at opacity 0)
+    if (!win.isVisible()) win.show();
+    scheduleSettle();
+  } catch {
+    finish(); // never leave the window transparent
+  }
+}
+
+function revealMainWindow(win: BrowserWindow): void {
+  if (firstRevealDone) {
+    // After the first reveal: normal show, no opacity tricks.
+    if (!win.isVisible()) win.show();
+    return;
+  }
+  firstRevealDone = true;
+
+  if (REVEAL_MODE === "opacity") {
+    revealWithOpacity(win);
+  } else if (REVEAL_MODE === "nomax") {
+    if (!win.isVisible()) win.show(); // created at work-area bounds: no resize
+  } else {
+    win.maximize(); // "current": window already has work-area bounds
+    if (!win.isVisible()) win.show();
+  }
 }
 
 function focusMainWindow(): void {
@@ -268,14 +363,7 @@ function createWindow(): void {
     if (!win || win.isDestroyed()) return;
     const { width, height } = win.getBounds();
     if (width < workArea.width || height < workArea.height) return;
-    const w = Math.min(1280, workArea.width);
-    const h = Math.min(800, workArea.height);
-    win.setBounds({
-      x: workArea.x + Math.round((workArea.width - w) / 2),
-      y: workArea.y + Math.round((workArea.height - h) / 2),
-      width: w,
-      height: h,
-    });
+    win.setBounds(classicRestoreBounds(workArea));
   });
 
   mainWindow.on("closed", () => {
@@ -319,6 +407,18 @@ function createWindow(): void {
 
 ipcMain.on("window:minimize", () => mainWindow?.minimize()); // Minimize the window
 ipcMain.on("window:maximize", () => {
+  if (REVEAL_MODE === "nomax" && mainWindow && !mainWindow.isDestroyed()) {
+    // No OS maximize in this mode: "maximized" = work-area bounds.
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize(); // native maximize (double-click / Win+Up)
+      return;
+    }
+    const area = screen.getDisplayMatching(mainWindow.getBounds()).workArea;
+    const b = mainWindow.getBounds();
+    const fillsArea = b.width >= area.width && b.height >= area.height;
+    mainWindow.setBounds(fillsArea ? classicRestoreBounds(area) : area);
+    return;
+  }
   if (mainWindow?.isMaximized()) {
     mainWindow.unmaximize();
   } else {
