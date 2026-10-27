@@ -4,6 +4,7 @@ import { MonitorX, LogOut, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAppStore } from '@/store/appStore'
 import { PROPEL_DEVICES_URL } from '@/constants/appConstants'
+import { logout } from '@/services/auth/logout'
 
 export const DeviceLimitScreen: React.FC = () => {
   const resetUserSession = useAppStore(s => s.resetUserSession)
@@ -14,8 +15,8 @@ export const DeviceLimitScreen: React.FC = () => {
   const limit = entitlement.limits?.devices ?? (entitlement.plan === 'MAX' ? 3 : isFree ? 10 : 2)
 
   const handleLogout = () => {
-    resetUserSession()
-    setPhase('login')
+    // This device never got a slot, so there is nothing to release.
+    void logout({ reason: 'user', releaseDevice: false })
   }
 
   return (

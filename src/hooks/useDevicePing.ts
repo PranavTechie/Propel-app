@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore, selectSession, selectPhase } from '@/store/appStore'
+import { logout, flushPendingDeviceRelease } from '@/services/auth/logout'
 
 const PING_INTERVAL = 6 * 60 * 60 * 1000 // 6 hours
 
@@ -22,6 +23,8 @@ export function useDevicePing() {
 
     const ping = async () => {
       try {
+        // A logout that happened offline queued a device release: retry it now.
+        await flushPendingDeviceRelease(session.access_token).catch(() => {})
         const { device_id: deviceId, registered_at } = await window.electronAPI.system.getDeviceUUID()
         const isNewLogin = !registered_at
         
@@ -48,9 +51,8 @@ export function useDevicePing() {
             if (data.code === 'DEVICE_LIMIT_REACHED') {
               setPhase('device_limit')
             } else if (data.code === 'DEVICE_REMOVED') {
-              // Sign out locally
-              resetUserSession()
-              setPhase('login')
+              // Full local sign-out (tokens, cached plan, license), not just memory
+              await logout({ reason: 'device-removed', releaseDevice: false })
             }
           }
           // Network errors, timeouts, and 5xx must never sign the user out, handled by falling through

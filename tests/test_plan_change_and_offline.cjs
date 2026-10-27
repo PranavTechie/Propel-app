@@ -46,27 +46,15 @@ async function syncWindowsTask(entitlement, settings, exePath) {
   }
 }
 
-// Bootstrap decision function (mirror of SplashScreen logic)
+// Bootstrap decision function (mirror of SplashScreen logic).
+// Rule (logout fix): logged-in state exists ONLY with a valid session. A
+// cached entitlement is never proof of login, so no session -> Login, also
+// offline. The real rule is unit-tested in tests/test_logout_persistence.cjs.
 function resolveBootstrapState({ session, cachedEntitlement, isOnline }) {
   if (!session) {
-    if (cachedEntitlement && !cachedEntitlement.isFallback) {
-      return {
-        phase: 'main',
-        isOffline: true,
-        plan: cachedEntitlement.plan,
-        bannerText: 'Offline: using saved plan',
-      }
-    }
-    if (!isOnline) {
-      return {
-        phase: 'no_internet',
-        isOffline: true,
-        plan: 'FREE',
-      }
-    }
     return {
       phase: 'login',
-      isOffline: false,
+      isOffline: !isOnline,
       plan: 'FREE',
     }
   }
@@ -155,17 +143,15 @@ async function run() {
   // ── TEST (f): Offline start logic ──
   console.log('\n--- TEST (f): Offline Startup Decisions ---')
 
-  // Case 1: Offline with cached PRO entitlement
+  // Case 1: Offline with cached PRO entitlement but NO session (e.g. after logout)
   const r1 = resolveBootstrapState({
     session: null,
     cachedEntitlement: { plan: 'PRO', isFallback: false },
     isOnline: false,
   })
-  assert.strictEqual(r1.phase, 'main', 'Offline start with cache must enter main')
-  assert.strictEqual(r1.isOffline, true)
-  assert.strictEqual(r1.bannerText, 'Offline: using saved plan')
-  assert.strictEqual(r1.plan, 'PRO')
-  console.log('[PASS] 1. Offline start with cached PRO -> app opens with "Offline: using saved plan" banner')
+  assert.strictEqual(r1.phase, 'login', 'A cached plan without a session must NOT log the user in')
+  assert.strictEqual(r1.plan, 'FREE')
+  console.log('[PASS] 1. Offline start with cached PRO but no session -> shows login (cache is not proof of login)')
 
   // Case 2: Offline with active session but network offline
   const r2 = resolveBootstrapState({
@@ -194,8 +180,8 @@ async function run() {
     cachedEntitlement: { isFallback: true },
     isOnline: false,
   })
-  assert.strictEqual(r4.phase, 'no_internet', 'No cache AND no session offline must show NoInternetScreen')
-  console.log('[PASS] 4. Offline with NO cache AND NO session -> shows NoInternetScreen')
+  assert.strictEqual(r4.phase, 'login', 'No session offline must show Login')
+  console.log('[PASS] 4. Offline with NO cache AND NO session -> shows login')
 
   // Case 5: Online with NO session -> login
   const r5 = resolveBootstrapState({

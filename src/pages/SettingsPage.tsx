@@ -28,7 +28,8 @@ import {
   type ThemeId,
 } from "@/theme/themes";
 import { Button } from "@/components/ui/Button";
-import { supabase } from "@/lib/supabase";
+import { useSessionStore } from "@/store/sessionStore";
+import { logout } from "@/services/auth/logout";
 import { PROPEL_ACCOUNT_URL, PROPEL_PRICING_URL } from "@/constants/appConstants";
 
 import { Card } from "@/components/ui/Card";
@@ -224,52 +225,24 @@ export const SettingsPage: React.FC = () => {
       setConfirmSignOut(true);
       return;
     }
+    // Do not pull the session out from under a running scan/clean/optimize.
+    const app = useAppStore.getState();
+    const ses = useSessionStore.getState();
+    if (app.isScanning || app.isCleaning || ses.systemCheck.scanning || ses.memory.isOptimizing) {
+      addToast({
+        type: "warning",
+        title: "Finish the current task first",
+        description: "Wait for the running scan, clean or optimization to finish, then sign out.",
+      });
+      setConfirmSignOut(false);
+      return;
+    }
     setSigningOut(true);
     try {
-      try {
-        const { device_id } = await window.electronAPI.system.getDeviceUUID();
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData?.session?.access_token;
-        if (token && device_id) {
-          const rawBase = import.meta.env.VITE_API_BASE_URL || "https://cleanmasterpro-backend-server.onrender.com";
-          const apiBase = rawBase.endsWith('/api') ? rawBase : `${rawBase.replace(/\/$/, '')}/api`;
-          await fetch(`${apiBase}/devices/${device_id}`, {
-            method: "DELETE",
-            headers: {
-              "Authorization": `Bearer ${token}`
-            }
-          });
-        }
-      } catch (e) {
-        console.warn("Best-effort device deletion failed:", e);
-      }
-      
-      try {
-        await window.electronAPI.system.clearDeviceRegistration();
-      } catch (e) {
-        console.warn("Failed to clear local device registration:", e);
-      }
-
-      // Clear local state immediately to ensure no stale token or user state remains,
-      // even if the network request to Supabase fails.
-      resetUserSession();
-      await supabase.auth.signOut({ scope: "local" });
-      addToast({
-        type: "info",
-        title: "Signed Out",
-        description: "Redirecting to login.",
-      });
-      setTimeout(() => setPhase("login"), 1400);
-    } catch {
-      // Even if network fails, we've cleared local state.
-      // Force redirect to login anyway.
-      resetUserSession();
-      addToast({
-        type: "info",
-        title: "Signed Out (Local)",
-        description: "Redirecting to login.",
-      });
-      setTimeout(() => setPhase("login"), 1400);
+      // Single logout: frees the device slot (or queues it when offline),
+      // clears tokens, cached plan, license and in-memory state, then shows Login.
+      await logout({ reason: "user" });
+      addToast({ type: "info", title: "Signed Out", description: "You have been signed out." });
     } finally {
       setSigningOut(false);
       setConfirmSignOut(false);

@@ -31,6 +31,16 @@ export interface EvaluatedEntitlement extends CachedEntitlementPayload {
   isFallback: boolean
 }
 
+// Incremented on logout. A fetch that started before logout must not write
+// its result afterwards (it would resurrect the cached plan).
+let authEpoch = 0
+export function getAuthEpoch(): number {
+  return authEpoch
+}
+export function bumpAuthEpoch(): void {
+  authEpoch++
+}
+
 export const OFFLINE_GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000 // 3 days
 const CLOCK_ROLLBACK_TOLERANCE_MS = 60 * 1000 // 1 minute tolerance for clock adjustments
 
@@ -188,7 +198,11 @@ export async function saveCachedEntitlement(data: {
   trial_active?: boolean
   trial_expires_at?: string | null
   subscription_status?: string
-}): Promise<void> {
+}, epoch?: number): Promise<void> {
+  if (epoch !== undefined && epoch !== authEpoch) {
+    console.info('[EntitlementCache] Skipped stale write (logged out during fetch).')
+    return
+  }
   const filePath = getEntitlementFilePath()
   const payload: CachedEntitlementPayload = {
     plan: data.plan,

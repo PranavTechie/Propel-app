@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { saveCachedEntitlement } from './entitlementCache'
+import { saveCachedEntitlement, getAuthEpoch } from './entitlementCache'
 
 // We get API_BASE from env or fallback for local dev
 const API_BASE = process.env.VITE_API_BASE_URL || 'https://cleanmasterpro-backend-server.onrender.com'
@@ -32,6 +32,7 @@ export type EntitlementResult =
   | { ok: false; networkError: boolean; message: string }
 
 export async function fetchEntitlements(accessToken: string): Promise<EntitlementResult> {
+  const epoch = getAuthEpoch()
   try {
     const res = await axios.get<EntitlementResponse>(`${API_BASE}/api/entitlements`, {
       headers: {
@@ -53,7 +54,7 @@ export async function fetchEntitlements(accessToken: string): Promise<Entitlemen
         trial_active: res.data.data.trial_active,
         trial_expires_at: res.data.data.trial_expires_at,
         subscription_status: res.data.data.subscription_status,
-      })
+      }, epoch)
 
       return { ok: true, data: res.data.data }
     }

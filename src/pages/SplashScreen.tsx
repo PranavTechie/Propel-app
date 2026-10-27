@@ -5,6 +5,8 @@ import { useAppStore } from "@/store/appStore";
 import { useSettingsStore } from "@/store/settingsStore";
 
 import { supabase } from "@/lib/supabase";
+import { decideStartup, readStoredSession } from "@/services/auth/authLifecycle";
+import { clearLocalAuthState } from "@/services/auth/logout";
 import { Progress } from "@/components/ui/Progress";
 
 export const SplashScreen: React.FC = () => {
@@ -36,20 +38,47 @@ export const SplashScreen: React.FC = () => {
         if (cancelled) return;
 
         let session = null;
+        let sessionErrorIsNetwork = false;
         try {
           const { data, error } = await supabase.auth.getSession();
           if (!error && data?.session) {
             session = data.session;
+          } else if (error) {
+            sessionErrorIsNetwork =
+              (error as { name?: string }).name === "AuthRetryableFetchError" || !navigator.onLine;
           }
         } catch {
           // Network / auth error
+          sessionErrorIsNetwork = !navigator.onLine;
         }
 
         if (cancelled) return;
 
         if (!session) {
-          // If no active session, but cache exists, use cache and go to main
-          if (cached && !cached.isFallback) {
+          // Logged-in state exists ONLY with a valid session. A cached plan is
+          // never proof of login. The one exception: a persisted session that
+          // could not be refreshed because we are offline (offline grace).
+          const storedSession = readStoredSession(window.localStorage);
+          const decision = decideStartup({
+            session: null,
+            storedSession,
+            online: navigator.onLine,
+            sessionErrorIsNetwork,
+            cached,
+          });
+
+          if (decision.kind !== "main-offline" || !storedSession) {
+            // Signed out / revoked / never logged in: drop stale cache + tokens
+            // (awaited, so a quick restart cannot see them) and show Login.
+            await clearLocalAuthState();
+            if (cancelled) return;
+            setDone(true);
+            setPhase("login");
+            return;
+          }
+
+          setSession(storedSession as any);
+          if (decision.useCachedPlan) {
             setEntitlementStatus({
               status: "active",
               plan: cached.plan,
@@ -64,20 +93,19 @@ export const SplashScreen: React.FC = () => {
               fetchedAt: cached.fetchedAt,
               isOffline: true,
             });
-            setDone(true);
-            setPhase("main");
-            return;
+          } else {
+            setEntitlementStatus({
+              status: "active",
+              plan: "FREE",
+              source: "plan",
+              trial_active: false,
+              trial_expires_at: null,
+              subscription_status: "",
+              isOffline: true,
+            });
           }
-
-          // No cache AND no session
-          if (!navigator.onLine) {
-            setDone(true);
-            setPhase("no_internet");
-            return;
-          }
-
           setDone(true);
-          setPhase("login");
+          setPhase("main");
           return;
         }
 

@@ -12,6 +12,7 @@ import { useUpdateCheck } from "@/hooks/useUpdateCheck";
 import { usePerformanceProfile } from "@/hooks/usePerformanceProfile";
 import { useDevicePing } from "@/hooks/useDevicePing";
 import { useEntitlementRefresh } from "@/hooks/useEntitlementRefresh";
+import { useSessionGuard } from "@/hooks/useSessionGuard";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -106,6 +107,7 @@ export const AppLayout: React.FC = () => {
 
   useDevicePing();
   useEntitlementRefresh();
+  useSessionGuard();
 
   const ActivePage = PAGE_MAP[activePage];
   return (

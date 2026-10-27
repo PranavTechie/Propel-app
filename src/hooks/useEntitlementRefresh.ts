@@ -29,6 +29,8 @@ export function useEntitlementRefresh(): void {
         if (!token) return
 
         const result = await (window as any).propel?.entitlements?.fetch(token)
+        // Signed out while the request was in flight: drop the result.
+        if (!useAppStore.getState().session) return
         if (!result || !result.ok || !result.data) {
           if (result?.networkError) {
             useAppStore.setState(prev => ({
