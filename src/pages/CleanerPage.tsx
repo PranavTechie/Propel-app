@@ -37,7 +37,6 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { ExclusionsModal } from "@/components/cleaner/ExclusionsModal";
 import { HistoryPanel } from "@/components/cleaner/HistoryPanel";
 import { RestoreInfoModal } from "@/components/cleaner/RestoreInfoModal";
-import { CleanupPreviewModal } from "@/components/cleaner/CleanupPreviewModal";
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import { formatBytes } from "@/utils/format";
 import { useLayoutReady } from "@/components/ui/hooks/useLiveGate";
@@ -345,41 +344,26 @@ const UtilityCard: React.FC<{
   </button>
 );
 
-/** Start Clean, confirmed through the Cleanup Preview (lists every selected category). */
-const StartCleanButton: React.FC<{
-  categories: ScanCategory[];
-  selectedIds: Set<string>;
-  totalSize: number;
-  onConfirm: () => void;
-}> = ({ categories, selectedIds, totalSize, onConfirm }) => {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <Button icon={<Zap />} onClick={() => setOpen(true)} disabled={selectedIds.size === 0}>
-        Start Clean
-      </Button>
-      <CleanupPreviewModal
-        open={open}
-        categories={categories}
-        selectedIds={selectedIds}
-        selectedSize={totalSize}
-        onCancel={() => setOpen(false)}
-        onConfirm={() => {
-          setOpen(false);
-          onConfirm();
-        }}
-      />
-    </>
-  );
-};
-
 // ── Main Page ─────────────────────────────────────────────────────────────
 export const CleanerPage: React.FC = () => {
-  const { setScanResults, setIsScanning, setIsCleaning, addToast, setHasScanned } =
-    useAppStore();
+  const {
+    isScanning,
+    isCleaning,
+    setScanResults,
+    setIsScanning,
+    setIsCleaning,
+    addToast,
+    setHasScanned,
+  } = useAppStore();
   const { addReport: addHistoryReport } = useCleanerHistoryStore();
 
   const [phase, setPhase] = useState<Phase>("idle");
+  const isBusy =
+    isScanning ||
+    isCleaning ||
+    phase === "scanning" ||
+    phase === "cleaning" ||
+    phase === "pending-permission";
   const [categories, setCategories] = useState<ScanCategory[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [scanLive, setScanLive] = useState<ScanLiveState>({
@@ -587,7 +571,7 @@ export const CleanerPage: React.FC = () => {
 
   // ── Clean ───────────────────────────────────────────────────────────────
   const handleClean = useCallback(async () => {
-    if (!cleanerRef.current || selected.size === 0) return;
+    if (!cleanerRef.current || selected.size === 0 || isBusy) return;
 
     setPhase("cleaning");
     setIsCleaning(true);
@@ -648,7 +632,7 @@ export const CleanerPage: React.FC = () => {
       setIsCleaning(false);
       cleanerRef.current?.removeListeners();
     }
-  }, [selected, addToast, setScanResults, setIsCleaning, addHistoryReport]);
+  }, [selected, isBusy, addToast, setScanResults, setIsCleaning, addHistoryReport]);
 
   const finishPermissionBatch = useCallback(async (action: "continue" | "skip") => {
     if (!permissionBatch || !cleanerRef.current) return;
@@ -989,7 +973,7 @@ export const CleanerPage: React.FC = () => {
                 transition={{ duration: 0.2 }}
                 className="space-y-4"
               >
-                <div className="sticky top-0 z-10 -mx-1 bg-surface-base px-1 pb-1 pt-1">
+                <div className="sticky top-0 z-10 -mx-1 space-y-2 bg-surface-base px-1 pb-1 pt-1">
                   <Card level="elevated" className="flex flex-wrap items-center justify-between gap-4 p-4">
                     <div className="flex min-w-0 items-center gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-brand-soft text-brand-fg">
@@ -1019,14 +1003,20 @@ export const CleanerPage: React.FC = () => {
                           None
                         </button>
                       </div>
-                      <StartCleanButton
-                        categories={categories}
-                        selectedIds={selected}
-                        totalSize={selectedSize}
-                        onConfirm={() => void handleClean()}
-                      />
+                      <Button
+                        icon={<Zap />}
+                        onClick={() => void handleClean()}
+                        disabled={selected.size === 0 || isBusy}
+                      >
+                        Start Clean
+                      </Button>
                     </div>
                   </Card>
+                  {selected.has("browser-cache") && (
+                    <Callout tone="warning" compact icon={<Globe className="w-4 h-4" />}>
+                      Browser cache selected: if a browser is open, some cache files may be skipped.
+                    </Callout>
+                  )}
                 </div>
 
                 <motion.div
