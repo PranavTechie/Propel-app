@@ -13,6 +13,7 @@ export interface CleanupReport {
   permissionDeniedPaths?: string[]
   durationMs: number
   categories: string[]
+  outcomeMessage?: string
 }
 
 export function createReport(data: Omit<CleanupReport, 'id'>): CleanupReport {

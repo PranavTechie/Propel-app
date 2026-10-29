@@ -384,6 +384,7 @@ export const CleanerPage: React.FC = () => {
   const [showRestore, setShowRestore] = useState(false);
   const [permissionBatch, setPermissionBatch] = useState<{ report: CleanupReport; count: number; token: string } | null>(null);
   const [safeCleaningMode, setSafeCleaningMode] = useState(true);
+  const [waitingForUAC, setWaitingForUAC] = useState(false);
   // ── Scan progress percentage (0-100) derived from category completion ──
   const [scanPct, setScanPct] = useState(0);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -575,11 +576,15 @@ export const CleanerPage: React.FC = () => {
 
     setPhase("cleaning");
     setIsCleaning(true);
+    setWaitingForUAC(false);
     setCleanLive({ current: 0, total: 0, currentFile: "", freed: 0 });
 
     cleanerRef.current.removeListeners();
     cleanerRef.current.onCleanProgress((evt) => {
-      if (evt.type === "file-cleaned") {
+      if (evt.type === "waiting-for-uac") {
+        setWaitingForUAC(true);
+      } else if (evt.type === "file-cleaned") {
+        setWaitingForUAC(false);
         setCleanLive({
           current: evt.current ?? 0,
           total: evt.total ?? 0,
@@ -647,6 +652,23 @@ export const CleanerPage: React.FC = () => {
       adminRequiredSkipped: action === "skip" ? permissionBatch.count : 0,
     };
     if (action === "continue") {
+      setPhase("cleaning");
+      setIsCleaning(true);
+      setWaitingForUAC(true);
+      cleanerRef.current.removeListeners();
+      cleanerRef.current.onCleanProgress((evt) => {
+        if (evt.type === "waiting-for-uac") {
+          setWaitingForUAC(true);
+        } else if (evt.type === "file-cleaned") {
+          setWaitingForUAC(false);
+          setCleanLive({
+            current: evt.current ?? 0,
+            total: evt.total ?? 0,
+            currentFile: evt.currentFile ?? "",
+            freed: evt.freed ?? 0,
+          });
+        }
+      });
       try {
         const elevated = await cleanerRef.current.cleanAdminBatch(permissionBatch.token);
         finalReport = {
@@ -666,6 +688,8 @@ export const CleanerPage: React.FC = () => {
         finalReport.adminRequiredSkipped = permissionBatch.count;
       }
     }
+    setWaitingForUAC(false);
+    setIsCleaning(false);
     setReport(finalReport);
     addHistoryReport(finalReport);
     setCategories([]);
@@ -1055,7 +1079,7 @@ export const CleanerPage: React.FC = () => {
                       <div className="min-w-0">
                         <p className="text-title font-semibold text-fg-1">Cleaning Your System</p>
                         <p className="max-w-[420px] truncate font-mono text-[11px] text-fg-3">
-                          {cleanLive.currentFile || "Preparing…"}
+                          {waitingForUAC ? "Waiting for Windows permission..." : (cleanLive.currentFile || "Preparing…")}
                         </p>
                       </div>
                     </div>

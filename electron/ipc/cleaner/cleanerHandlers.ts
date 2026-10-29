@@ -15,11 +15,12 @@ import {
   scanDeliveryOptimization,
 } from '../../services/cleaner/cacheCleaner'
 import { getRecycleBinInfo, emptyRecycleBin } from '../../services/cleaner/recycleCleaner'
-import { cleanFiles, cleanPermissionDeniedBatch } from '../../services/cleaner/cleanupService'
+import { cleanFiles, cleanPermissionDeniedBatch, isPathInAdminAllowlist } from '../../services/cleaner/cleanupService'
 import { createReport, type CleanupReport } from '../../services/cleaner/cleanupReport'
 import type { ScannedFile } from '../../services/cleaner/scannerService'
 import { loadSettings } from '../../services/maintenance/automationStore'
 import { isProtectedPath } from '../../services/cleaner/pathGuard'
+import { appendCleanerLog } from '../../services/cleaner/cleanerLogger'
 
 // ── Category definitions ───────────────────────────────────────────────────
 
@@ -43,6 +44,14 @@ export const CATEGORY_DEFS: CategoryDef[] = [
   { id: 'delivery-opt',     name: 'Delivery Optimization',   description: 'Windows peer-to-peer update distribution cache',       isSafe: true },
 ]
 
+// System categories that require administrator elevation
+export const ADMIN_CATEGORY_IDS = new Set([
+  'windows-logs',
+  'win-update-cache',
+  'prefetch',
+  'delivery-opt',
+])
+
 // ── In-memory scan cache (keeps file paths server-side) ───────────────────
 
 const scanCache = new Map<string, ScannedFile[]>()
@@ -58,7 +67,7 @@ async function validatePermissionBatch(files: ScannedFile[]): Promise<{
     try {
       const stat = await fs.lstat(file.path)
       if (!stat.isFile() || stat.isSymbolicLink()) {
-        skipped.push({ path: file.path, reason: 'File is no longer a regular file' })
+        skipped.push({ path: file.path, reason: 'File is no longer a regular file or is a link' })
         continue
       }
       const resolved = await fs.realpath(file.path)
@@ -68,6 +77,10 @@ async function validatePermissionBatch(files: ScannedFile[]): Promise<{
       }
       if (isProtectedPath(file.path)) {
         skipped.push({ path: file.path, reason: 'Path is protected by Cleaner safety rules' })
+        continue
+      }
+      if (!isPathInAdminAllowlist(file.path)) {
+        skipped.push({ path: file.path, reason: 'Path is outside cleaner admin allowlist' })
         continue
       }
       eligible.push(file)
@@ -85,7 +98,6 @@ export interface CategorySummary {
   totalSize: number
   fileCount: number
   isSafe: boolean
-  /** True when the scan hit the MAX_FILES_PER_CAT cap — actual space may be larger */
   isCapped: boolean
 }
 
@@ -102,7 +114,6 @@ export function setupCleanerIPC(): void {
       try { event.sender.send('cleaner:scan-progress', data) } catch { /* window closed */ }
     }
 
-    // Helper to run a scan using extracted scannerHandlers module
     const runScan = async (
       id: string,
       scanner: Parameters<typeof runCategoryScan>[1],
@@ -121,11 +132,9 @@ export function setupCleanerIPC(): void {
       }
     }
 
-    // Load exclusions once — run concurrently with nothing yet
     const exclusions = await loadExclusions()
     const excEntries = exclusions.entries
 
-    // Helper that respects exclusions, filters files, and correctly pushes to results
     const runScanFiltered = async (
       id: string,
       scanner: Parameters<typeof runScan>[1],
@@ -136,21 +145,16 @@ export function setupCleanerIPC(): void {
       }
       const summary = await runScan(id, scanner)
 
-      // Apply file/folder/extension exclusions to the collected file list
       const raw      = scanCache.get(id) ?? []
       const filtered = excEntries.length > 0 ? raw.filter(f => !isFileExcluded(f.path, excEntries)) : raw
       scanCache.set(id, filtered)
 
-      // Patch summary sizes to reflect filtered list and push to results
       const filteredSize    = filtered.reduce((a, f) => a + f.size, 0)
       const filteredSummary = { ...summary, totalSize: filteredSize, fileCount: filtered.length }
       results.push(filteredSummary)
     }
 
-    // ── Stage 1: fast / independent categories + recycle bin — all in parallel ──
-    // recycle-bin uses PowerShell (independent I/O); thumbnail/gpu/crash/logs/new categories are small dirs
     await Promise.allSettled([
-      // Recycle bin (PowerShell, independent from file scan)
       (async () => {
         if (!isCategoryExcluded('recycle-bin', excEntries)) {
           const recycleInfo = await getRecycleBinInfo()
@@ -177,8 +181,6 @@ export function setupCleanerIPC(): void {
       runScanFiltered('delivery-opt',     scanDeliveryOptimization),
     ])
 
-    // ── Stage 2: heavy disk-I/O categories — run sequentially to avoid thrashing
-    // (internal scanner already uses parallelism within each category)
     await runScanFiltered('temp-files',    scanTempFiles)
     await runScanFiltered('browser-cache', scanBrowserCache)
 
@@ -199,22 +201,31 @@ export function setupCleanerIPC(): void {
         try { event.sender.send('cleaner:clean-progress', data) } catch { /* window closed */ }
       }
 
-      // Collect all files from selected categories
-      const allFiles: ScannedFile[] = []
+      // Partition files upfront into user-owned vs admin-required categories
+      const userFiles: ScannedFile[] = []
+      const adminFiles: ScannedFile[] = []
+
       for (const id of categoryIds) {
-        if (id === 'recycle-bin') continue // handled separately
+        if (id === 'recycle-bin') continue
         const files = scanCache.get(id) ?? []
-        allFiles.push(...files)
+        if (ADMIN_CATEGORY_IDS.has(id)) {
+          adminFiles.push(...files)
+        } else {
+          userFiles.push(...files)
+        }
       }
 
-      const totalFiles = allFiles.length
+      const totalFiles = userFiles.length + adminFiles.length
       const allErrors: { path: string; reason: string }[] = []
-      let permissionFiles: ScannedFile[] = []
 
-      // Clean regular files
-      if (allFiles.length > 0) {
+      appendCleanerLog(
+        `[CLEAN START] categories=${categoryIds.length} userFiles=${userFiles.length} adminFiles=${adminFiles.length} total=${totalFiles}`
+      )
+
+      // 1. Clean user-owned files via unelevated pass
+      if (userFiles.length > 0) {
         const settings = await loadSettings()
-        const stats = await cleanFiles(allFiles, info => {
+        const stats = await cleanFiles(userFiles, info => {
           emit({
             type: 'file-cleaned',
             current: info.current,
@@ -227,30 +238,41 @@ export function setupCleanerIPC(): void {
         totalRemoved += stats.removed
         totalErrors += stats.errors
         if (stats.errorDetails) allErrors.push(...stats.errorDetails)
-        permissionFiles = stats.permissionDenied
+        appendCleanerLog(`[UNELEVATED PASS] removed=${stats.removed} errors=${stats.errors} freed=${stats.freed}`)
       }
 
-      // Empty recycle bin if selected
+      // 2. Empty recycle bin if selected
       if (categoryIds.includes('recycle-bin')) {
-        emit({ type: 'file-cleaned', current: totalFiles + 1, total: totalFiles + 1, currentFile: 'Recycle Bin', freed: totalFreed })
+        emit({
+          type: 'file-cleaned',
+          current: userFiles.length + 1,
+          total: totalFiles + 1,
+          currentFile: 'Recycle Bin',
+          freed: totalFreed,
+        })
         const recycleStats = await emptyRecycleBin()
         totalFreed += recycleStats.freed
         totalRemoved += recycleStats.removed
         totalErrors += recycleStats.errors
         if (recycleStats.errorDetails) allErrors.push(...recycleStats.errorDetails)
+        appendCleanerLog(`[RECYCLE BIN] removed=${recycleStats.removed} freed=${recycleStats.freed}`)
       }
 
+      // 3. Admin batch preparation
       let permissionBatchToken: string | undefined
       let permissionDeniedCount = 0
-      if (allFiles.length > 0) {
-        if (permissionFiles.length > 0) {
+      if (adminFiles.length > 0) {
+        const validation = await validatePermissionBatch(adminFiles)
+        appendCleanerLog(`[ADMIN VALIDATION] eligible=${validation.eligible.length} skipped=${validation.skipped.length}`)
+        if (validation.eligible.length > 0) {
           permissionBatchToken = `clean_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-          permissionBatches.set(permissionBatchToken, { files: permissionFiles, categories: categoryIds })
-          permissionDeniedCount = permissionFiles.length
+          permissionBatches.set(permissionBatchToken, { files: validation.eligible, categories: categoryIds })
+          permissionDeniedCount = validation.eligible.length
         }
+        totalErrors += validation.skipped.length
+        allErrors.push(...validation.skipped)
       }
 
-      // Clear cache for cleaned categories
       for (const id of categoryIds) scanCache.delete(id)
 
       const report = createReport({
@@ -262,41 +284,78 @@ export function setupCleanerIPC(): void {
         filesSkipped: 0,
         permissionDeniedCount,
         permissionBatchToken,
-        permissionDeniedPaths: permissionFiles.map(file => file.path),
+        permissionDeniedPaths: adminFiles.map(file => file.path),
         durationMs: Date.now() - startTime,
         categories: categoryIds,
       })
 
       emit({ type: 'clean-complete', report })
+      appendCleanerLog(`[CLEAN FINISHED] freed=${totalFreed} removed=${totalRemoved} errors=${totalErrors} adminPending=${permissionDeniedCount}`)
       return report
     },
   )
 
-  ipcMain.handle('cleaner:clean-admin', async (_event, token: string): Promise<CleanupReport> => {
+  // ── Elevated Admin Clean ───────────────────────────────────────────────
+  ipcMain.handle('cleaner:clean-admin', async (event: IpcMainInvokeEvent, token: string): Promise<CleanupReport> => {
     const pending = permissionBatches.get(token)
-    if (!pending) throw new Error('Permission batch is no longer available')
+    if (!pending) {
+      appendCleanerLog(`[CLEAN ADMIN] Error: token ${token} expired or missing`)
+      throw new Error('Permission batch is no longer available')
+    }
     permissionBatches.delete(token)
+
     const startTime = Date.now()
+    const emit = (data: object) => {
+      try { event.sender.send('cleaner:clean-progress', data) } catch { /* window closed */ }
+    }
+
+    emit({ type: 'waiting-for-uac' })
+    appendCleanerLog(`[CLEAN ADMIN START] files=${pending.files.length}`)
+
+    // Pre-validate once more
     const validation = await validatePermissionBatch(pending.files)
-    const stats = await cleanPermissionDeniedBatch(validation.eligible)
+    const stats = await cleanPermissionDeniedBatch(validation.eligible, {
+      uacTimeoutMs: 60_000,
+      noProgressTimeoutMs: 45_000,
+      onProgress: (processed, total) => {
+        emit({
+          type: 'file-cleaned',
+          current: processed,
+          total,
+          currentFile: 'System cleanup (admin)...',
+          freed: 0,
+        })
+      },
+    })
+
     const validationErrors = validation.skipped
     const errorDetails = [...validationErrors, ...stats.errorDetails]
-    return createReport({
+    const skippedCount = validationErrors.length + stats.permissionDenied.length
+
+    appendCleanerLog(
+      `[CLEAN ADMIN FINISHED] freed=${stats.freed} removed=${stats.removed} errors=${errorDetails.length} skipped=${skippedCount}`
+    )
+
+    const report = createReport({
       timestamp: Date.now(),
       totalFreed: stats.freed,
       filesRemoved: stats.removed,
       errors: errorDetails.length,
       errorDetails,
-      filesSkipped: errorDetails.length,
+      filesSkipped: skippedCount,
       adminRequiredSkipped: stats.permissionDenied.length,
       permissionDeniedPaths: validation.eligible.map(file => file.path),
       durationMs: Date.now() - startTime,
       categories: pending.categories,
     })
+
+    emit({ type: 'clean-complete', report })
+    return report
   })
 
   ipcMain.handle('cleaner:discard-admin-batch', async (_event, token: string): Promise<void> => {
     permissionBatches.delete(token)
+    appendCleanerLog(`[ADMIN BATCH DISCARDED] token=${token}`)
   })
 
   // ── Recycle bin info only ─────────────────────────────────────────────

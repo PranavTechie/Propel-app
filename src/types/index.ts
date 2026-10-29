@@ -78,6 +78,7 @@ export interface CleanupReport {
   permissionDeniedPaths?: string[]
   durationMs: number
   categories: string[]
+  outcomeMessage?: string
 }
 
 export interface ScanProgressEvent {
@@ -94,7 +95,7 @@ export interface ScanProgressEvent {
 }
 
 export interface CleanProgressEvent {
-  type: 'file-cleaned' | 'clean-complete'
+  type: 'file-cleaned' | 'waiting-for-uac' | 'clean-complete'
   current?: number
   total?: number
   currentFile?: string

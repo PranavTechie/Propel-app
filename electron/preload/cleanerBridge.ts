@@ -10,6 +10,7 @@ export type ScanProgressEvent =
 
 export type CleanProgressEvent =
   | { type: 'file-cleaned'; current: number; total: number; currentFile: string; freed: number }
+  | { type: 'waiting-for-uac' }
   | { type: 'clean-complete'; report: CleanupReport }
 
 export const cleanerBridge = {
