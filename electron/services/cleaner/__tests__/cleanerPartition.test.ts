@@ -1,10 +1,8 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert'
-import path from 'path'
 import {
   chunkArray,
   encodePS1,
-  getAdminAllowlistRoots,
   isPathInAdminAllowlist,
   buildElevatedScript,
 } from '../cleanupService'
@@ -81,22 +79,22 @@ describe('Cleaner Security & Partition Logic Tests', () => {
     assert.strictEqual(isPathInAdminAllowlist('C:\\Program Files\\App\\cache.dat', fakeSysRoot), false)
   })
 
-  it('buildElevatedScript bakes paths and includes security checks', () => {
+  it('buildElevatedScript embeds configuration options and includes security checks', () => {
     const script = buildElevatedScript({
       inputPath: 'C:\\temp\\in.json',
       outputPath: 'C:\\temp\\out.json',
-      progressPath: 'C:\\temp\\prog.json',
+      progressPrefix: 'C:\\temp\\prog',
       cancelPath: 'C:\\temp\\cancel',
       startedPath: 'C:\\temp\\started',
       maxRuntimeSec: 120,
     })
 
-    assert.ok(script.includes('$InputPath   ='))
-    assert.ok(script.includes('$StartedPath ='))
+    assert.ok(script.includes('$InputPath     ='))
+    assert.ok(script.includes('$StartedPath   ='))
     assert.ok(script.includes('Test-AdminAllowed'))
     assert.ok(script.includes('ReparsePoint'))
     assert.ok(script.includes('Remove-Item -LiteralPath $p -Force'))
-    assert.ok(script.includes('$MaxSec      = 120'))
+    assert.ok(script.includes('$MaxSec        = 120'))
     assert.ok(script.includes('$items.Count -gt 5000'))
   })
 })

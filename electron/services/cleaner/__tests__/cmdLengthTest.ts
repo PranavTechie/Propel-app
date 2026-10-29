@@ -15,7 +15,7 @@ function runLenTest() {
     const scriptWithBakedPaths = `$items = ${pathsArrayLiteral}\n` + buildElevatedScript({
       inputPath: 'C:\\temp\\in.json',
       outputPath: 'C:\\temp\\out.json',
-      progressPath: 'C:\\temp\\prog.json',
+      progressPrefix: 'C:\\temp\\prog',
       cancelPath: 'C:\\temp\\cancel',
       startedPath: 'C:\\temp\\started',
       maxRuntimeSec: 300,
@@ -34,7 +34,7 @@ function runLenTest() {
     const script = buildElevatedScript({
       inputPath: 'C:\\Users\\User\\AppData\\Local\\Temp\\propel-adm-123456\\input.json',
       outputPath: 'C:\\Users\\User\\AppData\\Local\\Temp\\propel-adm-123456\\output.json',
-      progressPath: 'C:\\Users\\User\\AppData\\Local\\Temp\\propel-adm-123456\\progress.json',
+      progressPrefix: 'C:\\Users\\User\\AppData\\Local\\Temp\\propel-adm-123456\\prog',
       cancelPath: 'C:\\Users\\User\\AppData\\Local\\Temp\\propel-adm-123456\\cancel',
       startedPath: 'C:\\Users\\User\\AppData\\Local\\Temp\\propel-adm-123456\\started',
       maxRuntimeSec: 300,
@@ -47,3 +47,4 @@ function runLenTest() {
 }
 
 runLenTest()
+

@@ -130,19 +130,19 @@ function getUnelevatedScript(): string {
 export function buildElevatedScript(opts: {
   inputPath: string
   outputPath: string
-  progressPath: string
+  progressPrefix: string
   cancelPath: string
   startedPath: string
   maxRuntimeSec: number
 }): string {
   const esc = (s: string) => s.replace(/'/g, "''")
   return [
-    `$InputPath   = '${esc(opts.inputPath)}'`,
-    `$OutputPath  = '${esc(opts.outputPath)}'`,
-    `$ProgressPath= '${esc(opts.progressPath)}'`,
-    `$CancelPath  = '${esc(opts.cancelPath)}'`,
-    `$StartedPath = '${esc(opts.startedPath)}'`,
-    `$MaxSec      = ${opts.maxRuntimeSec}`,
+    `$InputPath     = '${esc(opts.inputPath)}'`,
+    `$OutputPath    = '${esc(opts.outputPath)}'`,
+    `$ProgressPrefix= '${esc(opts.progressPrefix)}'`,
+    `$CancelPath    = '${esc(opts.cancelPath)}'`,
+    `$StartedPath   = '${esc(opts.startedPath)}'`,
+    `$MaxSec        = ${opts.maxRuntimeSec}`,
     `function Write-SafeFile {`,
     `  param([string]$targetPath, [string]$content)`,
     `  try {`,
@@ -161,6 +161,13 @@ export function buildElevatedScript(opts: {
     `    $stream.Write($bytes, 0, $bytes.Length)`,
     `    $stream.Close()`,
     `  } catch {}`,
+    `}`,
+    `$progSeq = 0`,
+    `function Write-SafeProgress {`,
+    `  param([string]$content)`,
+    `  $script:progSeq++`,
+    `  $targetPath = $ProgressPrefix + '-' + $script:progSeq + '.json'`,
+    `  Write-SafeFile $targetPath $content`,
     `}`,
     `Write-SafeFile $StartedPath '1'`,
     `$sysRoot = if ($env:SystemRoot) { $env:SystemRoot } elseif ($env:WINDIR) { $env:WINDIR } else { 'C:\\Windows' }`,
@@ -225,7 +232,7 @@ export function buildElevatedScript(opts: {
     `  if (-not (Test-AdminAllowed $p)) {`,
     `    $results += [pscustomobject]@{ path=$p; ok=$false; kind='rejected'; reason='Path failed security check' }`,
     `    $i++`,
-    `    if ($i % 50 -eq 0) { Write-SafeFile $ProgressPath ('{"processed":' + $i + ',"total":' + $total + '}') }`,
+    `    if ($i % 50 -eq 0) { Write-SafeProgress ('{"processed":' + $i + ',"total":' + $total + '}') }`,
     `    continue`,
     `  }`,
     `  if (-not (Test-Path -LiteralPath $p -PathType Leaf)) {`,
@@ -240,9 +247,9 @@ export function buildElevatedScript(opts: {
     `    }`,
     `  }`,
     `  $i++`,
-    `  if ($i % 50 -eq 0) { Write-SafeFile $ProgressPath ('{"processed":' + $i + ',"total":' + $total + '}') }`,
+    `  if ($i % 50 -eq 0) { Write-SafeProgress ('{"processed":' + $i + ',"total":' + $total + '}') }`,
     `}`,
-    `Write-SafeFile $ProgressPath ('{"processed":' + $total + ',"total":' + $total + ',"done":true}')`,
+    `Write-SafeProgress ('{"processed":' + $total + ',"total":' + $total + ',"done":true}')`,
     `$json = $results | ConvertTo-Json -Compress -Depth 3`,
     `if (-not $json) { $json = '[]' }`,
     `Write-SafeFile $OutputPath $json`,
@@ -313,7 +320,7 @@ export async function runElevatedBatch(
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'propel-adm-'))
   const inputPath = path.join(dir, 'input.json')
   const outputPath = path.join(dir, 'output.json')
-  const progressPath = path.join(dir, 'progress.json')
+  const progressPrefix = path.join(dir, 'progress')
   const cancelPath = path.join(dir, 'cancel')
   const startedPath = path.join(dir, 'started')
 
@@ -322,7 +329,7 @@ export async function runElevatedBatch(
   const script = buildElevatedScript({
     inputPath,
     outputPath,
-    progressPath,
+    progressPrefix,
     cancelPath,
     startedPath,
     maxRuntimeSec: 300,
@@ -380,15 +387,27 @@ export async function runElevatedBatch(
   const pollInterval = setInterval(async () => {
     if (isDone) return
     try {
-      const raw = await fs.readFile(progressPath, 'utf8')
-      const p = JSON.parse(raw) as { processed: number; total: number; done?: boolean }
-      if (typeof p.processed === 'number' && p.processed !== lastProcessed) {
-        lastProcessed = p.processed
-        lastProgress = Date.now()
-        onProgress?.(p.processed, p.total || files.length)
+      const entries = await fs.readdir(dir)
+      const progFiles = entries
+        .map(name => {
+          const m = name.match(/^progress-(\d+)\.json$/)
+          return m ? { name, seq: parseInt(m[1], 10) } : null
+        })
+        .filter((item): item is { name: string; seq: number } => item !== null)
+        .sort((a, b) => b.seq - a.seq)
+
+      if (progFiles.length > 0) {
+        const highestFile = path.join(dir, progFiles[0].name)
+        const raw = await fs.readFile(highestFile, 'utf8')
+        const p = JSON.parse(raw) as { processed: number; total: number; done?: boolean }
+        if (typeof p.processed === 'number' && p.processed !== lastProcessed) {
+          lastProcessed = p.processed
+          lastProgress = Date.now()
+          onProgress?.(p.processed, p.total || files.length)
+        }
       }
     } catch {
-      // file might be mid-write or not created yet
+      // file might be mid-write or directory being cleaned
     }
   }, 1000)
 
