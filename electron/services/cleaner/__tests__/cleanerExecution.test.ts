@@ -85,4 +85,51 @@ describe('cleanFiles Real Execution Tests', () => {
       // If OS hasn't fully released handle yet, ignore
     }
   })
+
+  it('exercises real 600-file chunking plus locked and missing files', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'propel-test-600-'))
+    const fileCount = 600
+    const fileSizeBytes = 10
+    const files: { path: string; size: number }[] = []
+
+    for (let i = 0; i < fileCount; i++) {
+      const fp = path.join(dir, `chunkfile-${i}.tmp`)
+      fs.writeFileSync(fp, Buffer.alloc(fileSizeBytes, 0x41))
+      files.push({ path: fp, size: fileSizeBytes })
+    }
+
+    const fLocked = path.join(dir, 'locked-600.tmp')
+    fs.writeFileSync(fLocked, Buffer.alloc(100, 0x4c))
+    const locker = spawn('powershell.exe', [
+      '-NoProfile',
+      '-Command',
+      `$s = [System.IO.File]::Open('${fLocked.replace(/'/g, "''")}', [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None); Start-Sleep -Seconds 8; $s.Close()`
+    ])
+    await new Promise(r => setTimeout(r, 1200))
+    files.push({ path: fLocked, size: 100 })
+
+    const fMissing = path.join(dir, 'missing-600.tmp')
+    files.push({ path: fMissing, size: 50 })
+
+    const stats = await cleanFiles(files, () => {})
+
+    locker.kill()
+    await new Promise(r => setTimeout(r, 600))
+
+    assert.strictEqual(stats.removed, fileCount, `Exactly ${fileCount} files must be removed across chunks`)
+    assert.strictEqual(stats.freed, fileCount * fileSizeBytes, `Freed bytes must equal ${fileCount * fileSizeBytes}`)
+    assert.strictEqual(stats.errors, 2, 'Must have exactly 2 errors (locked and missing)')
+    assert.strictEqual(stats.resultParsed, true, 'Result file must be parsed successfully across all chunks')
+    assert.strictEqual(stats.countsByKind.locked, 1, 'Exactly 1 locked file')
+    assert.strictEqual(stats.countsByKind.missing, 1, 'Exactly 1 missing file')
+    assert.strictEqual(stats.countsByKind['permission-denied'], 0)
+    assert.strictEqual(stats.countsByKind['result-unreadable'], 0)
+    assert.ok(stats.firstError, 'First error message must be present')
+
+    try {
+      fs.rmSync(dir, { recursive: true, force: true })
+    } catch {
+      // Ignore if handle still held by OS
+    }
+  })
 })

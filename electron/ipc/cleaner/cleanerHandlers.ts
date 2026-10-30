@@ -20,7 +20,7 @@ import { createReport, type CleanupReport } from '../../services/cleaner/cleanup
 import type { ScannedFile } from '../../services/cleaner/scannerService'
 import { loadSettings } from '../../services/maintenance/automationStore'
 import { isProtectedPath } from '../../services/cleaner/pathGuard'
-import { appendCleanerLog } from '../../services/cleaner/cleanerLogger'
+import { appendCleanerLog, sanitizeErrorMessage } from '../../services/cleaner/cleanerLogger'
 
 // ── Category definitions ───────────────────────────────────────────────────
 
@@ -254,7 +254,11 @@ export function setupCleanerIPC(): void {
         totalRemoved += stats.removed
         totalErrors += stats.errors
         if (stats.errorDetails) allErrors.push(...stats.errorDetails)
-        appendCleanerLog(`[UNELEVATED PASS] removed=${stats.removed} errors=${stats.errors} freed=${stats.freed}`)
+        const countsStr = `locked=${stats.countsByKind.locked} permission-denied=${stats.countsByKind['permission-denied']} missing=${stats.countsByKind.missing} validation-rejected=${stats.countsByKind['validation-rejected']} result-unreadable=${stats.countsByKind['result-unreadable']} other=${stats.countsByKind.other}`
+        const firstErrSanitized = stats.firstError ? ` firstError="${sanitizeErrorMessage(stats.firstError)}"` : ''
+        appendCleanerLog(
+          `[UNELEVATED PASS] removed=${stats.removed} errors=${stats.errors} freed=${stats.freed} resultParsed=${stats.resultParsed} ${countsStr}${firstErrSanitized}`
+        )
       }
 
       // 2. Empty recycle bin if selected
@@ -349,8 +353,10 @@ export function setupCleanerIPC(): void {
     const errorDetails = [...validationErrors, ...stats.errorDetails]
     const skippedCount = validationErrors.length + stats.permissionDenied.length
 
+    const countsStr = `locked=${stats.countsByKind.locked} permission-denied=${stats.countsByKind['permission-denied']} missing=${stats.countsByKind.missing} validation-rejected=${stats.countsByKind['validation-rejected']} result-unreadable=${stats.countsByKind['result-unreadable']} other=${stats.countsByKind.other}`
+    const firstErrSanitized = stats.firstError ? ` firstError="${sanitizeErrorMessage(stats.firstError)}"` : ''
     appendCleanerLog(
-      `[CLEAN ADMIN FINISHED] freed=${stats.freed} removed=${stats.removed} errors=${errorDetails.length} skipped=${skippedCount}`
+      `[CLEAN ADMIN FINISHED] freed=${stats.freed} removed=${stats.removed} errors=${errorDetails.length} skipped=${skippedCount} resultParsed=${stats.resultParsed} ${countsStr}${firstErrSanitized}`
     )
 
     const report = createReport({
