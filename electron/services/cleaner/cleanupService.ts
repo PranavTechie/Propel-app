@@ -4,7 +4,7 @@ import path from 'path'
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import type { ScannedFile } from './scannerService'
-import { appendCleanerLog } from './cleanerLogger'
+import { appendCleanerLog, sanitizeErrorMessage, countErrorsByKind, type PassErrorKindCounts } from './cleanerLogger'
 
 const execFileAsync = promisify(execFile)
 
@@ -21,10 +21,13 @@ export interface CleanupStats {
   freed: number
   removed: number
   errors: number
-  errorDetails: { path: string; reason: string }[]
+  errorDetails: { path: string; reason: string; kind?: CleanupFailureKind }[]
   permissionDenied: ScannedFile[]
   locked: { path: string; reason: string }[]
   missing: { path: string; reason: string }[]
+  resultParsed: boolean
+  firstError?: string
+  countsByKind: PassErrorKindCounts
 }
 
 export type CleanupFailureKind =
@@ -34,6 +37,7 @@ export type CleanupFailureKind =
   | 'cancelled'
   | 'rejected'
   | 'timeout'
+  | 'unknown'
   | 'other'
 
 export interface BatchDeleteResult {
@@ -126,7 +130,12 @@ function getUnelevatedScript(): string {
     '}',
     '$json = $results | ConvertTo-Json -Compress',
     'if (-not $json) { $json = "[]" }',
-    '[System.IO.File]::WriteAllText($OutputPath, $json, [System.Text.Encoding]::UTF8)',
+    'try {',
+    '  [System.IO.File]::WriteAllText($OutputPath, $json, [System.Text.Encoding]::UTF8)',
+    '} catch {',
+    '  [Console]::Error.WriteLine("UNELEVATED_WRITE_OUTPUT_ERROR: err=" + $_.Exception.Message)',
+    '  exit 1',
+    '}',
   ].join('\r\n')
 }
 
@@ -164,7 +173,9 @@ export function buildElevatedScript(opts: {
     `    $stream = [System.IO.File]::Open($targetPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)`,
     `    $stream.Write($bytes, 0, $bytes.Length)`,
     `    $stream.Close()`,
-    `  } catch {}`,
+    `  } catch {`,
+    `    [Console]::Error.WriteLine("WRITE_SAFE_FILE_ERROR: target=" + $targetPath + " err=" + $_.Exception.Message)`,
+    `  }`,
     `}`,
     `$progSeq = 0`,
     `function Write-SafeProgress {`,
@@ -218,7 +229,9 @@ export function buildElevatedScript(opts: {
     `    $raw = Get-Content -LiteralPath $InputPath -Raw | ConvertFrom-Json`,
     `    if ($raw -is [System.Array]) { $items = $raw } elseif ($null -ne $raw) { $items = @($raw) }`,
     `  }`,
-    `} catch { }`,
+    `} catch {`,
+    `  [Console]::Error.WriteLine("INPUT_READ_ERROR: err=" + $_.Exception.Message)`,
+    `}`,
     `if ($items.Count -gt 5000) { $items = $items[0..4999] }`,
     `$results = @()`,
     `$start   = [System.DateTime]::UtcNow`,
@@ -268,8 +281,48 @@ export function encodePS1(script: string): string {
 }
 
 // ── Unelevated chunk deletion ─────────────────────────────────────────────
-async function runUnelevatedChunk(files: ScannedFile[]): Promise<BatchDeleteResult[]> {
-  if (files.length === 0) return []
+export async function resolveTruthfulResults(
+  files: ScannedFile[],
+  parsedResults: BatchDeleteResult[] | null,
+  fallbackReason = 'Missing result data',
+): Promise<BatchDeleteResult[]> {
+  const results: BatchDeleteResult[] = []
+
+  for (const file of files) {
+    const found = parsedResults?.find(r => r.path.toLowerCase() === file.path.toLowerCase())
+    if (found) {
+      results.push(found)
+      continue
+    }
+
+    // Result missing or file unreadable: verify truth on disk
+    try {
+      await fs.stat(file.path)
+      // File still exists on disk
+      results.push({
+        path: file.path,
+        ok: false,
+        kind: 'unknown',
+        reason: fallbackReason,
+      })
+    } catch {
+      // File no longer exists on disk: truthfully deleted
+      results.push({
+        path: file.path,
+        ok: true,
+      })
+    }
+  }
+
+  return results
+}
+
+async function runUnelevatedChunk(files: ScannedFile[]): Promise<{
+  results: BatchDeleteResult[]
+  resultParsed: boolean
+  firstError?: string
+}> {
+  if (files.length === 0) return { results: [], resultParsed: true }
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'propel-clean-'))
   const inputPath = path.join(dir, 'input.json')
   const outputPath = path.join(dir, 'output.json')
@@ -278,21 +331,40 @@ async function runUnelevatedChunk(files: ScannedFile[]): Promise<BatchDeleteResu
   await fs.writeFile(inputPath, JSON.stringify(files.map(f => ({ path: f.path }))), 'utf8')
   await fs.writeFile(scriptPath, getUnelevatedScript(), 'utf8')
 
+  let parsedResults: BatchDeleteResult[] | null = null
+  let execError: Error | null = null
+  let resultParsed = false
+
   try {
-    await execFileAsync(
+    const { stderr } = await execFileAsync(
       'powershell.exe',
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, inputPath, outputPath],
       { windowsHide: true, timeout: 60_000 },
     )
+    if (stderr && stderr.trim().length > 0) {
+      appendCleanerLog(`[UNELEVATED WORKER STDERR] ${stderr.trim()}`)
+    }
     const raw = await fs.readFile(outputPath, 'utf8')
     const parsed = JSON.parse(raw.replace(/^\uFEFF/, '')) as BatchDeleteResult | BatchDeleteResult[]
-    return Array.isArray(parsed) ? parsed : [parsed]
+    parsedResults = Array.isArray(parsed) ? parsed : [parsed]
+    resultParsed = true
   } catch (error) {
-    const reason = error instanceof Error ? error.message : 'Batch deletion failed'
-    appendCleanerLog(`[UNELEVATED CHUNK ERROR] count=${files.length} err=${reason}`)
-    return files.map(f => ({ path: f.path, ok: false, kind: classifyFailure(error), reason }))
+    execError = error instanceof Error ? error : new Error(String(error))
+    appendCleanerLog(`[UNELEVATED CHUNK ERROR] count=${files.length} err=${execError.message}`)
   } finally {
     await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
+
+  const results = await resolveTruthfulResults(
+    files,
+    parsedResults,
+    execError ? `Worker execution failed: ${execError.message}` : 'No result returned by worker',
+  )
+  const firstFailed = results.find(r => !r.ok && r.reason)
+  return {
+    results,
+    resultParsed,
+    firstError: firstFailed?.reason,
   }
 }
 
@@ -305,6 +377,8 @@ export interface ElevatedBatchOptions {
 
 export interface ElevatedBatchOutcome {
   results: BatchDeleteResult[]
+  resultParsed?: boolean
+  firstError?: string
   outcome: 'completed' | 'uac-timeout' | 'no-progress-timeout' | 'cancelled' | 'error'
   message: string
 }
@@ -444,42 +518,52 @@ export async function runElevatedBatch(
   if (timedOut) {
     appendCleanerLog(`[ELEVATED NO-PROGRESS TIMEOUT] stalled for ${Math.round(noProgressTimeoutMs / 1000)}s`)
     await fs.writeFile(cancelPath, '1', 'utf8').catch(() => {})
-    const results = await readOutputJson(outputPath, files)
+    const timeoutOutcome = await readOutputJson(outputPath, files)
     await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
     return {
-      results,
+      results: timeoutOutcome.results,
+      resultParsed: timeoutOutcome.resultParsed,
+      firstError: timeoutOutcome.firstError,
       outcome: 'no-progress-timeout',
       message: `Cleaning stalled for ${Math.round(noProgressTimeoutMs / 1000)} seconds. Partial results returned.`,
     }
   }
 
   appendCleanerLog(`[ELEVATED FINISHED] reading results`)
-  const results = await readOutputJson(outputPath, files)
+  const outcomeData = await readOutputJson(outputPath, files)
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {})
 
   return {
-    results,
+    results: outcomeData.results,
+    resultParsed: outcomeData.resultParsed,
+    firstError: outcomeData.firstError,
     outcome: 'completed',
     message: 'Elevated cleaning completed',
   }
 }
 
-async function readOutputJson(outputPath: string, files: ScannedFile[]): Promise<BatchDeleteResult[]> {
+async function readOutputJson(outputPath: string, files: ScannedFile[]): Promise<{
+  results: BatchDeleteResult[]
+  resultParsed: boolean
+  firstError?: string
+}> {
+  let parsedResults: BatchDeleteResult[] | null = null
+  let resultParsed = false
   try {
     const raw = await fs.readFile(outputPath, 'utf8')
     const parsed = JSON.parse(raw.replace(/^\uFEFF/, '')) as BatchDeleteResult | BatchDeleteResult[]
-    const list = Array.isArray(parsed) ? parsed : [parsed]
-    return files.map(file => {
-      const match = list.find(r => r.path.toLowerCase() === file.path.toLowerCase())
-      return match || { path: file.path, ok: false, kind: 'other', reason: 'No result recorded' }
-    })
-  } catch {
-    return files.map(f => ({
-      path: f.path,
-      ok: false,
-      kind: 'other',
-      reason: 'Elevated process did not return deletion results',
-    }))
+    parsedResults = Array.isArray(parsed) ? parsed : [parsed]
+    resultParsed = true
+  } catch (err) {
+    appendCleanerLog(`[ELEVATED RESULT UNREADABLE] count=${files.length} err=${err instanceof Error ? err.message : String(err)}`)
+  }
+
+  const results = await resolveTruthfulResults(files, parsedResults, 'Elevated process did not return deletion results')
+  const firstFailed = results.find(r => !r.ok && r.reason)
+  return {
+    results,
+    resultParsed,
+    firstError: firstFailed?.reason,
   }
 }
 
@@ -490,20 +574,25 @@ export async function cleanFiles(
   _safeMode = true,
 ): Promise<CleanupStats> {
   let freed = 0, removed = 0, errors = 0
-  const errorDetails: { path: string; reason: string }[] = []
+  const errorDetails: { path: string; reason: string; kind?: CleanupFailureKind }[] = []
   const permissionDenied: ScannedFile[] = []
   const locked: { path: string; reason: string }[] = []
   const missing: { path: string; reason: string }[] = []
   const total = files.length
   let current = 0
+  let allResultParsed = true
+  let firstErr: string | undefined
 
   const chunks = chunkArray(files, CHUNK_SIZE)
   for (let c = 0; c < chunks.length; c++) {
     const chunk = chunks[c]
-    const results = await runUnelevatedChunk(chunk)
+    const chunkOutcome = await runUnelevatedChunk(chunk)
+    if (!chunkOutcome.resultParsed) allResultParsed = false
+    if (!firstErr && chunkOutcome.firstError) firstErr = chunkOutcome.firstError
+
     for (const file of chunk) {
-      const result = results.find(r => r.path.toLowerCase() === file.path.toLowerCase())
-        ?? { path: file.path, ok: false, kind: 'other' as CleanupFailureKind, reason: 'No result' }
+      const result = chunkOutcome.results.find(r => r.path.toLowerCase() === file.path.toLowerCase())
+        ?? { path: file.path, ok: false, kind: 'unknown' as CleanupFailureKind, reason: 'No result recorded' }
       current++
       if (result.ok) {
         freed += file.size
@@ -512,7 +601,7 @@ export async function cleanFiles(
         const kind = result.kind ?? classifyFailure({ message: result.reason })
         const reason = result.reason ?? 'Unknown error'
         errors++
-        errorDetails.push({ path: file.path, reason })
+        errorDetails.push({ path: file.path, reason, kind })
         if (kind === 'permission-denied') permissionDenied.push(file)
         if (kind === 'locked') locked.push({ path: file.path, reason })
         if (kind === 'missing') missing.push({ path: file.path, reason })
@@ -521,7 +610,19 @@ export async function cleanFiles(
     }
   }
 
-  return { freed, removed, errors, errorDetails, permissionDenied, locked, missing }
+  const countsByKind = countErrorsByKind(errorDetails, allResultParsed ? 0 : errors)
+  return {
+    freed,
+    removed,
+    errors,
+    errorDetails,
+    permissionDenied,
+    locked,
+    missing,
+    resultParsed: allResultParsed,
+    firstError: firstErr,
+    countsByKind,
+  }
 }
 
 // ── Public: clean admin files (elevated) ──────────────────────────────────
@@ -531,7 +632,7 @@ export async function cleanPermissionDeniedBatch(
 ): Promise<CleanupStats> {
   const outcome = await runElevatedBatch(files, opts)
   let freed = 0, removed = 0
-  const errorDetails: { path: string; reason: string }[] = []
+  const errorDetails: { path: string; reason: string; kind?: CleanupFailureKind }[] = []
   const permissionDenied: ScannedFile[] = []
   const locked: { path: string; reason: string }[] = []
   const missing: { path: string; reason: string }[] = []
@@ -546,11 +647,12 @@ export async function cleanPermissionDeniedBatch(
     const kind = result?.kind ?? 'other'
     const reason = result?.reason ?? outcome.message
     if (kind === 'missing') continue
-    errorDetails.push({ path: file.path, reason })
+    errorDetails.push({ path: file.path, reason, kind })
     if (kind === 'permission-denied') permissionDenied.push(file)
     if (kind === 'locked') locked.push({ path: file.path, reason })
   }
 
+  const countsByKind = countErrorsByKind(errorDetails, outcome.resultParsed ? 0 : files.length)
   return {
     freed,
     removed,
@@ -559,6 +661,9 @@ export async function cleanPermissionDeniedBatch(
     permissionDenied,
     locked,
     missing,
+    resultParsed: outcome.resultParsed ?? true,
+    firstError: outcome.firstError,
+    countsByKind,
   }
 }
 
