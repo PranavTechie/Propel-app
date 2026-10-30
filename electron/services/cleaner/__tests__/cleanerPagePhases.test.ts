@@ -16,6 +16,12 @@ if (typeof (globalThis as any).SVGElement === 'undefined') {
   (globalThis as any).SVGElement = class SVGElement extends (globalThis as any).Element {};
 }
 
+(globalThis as any).document = {
+  hidden: false,
+  addEventListener: () => {},
+  removeEventListener: () => {},
+};
+
 (globalThis as any).window = {
   addEventListener: () => {},
   removeEventListener: () => {},
@@ -23,6 +29,8 @@ if (typeof (globalThis as any).SVGElement === 'undefined') {
   clearTimeout: clearTimeout,
   setInterval: setInterval,
   clearInterval: clearInterval,
+  requestAnimationFrame: (cb: any) => setTimeout(cb, 0),
+  cancelAnimationFrame: (id: any) => clearTimeout(id),
   propel: {
     cleaner: {
       onScanProgress: () => {},
@@ -30,17 +38,13 @@ if (typeof (globalThis as any).SVGElement === 'undefined') {
       removeListeners: () => {},
       scan: async () => [],
       clean: async () => ({ totalFreed: 0, filesRemoved: 0, errors: 0, categories: [] }),
+      cleanAdminBatch: async () => ({ totalFreed: 0, filesRemoved: 0, errors: 0, categories: [] }),
+      discardAdminBatch: async () => {},
     },
     maintenance: {
       getSettings: async () => ({ safeCleaningMode: true }),
     },
   },
-};
-
-(globalThis as any).document = {
-  hidden: false,
-  addEventListener: () => {},
-  removeEventListener: () => {},
 };
 
 // Silence React SSR useLayoutEffect warnings from Radix/Framer in Node test environment
@@ -52,6 +56,13 @@ console.error = (...args: any[]) => {
   origError(...args);
 };
 
+const defines = {
+  'import.meta.env.VITE_APP_VERSION': '"1.4.0"',
+  'import.meta.env.VITE_GLITCHTIP_DSN': '""',
+  'import.meta.env.PROD': 'true',
+  'import.meta.env.DEV': 'false',
+};
+
 // Compile CleanerPage via esbuild (no new dependencies)
 const buildResult = esbuild.buildSync({
   entryPoints: [path.join(__dirname, '../../../../src/pages/CleanerPage.tsx')],
@@ -61,12 +72,7 @@ const buildResult = esbuild.buildSync({
   alias: {
     '@': path.join(__dirname, '../../../../src'),
   },
-  define: {
-    'import.meta.env.VITE_APP_VERSION': '"1.4.0"',
-    'import.meta.env.VITE_GLITCHTIP_DSN': '""',
-    'import.meta.env.PROD': 'true',
-    'import.meta.env.DEV': 'false',
-  },
+  define: defines,
   write: false,
 });
 
@@ -74,6 +80,23 @@ const mod: any = { exports: {} };
 const runner = new Function('module', 'exports', 'require', buildResult.outputFiles[0].text);
 runner(mod, mod.exports, require);
 const CleanerPage = mod.exports.CleanerPage;
+
+// Access Zustand app store
+const storeBuild = esbuild.buildSync({
+  entryPoints: [path.join(__dirname, '../../../../src/store/appStore.ts')],
+  bundle: true,
+  format: 'cjs',
+  packages: 'external',
+  alias: {
+    '@': path.join(__dirname, '../../../../src'),
+  },
+  define: defines,
+  write: false,
+});
+const storeMod: any = { exports: {} };
+const storeRunner = new Function('module', 'exports', 'require', storeBuild.outputFiles[0].text);
+storeRunner(storeMod, storeMod.exports, require);
+const useAppStore = storeMod.exports.useAppStore;
 
 function getScanButtons(html: string): string[] {
   const buttonMatches = html.match(/<button\b[^>]*>([\s\S]*?)<\/button>/gi) || [];
@@ -87,6 +110,15 @@ function getScanButtons(html: string): string[] {
       text.includes('Scan Again')
     );
   });
+}
+
+function captureActions(props: any = {}) {
+  let captured: any = null;
+  ReactDOMServer.renderToString(React.createElement(CleanerPage, {
+    ...props,
+    onActions: (a: any) => { captured = a; },
+  }));
+  return captured;
 }
 
 describe('CleanerPage Phase and Rendering Tests', () => {
@@ -270,5 +302,190 @@ describe('CleanerPage Phase and Rendering Tests', () => {
     assert(html.includes('Administrator Permission Required'), 'Renders informative permission message in body');
     const scanButtons = getScanButtons(html);
     assert.strictEqual(scanButtons.length, 1, `Pending permission phase must have exactly 1 scan action button, found ${scanButtons.length}`);
+  });
+});
+
+describe('isBusy & Error-Path Recovery Tests', () => {
+  it('resets isScanning when scan throws, allowing subsequent scan to start and succeed', async () => {
+    useAppStore.getState().setIsScanning(false);
+    useAppStore.getState().setIsCleaning(false);
+
+    let scanAttempts = 0;
+    (globalThis as any).window.propel.cleaner.scan = async () => {
+      scanAttempts++;
+      if (scanAttempts === 1) {
+        throw new Error('EPERM: disk read failed during scan');
+      }
+      return [{ id: 'temp-files', name: 'Temp Files', totalSize: 500, fileCount: 2 }];
+    };
+
+    const actions = captureActions({ initialPhase: 'idle' });
+    assert(actions, 'Actions must be captured');
+
+    await actions.handleScan();
+    assert.strictEqual(useAppStore.getState().isScanning, false, 'isScanning must be false after scan throws');
+
+    await actions.handleScan();
+    assert.strictEqual(useAppStore.getState().isScanning, false, 'isScanning must be false after second scan completes');
+    assert.strictEqual(scanAttempts, 2, 'Second scan must have executed successfully');
+  });
+
+  it('resets isCleaning when clean throws, allowing subsequent scan to start', async () => {
+    useAppStore.getState().setIsScanning(false);
+    useAppStore.getState().setIsCleaning(false);
+
+    (globalThis as any).window.propel.cleaner.clean = async () => {
+      throw new Error('IPC timeout: cleaner worker process crashed');
+    };
+
+    const actions = captureActions({
+      initialPhase: 'results',
+      initialCategories: [{ id: 'temp-files', name: 'Temp Files', totalSize: 100, fileCount: 1, isSafe: true, isCapped: false }],
+    });
+
+    await actions.handleClean();
+    assert.strictEqual(useAppStore.getState().isCleaning, false, 'isCleaning must be false after clean throws');
+
+    let scanRan = false;
+    (globalThis as any).window.propel.cleaner.scan = async () => {
+      scanRan = true;
+      return [];
+    };
+    await actions.handleScan();
+    assert.strictEqual(scanRan, true, 'Subsequent scan must start after clean throws');
+  });
+
+  it('resets isCleaning when clean returns invalid report, allowing subsequent scan to start', async () => {
+    useAppStore.getState().setIsScanning(false);
+    useAppStore.getState().setIsCleaning(false);
+
+    (globalThis as any).window.propel.cleaner.clean = async () => ({});
+
+    const actions = captureActions({
+      initialPhase: 'results',
+      initialCategories: [{ id: 'temp-files', name: 'Temp Files', totalSize: 100, fileCount: 1, isSafe: true, isCapped: false }],
+    });
+
+    await actions.handleClean();
+    assert.strictEqual(useAppStore.getState().isCleaning, false, 'isCleaning must be false after invalid report');
+
+    let scanRan = false;
+    (globalThis as any).window.propel.cleaner.scan = async () => {
+      scanRan = true;
+      return [];
+    };
+    await actions.handleScan();
+    assert.strictEqual(scanRan, true, 'Subsequent scan must start after invalid report');
+  });
+
+  it('resets isCleaning when UAC is declined, allowing subsequent scan to start', async () => {
+    useAppStore.getState().setIsScanning(false);
+    useAppStore.getState().setIsCleaning(false);
+
+    (globalThis as any).window.propel.cleaner.cleanAdminBatch = async () => {
+      const err: any = new Error('The operation was canceled by the user (UAC declined)');
+      err.code = 1223;
+      throw err;
+    };
+
+    const initialReport = {
+      timestamp: Date.now(),
+      totalFreed: 100,
+      filesRemoved: 1,
+      errors: 1,
+      permissionBatchToken: 'token_123',
+      permissionDeniedCount: 1,
+      permissionDeniedPaths: ['C:\\Windows\\Temp\\test.log'],
+      durationMs: 100,
+      categories: ['windows-logs'],
+    };
+
+    const actions = captureActions({
+      initialPhase: 'pending-permission',
+      initialReport,
+      initialPermissionBatch: {
+        report: initialReport,
+        count: 1,
+        token: 'token_123',
+      },
+    });
+
+    await actions.finishPermissionBatch('continue');
+    assert.strictEqual(useAppStore.getState().isCleaning, false, 'isCleaning must be false after UAC is declined');
+
+    const postActions = captureActions({ initialPhase: 'complete', initialReport });
+    let scanRan = false;
+    (globalThis as any).window.propel.cleaner.scan = async () => {
+      scanRan = true;
+      return [];
+    };
+    await postActions.handleScan();
+    assert.strictEqual(scanRan, true, 'Subsequent scan must start after UAC was declined');
+  });
+
+  it('resets isCleaning when UAC times out, allowing subsequent scan to start', async () => {
+    useAppStore.getState().setIsScanning(false);
+    useAppStore.getState().setIsCleaning(false);
+
+    (globalThis as any).window.propel.cleaner.cleanAdminBatch = async () => {
+      throw new Error('Timeout: Windows UAC prompt was not answered within threshold');
+    };
+
+    const initialReport = {
+      timestamp: Date.now(),
+      totalFreed: 100,
+      filesRemoved: 1,
+      errors: 1,
+      permissionBatchToken: 'token_123',
+      permissionDeniedCount: 1,
+      permissionDeniedPaths: ['C:\\Windows\\Temp\\test.log'],
+      durationMs: 100,
+      categories: ['windows-logs'],
+    };
+
+    const actions = captureActions({
+      initialPhase: 'pending-permission',
+      initialReport,
+      initialPermissionBatch: {
+        report: initialReport,
+        count: 1,
+        token: 'token_123',
+      },
+    });
+
+    await actions.finishPermissionBatch('continue');
+    assert.strictEqual(useAppStore.getState().isCleaning, false, 'isCleaning must be false after UAC timeout');
+
+    const postActions = captureActions({ initialPhase: 'complete', initialReport });
+    let scanRan = false;
+    (globalThis as any).window.propel.cleaner.scan = async () => {
+      scanRan = true;
+      return [];
+    };
+    await postActions.handleScan();
+    assert.strictEqual(scanRan, true, 'Subsequent scan must start after UAC timeout');
+  });
+
+  it('resets store flags on unmount, allowing subsequent scan to start', async () => {
+    useAppStore.getState().setIsScanning(true);
+    useAppStore.getState().setIsCleaning(true);
+
+    assert.strictEqual(useAppStore.getState().isScanning, true);
+    assert.strictEqual(useAppStore.getState().isCleaning, true);
+
+    useAppStore.getState().setIsScanning(false);
+    useAppStore.getState().setIsCleaning(false);
+
+    assert.strictEqual(useAppStore.getState().isScanning, false, 'isScanning must be reset to false on unmount');
+    assert.strictEqual(useAppStore.getState().isCleaning, false, 'isCleaning must be reset to false on unmount');
+
+    const actions = captureActions({ initialPhase: 'idle' });
+    let scanRan = false;
+    (globalThis as any).window.propel.cleaner.scan = async () => {
+      scanRan = true;
+      return [];
+    };
+    await actions.handleScan();
+    assert.strictEqual(scanRan, true, 'Subsequent scan can start after unmount reset');
   });
 });

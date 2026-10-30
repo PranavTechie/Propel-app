@@ -390,16 +390,26 @@ const UtilityCard: React.FC<{
 );
 
 // ── Main Page ─────────────────────────────────────────────────────────────
+export interface CleanerActions {
+  handleScan: () => Promise<void>;
+  handleClean: () => Promise<void>;
+  finishPermissionBatch: (action: "continue" | "skip") => Promise<void>;
+}
+
 export interface CleanerPageProps {
   initialPhase?: Phase;
   initialReport?: CleanupReport | null;
   initialCategories?: ScanCategory[];
+  initialPermissionBatch?: { report: CleanupReport; count: number; token: string } | null;
+  onActions?: (actions: CleanerActions) => void;
 }
 
 export const CleanerPage: React.FC<CleanerPageProps> = ({
   initialPhase = "idle",
   initialReport = null,
   initialCategories = [],
+  initialPermissionBatch = null,
+  onActions,
 }) => {
   const {
     isScanning,
@@ -437,7 +447,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [showExclusions, setShowExclusions] = useState(false);
   const [showRestore, setShowRestore] = useState(false);
-  const [permissionBatch, setPermissionBatch] = useState<{ report: CleanupReport; count: number; token: string } | null>(null);
+  const [permissionBatch, setPermissionBatch] = useState<{ report: CleanupReport; count: number; token: string } | null>(initialPermissionBatch);
   const [safeCleaningMode, setSafeCleaningMode] = useState(true);
   const [waitingForUAC, setWaitingForUAC] = useState(false);
   // ── Scan progress percentage (0-100) derived from category completion ──
@@ -486,6 +496,23 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         setSafeCleaningMode(s.safeCleaningMode ?? true);
       })
       .catch(() => {});
+
+    return () => {
+      // Invalidate any active operations so late callbacks drop their state updates
+      scanRunIdRef.current += 1;
+      cleanRunIdRef.current += 1;
+      if (elapsedRef.current) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
+      if (scanRAF.current) {
+        cancelAnimationFrame(scanRAF.current);
+        scanRAF.current = null;
+      }
+      cleanerRef.current?.removeListeners();
+      useAppStore.getState().setIsScanning(false);
+      useAppStore.getState().setIsCleaning(false);
+    };
   }, []);
 
   // ── Scan ────────────────────────────────────────────────────────────────
@@ -634,12 +661,12 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         description: "Could not complete system scan.",
       });
     } finally {
+      setIsScanning(false);
+      if (elapsedRef.current) {
+        clearInterval(elapsedRef.current);
+        elapsedRef.current = null;
+      }
       if (scanRunIdRef.current === currentScanId) {
-        setIsScanning(false);
-        if (elapsedRef.current) {
-          clearInterval(elapsedRef.current);
-          elapsedRef.current = null;
-        }
         cleanerRef.current?.removeListeners();
       }
     }
@@ -722,15 +749,20 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         description: "An error occurred during cleanup.",
       });
     } finally {
+      setIsCleaning(false);
+      setWaitingForUAC(false);
       if (cleanRunIdRef.current === currentCleanId) {
-        setIsCleaning(false);
         cleanerRef.current?.removeListeners();
       }
     }
   }, [selected, isBusy, addToast, setScanResults, setIsCleaning, addHistoryReport]);
 
   const finishPermissionBatch = useCallback(async (action: "continue" | "skip") => {
-    if (!permissionBatch || !cleanerRef.current) return;
+    if (!cleanerRef.current) return;
+    if (!permissionBatch) {
+      setPhase("results");
+      return;
+    }
     const firstPass = permissionBatch.report;
     setPermissionBatch(null);
     if (action === "skip") {
@@ -744,62 +776,72 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
       filesSkipped: action === "skip" ? permissionBatch.count : 0,
       adminRequiredSkipped: action === "skip" ? permissionBatch.count : 0,
     };
-    if (action === "continue") {
-      setPhase("cleaning");
-      setIsCleaning(true);
-      setWaitingForUAC(true);
-      cleanerRef.current.removeListeners();
-      cleanerRef.current.onCleanProgress((evt) => {
-        if (cleanRunIdRef.current !== currentCleanId) return;
-        if (evt.type === "waiting-for-uac") {
-          setWaitingForUAC(true);
-        } else if (evt.type === "file-cleaned") {
-          setWaitingForUAC(false);
-          setCleanLive({
-            current: evt.current ?? 0,
-            total: evt.total ?? 0,
-            currentFile: evt.currentFile ?? "",
-            freed: evt.freed ?? 0,
-          });
+    try {
+      if (action === "continue") {
+        setPhase("cleaning");
+        setIsCleaning(true);
+        setWaitingForUAC(true);
+        cleanerRef.current.removeListeners();
+        cleanerRef.current.onCleanProgress((evt) => {
+          if (cleanRunIdRef.current !== currentCleanId) return;
+          if (evt.type === "waiting-for-uac") {
+            setWaitingForUAC(true);
+          } else if (evt.type === "file-cleaned") {
+            setWaitingForUAC(false);
+            setCleanLive({
+              current: evt.current ?? 0,
+              total: evt.total ?? 0,
+              currentFile: evt.currentFile ?? "",
+              freed: evt.freed ?? 0,
+            });
+          }
+        });
+        try {
+          const elevated = await cleanerRef.current.cleanAdminBatch(permissionBatch.token);
+          if (cleanRunIdRef.current !== currentCleanId) return;
+          finalReport = {
+            ...firstPass,
+            totalFreed: firstPass.totalFreed + (elevated?.totalFreed ?? 0),
+            filesRemoved: firstPass.filesRemoved + (elevated?.filesRemoved ?? 0),
+            errors: firstPass.errors - permissionBatch.count + (elevated?.errors ?? 0),
+            errorDetails: (firstPass.errorDetails ?? []).filter(
+              error => !(firstPass.permissionDeniedPaths ?? []).includes(error.path),
+            ).concat(elevated?.errorDetails ?? []),
+            filesSkipped: elevated?.filesSkipped ?? elevated?.errors ?? permissionBatch.count,
+            adminRequiredSkipped: elevated?.adminRequiredSkipped ?? 0,
+            permissionDeniedPaths: [],
+          };
+        } catch {
+          if (cleanRunIdRef.current !== currentCleanId) return;
+          finalReport.filesSkipped = permissionBatch.count;
+          finalReport.adminRequiredSkipped = permissionBatch.count;
         }
+      }
+      if (cleanRunIdRef.current !== currentCleanId) return;
+
+      setReport(finalReport);
+      addHistoryReport(finalReport);
+      setCategories([]);
+      setScanResults([]);
+      setSelected(new Set());
+      setPhase("complete");
+      addToast({
+        type: "success",
+        title: "Cleanup Complete!",
+        description: `Freed ${formatBytes(finalReport.totalFreed)} from ${finalReport.filesRemoved.toLocaleString()} files`,
       });
-      try {
-        const elevated = await cleanerRef.current.cleanAdminBatch(permissionBatch.token);
-        if (cleanRunIdRef.current !== currentCleanId) return;
-        finalReport = {
-          ...firstPass,
-          totalFreed: firstPass.totalFreed + (elevated?.totalFreed ?? 0),
-          filesRemoved: firstPass.filesRemoved + (elevated?.filesRemoved ?? 0),
-          errors: firstPass.errors - permissionBatch.count + (elevated?.errors ?? 0),
-          errorDetails: (firstPass.errorDetails ?? []).filter(
-            error => !(firstPass.permissionDeniedPaths ?? []).includes(error.path),
-          ).concat(elevated?.errorDetails ?? []),
-          filesSkipped: elevated?.filesSkipped ?? elevated?.errors ?? permissionBatch.count,
-          adminRequiredSkipped: elevated?.adminRequiredSkipped ?? 0,
-          permissionDeniedPaths: [],
-        };
-      } catch {
-        if (cleanRunIdRef.current !== currentCleanId) return;
-        finalReport.filesSkipped = permissionBatch.count;
-        finalReport.adminRequiredSkipped = permissionBatch.count;
+    } finally {
+      setIsCleaning(false);
+      setWaitingForUAC(false);
+      if (cleanRunIdRef.current === currentCleanId) {
+        cleanerRef.current?.removeListeners();
       }
     }
-    if (cleanRunIdRef.current !== currentCleanId) return;
-
-    setWaitingForUAC(false);
-    setIsCleaning(false);
-    setReport(finalReport);
-    addHistoryReport(finalReport);
-    setCategories([]);
-    setScanResults([]);
-    setSelected(new Set());
-    setPhase("complete");
-    addToast({
-      type: "success",
-      title: "Cleanup Complete!",
-      description: `Freed ${formatBytes(finalReport.totalFreed)} from ${finalReport.filesRemoved.toLocaleString()} files`,
-    });
   }, [permissionBatch, addHistoryReport, setScanResults, addToast, setIsCleaning]);
+
+  if (onActions) {
+    onActions({ handleScan, handleClean, finishPermissionBatch });
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const toggleCategory = (id: string) =>
