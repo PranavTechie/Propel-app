@@ -246,6 +246,33 @@ const CleanupReportCard: React.FC<{
   const secs = ((report.durationMs % 60000) / 1000).toFixed(1);
   const durationLabel = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
 
+  const isFailure = report.filesRemoved === 0 && report.errors > 0;
+
+  const counts = React.useMemo(() => {
+    if (report.skippedByReason) {
+      return {
+        locked: report.skippedByReason.locked ?? 0,
+        permission: (report.skippedByReason.permission ?? 0) + (report.adminRequiredSkipped ?? 0),
+        missing: report.skippedByReason.missing ?? 0,
+        other: report.skippedByReason.other ?? 0,
+      };
+    }
+    const c = { locked: 0, permission: report.adminRequiredSkipped ?? 0, missing: 0, other: 0 };
+    for (const err of report.errorDetails ?? []) {
+      const k = (err as { kind?: string }).kind;
+      const r = (err.reason || '').toLowerCase();
+      if (k === 'locked' || r.includes('in use') || r.includes('being used') || r.includes('locked')) c.locked++;
+      else if (k === 'permission-denied' || r.includes('permission') || r.includes('denied') || r.includes('access')) c.permission++;
+      else if (k === 'missing' || r.includes('not found') || r.includes('missing')) c.missing++;
+      else c.other++;
+    }
+    const sum = c.locked + c.permission + c.missing + c.other;
+    if (sum < report.errors) {
+      c.other += (report.errors - sum);
+    }
+    return c;
+  }, [report]);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8, scale: 0.99 }}
@@ -255,17 +282,29 @@ const CleanupReportCard: React.FC<{
       <Card level="feature" className="p-6">
         <div
           aria-hidden
-          className="pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(closest-side,rgb(var(--c-success)/.12),transparent)]"
+          className={cn(
+            "pointer-events-none absolute -left-20 -top-24 h-72 w-72 rounded-full",
+            isFailure
+              ? "bg-[radial-gradient(closest-side,rgb(var(--c-danger)/.12),transparent)]"
+              : "bg-[radial-gradient(closest-side,rgb(var(--c-success)/.12),transparent)]"
+          )}
         />
         <div className="relative flex items-center gap-4">
-          <span className="flex h-12 w-12 items-center justify-center rounded-card bg-success-soft text-success-fg shadow-[var(--highlight-top)]">
-            <CheckCircle2 className="h-6 w-6" />
+          <span
+            className={cn(
+              "flex h-12 w-12 items-center justify-center rounded-card shadow-[var(--highlight-top)]",
+              isFailure ? "bg-danger-soft text-danger-fg" : "bg-success-soft text-success-fg"
+            )}
+          >
+            {isFailure ? <AlertTriangle className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6" />}
           </span>
           <div>
             <p className="font-display text-[22px] font-semibold leading-7 tracking-[-.02em] text-fg-1">
-              Cleanup Complete!
+              {isFailure ? "Cleanup Incomplete" : "Cleanup Complete!"}
             </p>
-            <p className="text-body text-fg-2">Your system has been optimized</p>
+            <p className="text-body text-fg-2">
+              {isFailure ? "No files could be removed — all selected items were skipped" : "Your system has been optimized"}
+            </p>
           </div>
         </div>
 
@@ -290,14 +329,24 @@ const CleanupReportCard: React.FC<{
 
         {(report.errors > 0 || (report.adminRequiredSkipped ?? 0) > 0) && (
           <div className="relative mt-4 space-y-2">
-            {report.errors > 0 && (
-              <Callout tone="warning" compact>
-                {report.errors} files were in use and skipped — they can be removed after a restart.
+            {counts.locked > 0 && (
+              <Callout tone="warning" compact icon={<Clock />}>
+                {counts.locked} file{counts.locked > 1 ? "s were" : " was"} in use and skipped — they can be removed after a restart.
               </Callout>
             )}
-            {(report.adminRequiredSkipped ?? 0) > 0 && (
+            {counts.permission > 0 && (
               <Callout tone="warning" compact icon={<Shield />}>
-                {report.adminRequiredSkipped} files skipped because administrator permission was required.
+                {counts.permission} file{counts.permission > 1 ? "s" : ""} could not be removed (administrator permission required).
+              </Callout>
+            )}
+            {counts.missing > 0 && (
+              <Callout tone="warning" compact icon={<AlertTriangle />}>
+                {counts.missing} file{counts.missing > 1 ? "s" : ""} could not be removed (already missing or deleted).
+              </Callout>
+            )}
+            {counts.other > 0 && (
+              <Callout tone="warning" compact icon={<AlertTriangle />}>
+                {counts.other} file{counts.other > 1 ? "s" : ""} could not be removed (system error or path restricted).
               </Callout>
             )}
           </div>

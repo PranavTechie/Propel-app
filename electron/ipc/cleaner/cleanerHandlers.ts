@@ -101,6 +101,22 @@ export interface CategorySummary {
   isCapped: boolean
 }
 
+function computeSkippedByReason(
+  errors: { path: string; reason: string; kind?: string }[],
+  adminRequiredSkipped = 0,
+): { locked: number; permission: number; missing: number; other: number } {
+  const counts = { locked: 0, permission: adminRequiredSkipped, missing: 0, other: 0 }
+  for (const err of errors) {
+    const k = err.kind || ''
+    const r = (err.reason || '').toLowerCase()
+    if (k === 'locked' || r.includes('in use') || r.includes('being used') || r.includes('locked')) counts.locked++
+    else if (k === 'permission-denied' || r.includes('permission') || r.includes('denied') || r.includes('access')) counts.permission++
+    else if (k === 'missing' || r.includes('not found') || r.includes('missing')) counts.missing++
+    else counts.other++
+  }
+  return counts
+}
+
 // ── Setup ─────────────────────────────────────────────────────────────────
 
 export function setupCleanerIPC(): void {
@@ -282,6 +298,7 @@ export function setupCleanerIPC(): void {
         errors: totalErrors,
         errorDetails: allErrors,
         filesSkipped: 0,
+        skippedByReason: computeSkippedByReason(allErrors, 0),
         permissionDeniedCount,
         permissionBatchToken,
         permissionDeniedPaths: adminFiles.map(file => file.path),
@@ -344,6 +361,7 @@ export function setupCleanerIPC(): void {
       errorDetails,
       filesSkipped: skippedCount,
       adminRequiredSkipped: stats.permissionDenied.length,
+      skippedByReason: computeSkippedByReason(errorDetails, stats.permissionDenied.length),
       permissionDeniedPaths: validation.eligible.map(file => file.path),
       durationMs: Date.now() - startTime,
       categories: pending.categories,

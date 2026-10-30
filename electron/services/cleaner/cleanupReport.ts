@@ -4,7 +4,13 @@ export interface CleanupReport {
   totalFreed: number
   filesRemoved: number
   errors: number
-  errorDetails?: { path: string; reason: string }[]
+  errorDetails?: { path: string; reason: string; kind?: string }[]
+  skippedByReason?: {
+    locked?: number
+    permission?: number
+    missing?: number
+    other?: number
+  }
   filesSkipped?: number
   adminRequiredSkipped?: number
   cancelled?: boolean
