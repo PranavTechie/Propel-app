@@ -105,7 +105,9 @@ export function isPathInAdminAllowlist(filePath: string, systemRoot?: string): b
 function getUnelevatedScript(): string {
   return [
     'param([string]$InputPath, [string]$OutputPath)',
-    '$items = @(Get-Content -LiteralPath $InputPath -Raw | ConvertFrom-Json)',
+    '$raw = Get-Content -LiteralPath $InputPath -Raw | ConvertFrom-Json',
+    '$items = @()',
+    'if ($raw -is [System.Array]) { $items = $raw } elseif ($null -ne $raw) { $items = @($raw) }',
     '$results = @()',
     'foreach ($item in $items) {',
     '  $p = [string]$item.path',
@@ -118,11 +120,13 @@ function getUnelevatedScript(): string {
     '    $results += [pscustomobject]@{ path=$p; ok=$true }',
     '  } catch {',
     '    $msg = $_.Exception.Message',
-    '    $kind = if ($msg -match "denied|permission|access") { "permission-denied" } elseif ($msg -match "use|lock|busy") { "locked" } else { "other" }',
+    '    $kind = if ($msg -match "use|lock|busy|being used") { "locked" } elseif ($msg -match "denied|permission|access") { "permission-denied" } else { "other" }',
     '    $results += [pscustomobject]@{ path=$p; ok=$false; kind=$kind; reason=$msg }',
     '  }',
     '}',
-    '$results | ConvertTo-Json -Compress | Set-Content -LiteralPath $OutputPath -Encoding UTF8',
+    '$json = $results | ConvertTo-Json -Compress',
+    'if (-not $json) { $json = "[]" }',
+    '[System.IO.File]::WriteAllText($OutputPath, $json, [System.Text.Encoding]::UTF8)',
   ].join('\r\n')
 }
 
@@ -211,7 +215,8 @@ export function buildElevatedScript(opts: {
     `  $idi = [System.IO.DirectoryInfo]::new([System.IO.Path]::GetDirectoryName($InputPath))`,
     `  $ifi = [System.IO.FileInfo]::new($InputPath)`,
     `  if ((-not ($idi.Attributes -band [System.IO.FileAttributes]::ReparsePoint)) -and (-not ($ifi.Attributes -band [System.IO.FileAttributes]::ReparsePoint))) {`,
-    `    $items = @(Get-Content -LiteralPath $InputPath -Raw | ConvertFrom-Json)`,
+    `    $raw = Get-Content -LiteralPath $InputPath -Raw | ConvertFrom-Json`,
+    `    if ($raw -is [System.Array]) { $items = $raw } elseif ($null -ne $raw) { $items = @($raw) }`,
     `  }`,
     `} catch { }`,
     `if ($items.Count -gt 5000) { $items = $items[0..4999] }`,
@@ -243,7 +248,8 @@ export function buildElevatedScript(opts: {
     `      $results += [pscustomobject]@{ path=$p; ok=$true }`,
     `    } catch {`,
     `      $msg = $_.Exception.Message`,
-    `      $results += [pscustomobject]@{ path=$p; ok=$false; kind='other'; reason=$msg }`,
+    `      $kind = if ($msg -match 'use|lock|busy|being used') { 'locked' } elseif ($msg -match 'denied|permission|access') { 'permission-denied' } else { 'other' }`,
+    `      $results += [pscustomobject]@{ path=$p; ok=$false; kind=$kind; reason=$msg }`,
     `    }`,
     `  }`,
     `  $i++`,
