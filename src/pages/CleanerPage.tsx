@@ -36,7 +36,6 @@ import { Callout } from "@/components/ui/Callout";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { ExclusionsModal } from "@/components/cleaner/ExclusionsModal";
 import { HistoryPanel } from "@/components/cleaner/HistoryPanel";
-import { RestoreInfoModal } from "@/components/cleaner/RestoreInfoModal";
 import { staggerContainer, staggerItem } from "@/animations/variants";
 import { formatBytes } from "@/utils/format";
 import { useLayoutReady } from "@/components/ui/hooks/useLiveGate";
@@ -206,6 +205,11 @@ export const CategoryCard: React.FC<{
                 Scan limit reached — actual space may be larger
               </span>
             )}
+            {cat.id === "recycle-bin" && (
+              <span className="text-[10.5px] text-fg-3">
+                Permanently empties your Recycle Bin. Cannot be undone.
+              </span>
+            )}
             {cat.id === "gpu-cache" && (
               <span className="text-[10.5px] text-fg-3">
                 Apps may take slightly longer to launch next time.
@@ -239,8 +243,7 @@ const ShimmerCard: React.FC = () => (
 // ── CleanupReportCard ─────────────────────────────────────────────────────
 const CleanupReportCard: React.FC<{
   report: CleanupReport;
-  onViewRestore: () => void;
-}> = ({ report, onViewRestore }) => {
+}> = ({ report }) => {
   const mins = Math.floor(report.durationMs / 60000);
   const secs = ((report.durationMs % 60000) / 1000).toFixed(1);
   const durationLabel = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
@@ -330,7 +333,7 @@ const CleanupReportCard: React.FC<{
           <div className="relative mt-4 space-y-2">
             {counts.locked > 0 && (
               <Callout tone="warning" compact icon={<Clock />}>
-                {counts.locked} file{counts.locked > 1 ? "s were" : " was"} in use and skipped — they can be removed after a restart.
+                {`${counts.locked} ${counts.locked === 1 ? "file is" : "files are"} in use by other programs and were skipped. Close those programs and scan again.`}
               </Callout>
             )}
             {counts.permission > 0 && (
@@ -351,11 +354,6 @@ const CleanupReportCard: React.FC<{
           </div>
         )}
 
-        <div className="relative mt-5 flex items-center gap-2">
-          <Button variant="ghost" size="sm" icon={<RotateCcw />} onClick={onViewRestore}>
-            View Recovery Info
-          </Button>
-        </div>
       </Card>
     </motion.div>
   );
@@ -446,7 +444,6 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
   const [report, setReport] = useState<CleanupReport | null>(initialReport);
   const [showHistory, setShowHistory] = useState(false);
   const [showExclusions, setShowExclusions] = useState(false);
-  const [showRestore, setShowRestore] = useState(false);
   const [permissionBatch, setPermissionBatch] = useState<{ report: CleanupReport; count: number; token: string } | null>(initialPermissionBatch);
   const [safeCleaningMode, setSafeCleaningMode] = useState(true);
   const [waitingForUAC, setWaitingForUAC] = useState(false);
@@ -928,13 +925,6 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         onClose={() => setShowExclusions(false)}
       />
       <HistoryPanel open={showHistory} onClose={() => setShowHistory(false)} />
-      {report && (
-        <RestoreInfoModal
-          open={showRestore}
-          report={report}
-          onClose={() => setShowRestore(false)}
-        />
-      )}
       <div className="page-shell">
         <div className="mx-auto w-full max-w-6xl">
           <PageHeader
@@ -1325,7 +1315,6 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
                 {report ? (
                   <CleanupReportCard
                     report={report}
-                    onViewRestore={() => setShowRestore(true)}
                   />
                 ) : (
                   <Card level="feature" className="p-6 text-center">

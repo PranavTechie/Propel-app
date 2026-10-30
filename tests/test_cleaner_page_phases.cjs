@@ -130,7 +130,7 @@ function getScanButtons(html) {
   console.log('[PASS] 2. Scanning phase: progress card and Scanning… header action (count === 1)');
 }
 
-// Test 3: Phase RESULTS (with categories)
+// Test 3: Phase RESULTS (with categories including Recycle Bin)
 {
   const html = ReactDOMServer.renderToString(React.createElement(CleanerPage, {
     initialPhase: 'results',
@@ -144,16 +144,27 @@ function getScanButtons(html) {
         isSafe: true,
         isCapped: false,
       },
+      {
+        id: 'recycle-bin',
+        name: 'Recycle Bin',
+        description: 'Deleted items awaiting permanent removal',
+        totalSize: 52428800,
+        fileCount: 12,
+        isSafe: true,
+        isCapped: false,
+      },
     ],
   }));
   assert(html.length > 500, 'Results body must not be empty');
   assert(html.includes('Review scan results and select categories to clean'), 'Subtitle must be review prompt');
   assert(html.includes('Temporary Files'), 'Category card must be rendered');
+  assert(html.includes('Recycle Bin'), 'Recycle Bin card must be rendered');
+  assert(html.includes('Permanently empties your Recycle Bin. Cannot be undone.'), 'Recycle Bin card must display hint');
   assert(html.includes('Start Clean'), 'Start Clean button must be present in body as primary action');
   assert(html.includes('Rescan'), 'Header action must have Rescan button');
   const scanButtons = getScanButtons(html);
   assert.strictEqual(scanButtons.length, 1, `Results phase (with items) must have exactly 1 scan button (Rescan), found ${scanButtons.length}`);
-  console.log('[PASS] 3. Results phase (with items): Rescan in header (count === 1), Start Clean stays primary in body');
+  console.log('[PASS] 3. Results phase (with items): Rescan in header (count === 1), Start Clean stays primary in body, Recycle Bin card displays one-line hint');
 }
 
 // Test 4: Phase RESULTS (with 0 categories - clean system)
@@ -202,10 +213,11 @@ function getScanButtons(html) {
   assert(html.includes('System successfully optimized'), 'Subtitle must show optimization text on success');
   assert(html.includes('Cleanup Complete!'), 'Must show success title');
   assert(html.includes('150'), 'Must show removed file count');
-  assert(html.includes('View Recovery Info'), 'Must have View Recovery Info button');
+  assert(!html.includes('View Recovery Info'), 'Done-success must NOT contain View Recovery Info button');
+  assert(!html.includes('Cleanup Details & Recovery'), 'Done-success must NOT contain Cleanup Details & Recovery modal');
   const scanButtons = getScanButtons(html);
   assert.strictEqual(scanButtons.length, 1, `Complete phase (success) must have exactly 1 scan button, found ${scanButtons.length}`);
-  console.log('[PASS] 6. Done-success: Cleanup Complete report card, Scan Again solely in header (count === 1)');
+  console.log('[PASS] 6. Done-success: Cleanup Complete report card, Scan Again solely in header (count === 1), no recovery button or modal');
 }
 
 // Test 7: Phase DONE-PARTIAL
@@ -229,11 +241,13 @@ function getScanButtons(html) {
   }));
   assert(html.length > 500, 'Done-partial body must not be empty');
   assert(html.includes('Cleanup Complete!'), 'Partial clean retains complete heading');
-  assert(html.includes('in use and skipped'), 'Must report locked files count');
+  assert(html.includes('are in use by other programs and were skipped. Close those programs and scan again.'), 'Must report locked files with updated copy');
   assert(html.includes('administrator permission required'), 'Must report admin files count');
+  assert(!html.includes('View Recovery Info'), 'Done-partial must NOT contain View Recovery Info button');
+  assert(!html.includes('Cleanup Details & Recovery'), 'Done-partial must NOT contain Cleanup Details & Recovery modal');
   const scanButtons = getScanButtons(html);
   assert.strictEqual(scanButtons.length, 1, `Complete phase (partial) must have exactly 1 scan button, found ${scanButtons.length}`);
-  console.log('[PASS] 7. Done-partial: skipped breakdown, Scan Again solely in header (count === 1)');
+  console.log('[PASS] 7. Done-partial: skipped breakdown with updated copy, Scan Again solely in header (count === 1), no recovery button');
 }
 
 // Test 8: Phase DONE-TOTAL-FAILURE
@@ -259,10 +273,12 @@ function getScanButtons(html) {
   assert(html.includes('Cleanup incomplete — files could not be removed'), 'Subtitle must NOT say System successfully optimized on 0 files removed');
   assert(html.includes('Cleanup Incomplete'), 'Header card must show Cleanup Incomplete');
   assert(html.includes('No files could be removed'), 'Description must explain total failure');
-  assert(html.includes('in use and skipped'), 'Must show in use reason callout');
+  assert(html.includes('are in use by other programs and were skipped. Close those programs and scan again.'), 'Must show in use reason with updated copy');
+  assert(!html.includes('View Recovery Info'), 'Done-total-failure must NOT contain View Recovery Info button');
+  assert(!html.includes('Cleanup Details & Recovery'), 'Done-total-failure must NOT contain Cleanup Details & Recovery modal');
   const scanButtons = getScanButtons(html);
   assert.strictEqual(scanButtons.length, 1, `Complete phase (failure) must have exactly 1 scan button, found ${scanButtons.length}`);
-  console.log('[PASS] 8. Done-total-failure: truthful failure state, Scan Again solely in header (count === 1)');
+  console.log('[PASS] 8. Done-total-failure: truthful failure state, Scan Again solely in header (count === 1), no recovery button');
 }
 
 // Test 9: Complete phase with NULL report (stale / missing report scenario)
@@ -275,6 +291,7 @@ function getScanButtons(html) {
   assert(!html.includes('System successfully optimized'), 'Must NOT display stale System successfully optimized subtitle when report is missing');
   assert(html.includes('System scan and cleanup ready'), 'Subtitle falls back gracefully');
   assert(html.includes('Cleanup Finished'), 'Body contains fallback cleanup card');
+  assert(!html.includes('View Recovery Info'), 'Complete fallback must NOT contain View Recovery Info button');
   const scanButtons = getScanButtons(html);
   assert.strictEqual(scanButtons.length, 1, `Complete with null report must have exactly 1 scan button in header, found ${scanButtons.length}`);
   console.log('[PASS] 9. Complete with null report: fallback card text-only, Scan Again solely in header (count === 1)');
@@ -305,4 +322,27 @@ function getScanButtons(html) {
   console.log('[PASS] 11. Pending-permission phase: informative body, Cleaning… header action (count === 1)');
 }
 
-console.log('--- ALL 11 CLEANER PAGE PHASE & SINGLE SCAN TRIGGER TESTS PASSED! ---');
+// Test 12: Complete screen has NO recovery button and NO recovery modal
+{
+  const report = {
+    durationMs: 1500,
+    totalFreed: 1048576,
+    filesRemoved: 10,
+    errors: 0,
+    categories: ['temp-files', 'recycle-bin'],
+  };
+  const html = ReactDOMServer.renderToString(React.createElement(CleanerPage, {
+    initialPhase: 'complete',
+    initialReport: report,
+  }));
+  assert(!html.includes('View Recovery Info'), 'Complete screen must NOT contain View Recovery Info button');
+  assert(!html.includes('Cleanup Details & Recovery'), 'Complete screen must NOT contain Cleanup Details & Recovery modal title');
+  assert(!html.includes('Need full system recovery?'), 'Complete screen must NOT contain system recovery prompt');
+  assert(!html.includes('ms-settings:recovery'), 'Complete screen must NOT contain recovery settings URI');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, 'Complete screen must keep exactly 1 scan button in header');
+  assert(html.includes('Scan Again'), 'Complete screen header must have Scan Again');
+  console.log('[PASS] 12. Complete screen has no recovery button or modal, exactly one scan button in header');
+}
+
+console.log('--- ALL 12 CLEANER PAGE PHASE & SINGLE SCAN TRIGGER TESTS PASSED! ---');
