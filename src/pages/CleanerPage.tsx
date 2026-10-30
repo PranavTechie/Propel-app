@@ -394,7 +394,17 @@ const UtilityCard: React.FC<{
 );
 
 // ── Main Page ─────────────────────────────────────────────────────────────
-export const CleanerPage: React.FC = () => {
+export interface CleanerPageProps {
+  initialPhase?: Phase;
+  initialReport?: CleanupReport | null;
+  initialCategories?: ScanCategory[];
+}
+
+export const CleanerPage: React.FC<CleanerPageProps> = ({
+  initialPhase = "idle",
+  initialReport = null,
+  initialCategories = [],
+}) => {
   const {
     isScanning,
     isCleaning,
@@ -406,15 +416,15 @@ export const CleanerPage: React.FC = () => {
   } = useAppStore();
   const { addReport: addHistoryReport } = useCleanerHistoryStore();
 
-  const [phase, setPhase] = useState<Phase>("idle");
+  const [phase, setPhase] = useState<Phase>(initialPhase);
   const isBusy =
     isScanning ||
     isCleaning ||
     phase === "scanning" ||
     phase === "cleaning" ||
     phase === "pending-permission";
-  const [categories, setCategories] = useState<ScanCategory[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [categories, setCategories] = useState<ScanCategory[]>(initialCategories);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialCategories.map((c) => c.id)));
   const [scanLive, setScanLive] = useState<ScanLiveState>({
     currentPath: "",
     totalSize: 0,
@@ -427,7 +437,7 @@ export const CleanerPage: React.FC = () => {
     currentFile: "",
     freed: 0,
   });
-  const [report, setReport] = useState<CleanupReport | null>(null);
+  const [report, setReport] = useState<CleanupReport | null>(initialReport);
   const [showHistory, setShowHistory] = useState(false);
   const [showExclusions, setShowExclusions] = useState(false);
   const [showRestore, setShowRestore] = useState(false);
@@ -590,6 +600,7 @@ export const CleanerPage: React.FC = () => {
       setSelected(allIds);
       setScanResults(results);
       setHasScanned(true);
+      setReport(null);
       setPhase("results");
       const total = results.reduce((a, c) => a + c.totalSize, 0);
       addToast({
@@ -784,7 +795,43 @@ export const CleanerPage: React.FC = () => {
       <Button loading>Scanning…</Button>
     ) : phase === "cleaning" || phase === "pending-permission" ? (
       <Button loading>Cleaning…</Button>
-    ) : undefined;
+    ) : phase === "complete" ? (
+      <Button icon={<Search />} onClick={handleScan}>
+        Scan Again
+      </Button>
+    ) : phase === "results" ? (
+      <Button variant="ghost" size="sm" icon={<RotateCcw />} onClick={handleScan}>
+        Rescan
+      </Button>
+    ) : (
+      <Button icon={<Search />} onClick={handleScan}>
+        Scan this PC
+      </Button>
+    );
+
+  const subtitleText = (() => {
+    switch (phase) {
+      case "idle":
+        return "Scan and safely remove junk files from your PC";
+      case "scanning":
+        return `Scanning — ${formatBytes(scanLive.totalSize)} found so far`;
+      case "results":
+        return "Review scan results and select categories to clean";
+      case "cleaning":
+      case "pending-permission":
+        return `Cleaning — freed ${formatBytes(cleanLive.freed)} so far`;
+      case "complete":
+        if (!report) {
+          return "System scan and cleanup ready";
+        }
+        if (report.filesRemoved === 0 && report.errors > 0) {
+          return "Cleanup incomplete — files could not be removed";
+        }
+        return "System successfully optimized";
+      default:
+        return "Scan and safely remove junk files from your PC";
+    }
+  })();
 
   return (
     <>
@@ -813,16 +860,7 @@ export const CleanerPage: React.FC = () => {
           <PageHeader
             eyebrow="Storage care"
             title="System Cleaner"
-            subtitle={
-              <>
-                {phase === "idle" && "Scan and safely remove junk files from your PC"}
-                {phase === "scanning" && `Scanning — ${formatBytes(scanLive.totalSize)} found so far`}
-                {phase === "results" && "Review scan results and select categories to clean"}
-                {(phase === "cleaning" || phase === "pending-permission") &&
-                  `Cleaning — freed ${formatBytes(cleanLive.freed)} so far`}
-                {phase === "complete" && "System successfully optimized"}
-              </>
-            }
+            subtitle={subtitleText}
             meta={phase === "idle" ? "Usually 5 to 10 seconds" : undefined}
             action={headerAction}
           />
@@ -1020,19 +1058,17 @@ export const CleanerPage: React.FC = () => {
                   </ul>
                 </Card>
 
-                <AnimatePresence>
-                  {scanPct === 100 && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                    >
-                      <Callout tone="success" title="Scan Complete">
-                        {formatBytes(scanLive.totalSize)} Recoverable — loading results…
-                      </Callout>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {scanPct === 100 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Callout tone="success" title="Scan Complete">
+                      {formatBytes(scanLive.totalSize)} Recoverable — loading results…
+                    </Callout>
+                  </motion.div>
+                )}
               </motion.div>
             )}
 
@@ -1092,21 +1128,34 @@ export const CleanerPage: React.FC = () => {
                   )}
                 </div>
 
-                <motion.div
-                  variants={staggerContainer}
-                  initial="initial"
-                  animate="animate"
-                  className="grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1"
-                >
-                  {categories.map((cat) => (
-                    <CategoryCard
-                      key={cat.id}
-                      cat={cat}
-                      selected={selected.has(cat.id)}
-                      onToggle={() => toggleCategory(cat.id)}
-                    />
-                  ))}
-                </motion.div>
+                {categories.length === 0 ? (
+                  <Card className="p-8 text-center">
+                    <CheckCircle2 className="mx-auto h-10 w-10 text-success-fg" />
+                    <h3 className="mt-3 font-display text-[18px] font-semibold text-fg-1">No Junk Files Found</h3>
+                    <p className="mt-1 text-body-sm text-fg-3">Your system is already clean and optimized.</p>
+                    <div className="mt-4 flex justify-center">
+                      <Button variant="secondary" icon={<Search />} onClick={handleScan}>
+                        Scan Again
+                      </Button>
+                    </div>
+                  </Card>
+                ) : (
+                  <motion.div
+                    variants={staggerContainer}
+                    initial="initial"
+                    animate="animate"
+                    className="grid grid-cols-2 gap-3 max-[1000px]:grid-cols-1"
+                  >
+                    {categories.map((cat) => (
+                      <CategoryCard
+                        key={cat.id}
+                        cat={cat}
+                        selected={selected.has(cat.id)}
+                        onToggle={() => toggleCategory(cat.id)}
+                      />
+                    ))}
+                  </motion.div>
+                )}
               </motion.div>
             )}
 
@@ -1170,24 +1219,83 @@ export const CleanerPage: React.FC = () => {
               </motion.div>
             )}
 
+            {/* ── PENDING PERMISSION ── */}
+            {phase === "pending-permission" && (
+              <motion.div
+                key="pending-permission"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <Card level="feature" className="p-6 text-center">
+                  <Shield className="mx-auto h-10 w-10 text-warning-fg" />
+                  <h3 className="mt-3 font-display text-[18px] font-semibold text-fg-1">
+                    Administrator Permission Required
+                  </h3>
+                  <p className="mt-1 text-body-sm text-fg-3">
+                    Some files require administrator permission to clean. Please review the prompt to proceed.
+                  </p>
+                </Card>
+              </motion.div>
+            )}
+
             {/* ── COMPLETE ── */}
-            {phase === "complete" && report && (
+            {phase === "complete" && (
               <motion.div
                 key="complete"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <CleanupReportCard
-                  report={report}
-                  onRescan={() => {
-                    setPhase("idle");
-                    setReport(null);
-                  }}
-                  onViewRestore={() => setShowRestore(true)}
-                />
+                {report ? (
+                  <CleanupReportCard
+                    report={report}
+                    onRescan={() => {
+                      setPhase("idle");
+                      setReport(null);
+                      void handleScan();
+                    }}
+                    onViewRestore={() => setShowRestore(true)}
+                  />
+                ) : (
+                  <Card level="feature" className="p-6 text-center">
+                    <CheckCircle2 className="mx-auto h-10 w-10 text-success-fg" />
+                    <h3 className="mt-3 font-display text-[18px] font-semibold text-fg-1">Cleanup Finished</h3>
+                    <p className="mt-1 text-body-sm text-fg-3">Your cleanup operation has completed.</p>
+                    <div className="mt-4 flex justify-center">
+                      <Button variant="primary" icon={<Search />} onClick={handleScan}>
+                        Scan Again
+                      </Button>
+                    </div>
+                  </Card>
+                )}
               </motion.div>
             )}
+
+            {/* ── FALLBACK FOR UNKNOWN PHASE ── */}
+            {phase !== "idle" &&
+              phase !== "scanning" &&
+              phase !== "results" &&
+              phase !== "cleaning" &&
+              phase !== "pending-permission" &&
+              phase !== "complete" && (
+                <motion.div
+                  key="fallback"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <Card level="feature" className="p-6 text-center">
+                    <h3 className="font-display text-[18px] font-semibold text-fg-1">System Cleaner</h3>
+                    <p className="mt-1 text-body-sm text-fg-3">Ready to scan and clean junk files from your PC.</p>
+                    <div className="mt-4 flex justify-center">
+                      <Button variant="primary" icon={<Search />} onClick={handleScan}>
+                        Scan this PC
+                      </Button>
+                    </div>
+                  </Card>
+                </motion.div>
+              )}
           </AnimatePresence>
         </div>
       </div>
