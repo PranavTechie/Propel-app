@@ -239,9 +239,8 @@ const ShimmerCard: React.FC = () => (
 // ── CleanupReportCard ─────────────────────────────────────────────────────
 const CleanupReportCard: React.FC<{
   report: CleanupReport;
-  onRescan: () => void;
   onViewRestore: () => void;
-}> = ({ report, onRescan, onViewRestore }) => {
+}> = ({ report, onViewRestore }) => {
   const mins = Math.floor(report.durationMs / 60000);
   const secs = ((report.durationMs % 60000) / 1000).toFixed(1);
   const durationLabel = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
@@ -353,9 +352,6 @@ const CleanupReportCard: React.FC<{
         )}
 
         <div className="relative mt-5 flex items-center gap-2">
-          <Button variant="secondary" size="sm" icon={<Search />} onClick={onRescan}>
-            Scan Again
-          </Button>
           <Button variant="ghost" size="sm" icon={<RotateCcw />} onClick={onViewRestore}>
             View Recovery Info
           </Button>
@@ -452,6 +448,8 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
   // RAF accumulator — prevents flooding React with per-file state updates
   const pendingScan = useRef<Partial<ScanLiveState>>({});
   const scanRAF = useRef<number | null>(null);
+  const scanRunIdRef = useRef<number>(0);
+  const cleanRunIdRef = useRef<number>(0);
 
   // Known ordered category ids — used to derive scan % and stage labels
   const SCAN_ORDER = [
@@ -500,6 +498,13 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
       });
       return;
     }
+    if (isBusy) {
+      return;
+    }
+
+    // Invalidate any in-flight cleans and start new scan generation
+    cleanRunIdRef.current += 1;
+    const currentScanId = ++scanRunIdRef.current;
 
     setPhase("scanning");
     setCategories([]);
@@ -523,6 +528,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
 
     cleanerRef.current.removeListeners();
     cleanerRef.current.onScanProgress((evt) => {
+      if (scanRunIdRef.current !== currentScanId) return;
       if (evt.type === "file-found") {
         // Accumulate updates; flush once per animation frame max
         pendingScan.current = {
@@ -534,6 +540,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         if (!scanRAF.current) {
           scanRAF.current = requestAnimationFrame(() => {
             scanRAF.current = null;
+            if (scanRunIdRef.current !== currentScanId) return;
             const p = pendingScan.current;
             if (Object.keys(p).length > 0) {
               setScanLive((prev) => ({ ...prev, ...p }));
@@ -544,6 +551,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
       }
       if (evt.type === "category-done") {
         setCategories((prev) => {
+          if (scanRunIdRef.current !== currentScanId) return prev;
           const existing = prev.find((c) => c.id === evt.id);
           const next = existing
             ? prev.map((c) =>
@@ -583,6 +591,8 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         () => cleanerRef.current!.scan(),
         "scan",
       );
+      if (scanRunIdRef.current !== currentScanId) return;
+
       if (scanRAF.current) {
         cancelAnimationFrame(scanRAF.current);
         scanRAF.current = null;
@@ -595,6 +605,8 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
       // Animate to 100% then transition
       setScanPct(100);
       await new Promise((r) => setTimeout(r, 600));
+      if (scanRunIdRef.current !== currentScanId) return;
+
       setCategories(results);
       const allIds = new Set(results.map((r) => r.id));
       setSelected(allIds);
@@ -609,6 +621,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         description: `Found ${formatBytes(total)} across ${results.length} categories`,
       });
     } catch (err) {
+      if (scanRunIdRef.current !== currentScanId) return;
       setPhase("idle");
       logError(
         "cleaner",
@@ -621,18 +634,24 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         description: "Could not complete system scan.",
       });
     } finally {
-      setIsScanning(false);
-      if (elapsedRef.current) {
-        clearInterval(elapsedRef.current);
-        elapsedRef.current = null;
+      if (scanRunIdRef.current === currentScanId) {
+        setIsScanning(false);
+        if (elapsedRef.current) {
+          clearInterval(elapsedRef.current);
+          elapsedRef.current = null;
+        }
+        cleanerRef.current?.removeListeners();
       }
-      cleanerRef.current?.removeListeners();
     }
-  }, [addToast, setScanResults, setIsScanning]);
+  }, [isBusy, isCleaning, phase, addToast, setScanResults, setIsScanning]);
 
   // ── Clean ───────────────────────────────────────────────────────────────
   const handleClean = useCallback(async () => {
     if (!cleanerRef.current || selected.size === 0 || isBusy) return;
+
+    // Invalidate any in-flight scans and start clean generation
+    scanRunIdRef.current += 1;
+    const currentCleanId = ++cleanRunIdRef.current;
 
     setPhase("cleaning");
     setIsCleaning(true);
@@ -641,6 +660,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
 
     cleanerRef.current.removeListeners();
     cleanerRef.current.onCleanProgress((evt) => {
+      if (cleanRunIdRef.current !== currentCleanId) return;
       if (evt.type === "waiting-for-uac") {
         setWaitingForUAC(true);
       } else if (evt.type === "file-cleaned") {
@@ -661,6 +681,13 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         "ipc",
         { categories: [...selected] },
       );
+      if (cleanRunIdRef.current !== currentCleanId) return;
+
+      // Validate result structure
+      if (!result || typeof result !== "object" || typeof result.totalFreed !== "number") {
+        throw new Error("Invalid cleanup report received");
+      }
+
       setReport(result);
       setCategories([]);
       setScanResults([]);
@@ -682,6 +709,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         });
       }
     } catch (err) {
+      if (cleanRunIdRef.current !== currentCleanId) return;
       setPhase("results");
       logError(
         "cleaner",
@@ -694,8 +722,10 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
         description: "An error occurred during cleanup.",
       });
     } finally {
-      setIsCleaning(false);
-      cleanerRef.current?.removeListeners();
+      if (cleanRunIdRef.current === currentCleanId) {
+        setIsCleaning(false);
+        cleanerRef.current?.removeListeners();
+      }
     }
   }, [selected, isBusy, addToast, setScanResults, setIsCleaning, addHistoryReport]);
 
@@ -706,6 +736,9 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
     if (action === "skip") {
       void cleanerRef.current.discardAdminBatch(permissionBatch.token);
     }
+
+    const currentCleanId = ++cleanRunIdRef.current;
+
     let finalReport: CleanupReport = {
       ...firstPass,
       filesSkipped: action === "skip" ? permissionBatch.count : 0,
@@ -717,6 +750,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
       setWaitingForUAC(true);
       cleanerRef.current.removeListeners();
       cleanerRef.current.onCleanProgress((evt) => {
+        if (cleanRunIdRef.current !== currentCleanId) return;
         if (evt.type === "waiting-for-uac") {
           setWaitingForUAC(true);
         } else if (evt.type === "file-cleaned") {
@@ -731,23 +765,27 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
       });
       try {
         const elevated = await cleanerRef.current.cleanAdminBatch(permissionBatch.token);
+        if (cleanRunIdRef.current !== currentCleanId) return;
         finalReport = {
           ...firstPass,
-          totalFreed: firstPass.totalFreed + elevated.totalFreed,
-          filesRemoved: firstPass.filesRemoved + elevated.filesRemoved,
-          errors: firstPass.errors - permissionBatch.count + elevated.errors,
+          totalFreed: firstPass.totalFreed + (elevated?.totalFreed ?? 0),
+          filesRemoved: firstPass.filesRemoved + (elevated?.filesRemoved ?? 0),
+          errors: firstPass.errors - permissionBatch.count + (elevated?.errors ?? 0),
           errorDetails: (firstPass.errorDetails ?? []).filter(
             error => !(firstPass.permissionDeniedPaths ?? []).includes(error.path),
-          ).concat(elevated.errorDetails ?? []),
-          filesSkipped: elevated.filesSkipped ?? elevated.errors,
-          adminRequiredSkipped: elevated.adminRequiredSkipped ?? 0,
+          ).concat(elevated?.errorDetails ?? []),
+          filesSkipped: elevated?.filesSkipped ?? elevated?.errors ?? permissionBatch.count,
+          adminRequiredSkipped: elevated?.adminRequiredSkipped ?? 0,
           permissionDeniedPaths: [],
         };
       } catch {
+        if (cleanRunIdRef.current !== currentCleanId) return;
         finalReport.filesSkipped = permissionBatch.count;
         finalReport.adminRequiredSkipped = permissionBatch.count;
       }
     }
+    if (cleanRunIdRef.current !== currentCleanId) return;
+
     setWaitingForUAC(false);
     setIsCleaning(false);
     setReport(finalReport);
@@ -761,7 +799,7 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
       title: "Cleanup Complete!",
       description: `Freed ${formatBytes(finalReport.totalFreed)} from ${finalReport.filesRemoved.toLocaleString()} files`,
     });
-  }, [permissionBatch, addHistoryReport, setScanResults, addToast]);
+  }, [permissionBatch, addHistoryReport, setScanResults, addToast, setIsCleaning]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const toggleCategory = (id: string) =>
@@ -1133,11 +1171,6 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
                     <CheckCircle2 className="mx-auto h-10 w-10 text-success-fg" />
                     <h3 className="mt-3 font-display text-[18px] font-semibold text-fg-1">No Junk Files Found</h3>
                     <p className="mt-1 text-body-sm text-fg-3">Your system is already clean and optimized.</p>
-                    <div className="mt-4 flex justify-center">
-                      <Button variant="secondary" icon={<Search />} onClick={handleScan}>
-                        Scan Again
-                      </Button>
-                    </div>
                   </Card>
                 ) : (
                   <motion.div
@@ -1250,11 +1283,6 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
                 {report ? (
                   <CleanupReportCard
                     report={report}
-                    onRescan={() => {
-                      setPhase("idle");
-                      setReport(null);
-                      void handleScan();
-                    }}
                     onViewRestore={() => setShowRestore(true)}
                   />
                 ) : (
@@ -1262,11 +1290,6 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
                     <CheckCircle2 className="mx-auto h-10 w-10 text-success-fg" />
                     <h3 className="mt-3 font-display text-[18px] font-semibold text-fg-1">Cleanup Finished</h3>
                     <p className="mt-1 text-body-sm text-fg-3">Your cleanup operation has completed.</p>
-                    <div className="mt-4 flex justify-center">
-                      <Button variant="primary" icon={<Search />} onClick={handleScan}>
-                        Scan Again
-                      </Button>
-                    </div>
                   </Card>
                 )}
               </motion.div>
@@ -1288,11 +1311,6 @@ export const CleanerPage: React.FC<CleanerPageProps> = ({
                   <Card level="feature" className="p-6 text-center">
                     <h3 className="font-display text-[18px] font-semibold text-fg-1">System Cleaner</h3>
                     <p className="mt-1 text-body-sm text-fg-3">Ready to scan and clean junk files from your PC.</p>
-                    <div className="mt-4 flex justify-center">
-                      <Button variant="primary" icon={<Search />} onClick={handleScan}>
-                        Scan this PC
-                      </Button>
-                    </div>
                   </Card>
                 </motion.div>
               )}

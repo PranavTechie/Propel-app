@@ -51,7 +51,7 @@ console.error = (...args) => {
   origError(...args);
 };
 
-console.log('--- STARTING CLEANER PAGE PHASE & RENDER TESTS ---');
+console.log('--- STARTING CLEANER PAGE PHASE & SINGLE SCAN TRIGGER TESTS ---');
 
 // Compile CleanerPage via esbuild (no new dependencies)
 const buildResult = esbuild.buildSync({
@@ -78,6 +78,29 @@ const CleanerPage = mod.exports.CleanerPage;
 
 assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a React component');
 
+/**
+ * Counts scan action buttons in rendered HTML.
+ * The standing rule requires the header to be the single owner of the scan action in every phase:
+ * - idle: "Scan this PC"
+ * - scanning: "Scanning…"
+ * - results: "Rescan"
+ * - cleaning / pending-permission: "Cleaning…"
+ * - complete: "Scan Again"
+ */
+function getScanButtons(html) {
+  const buttonMatches = html.match(/<button\b[^>]*>([\s\S]*?)<\/button>/gi) || [];
+  return buttonMatches.filter(b => {
+    const text = b.replace(/<[^>]+>/g, '').trim();
+    return (
+      text.includes('Scan this PC') ||
+      text.includes('Scanning…') ||
+      text.includes('Rescan') ||
+      text.includes('Cleaning…') ||
+      text.includes('Scan Again')
+    );
+  });
+}
+
 // Test 1: Phase IDLE
 {
   const html = ReactDOMServer.renderToString(React.createElement(CleanerPage, {
@@ -88,7 +111,9 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.includes('Scan and safely remove junk files from your PC'), 'Subtitle must match idle text');
   assert(html.includes('Scan this PC'), 'Header action must have Scan this PC button');
   assert(html.includes('Find space you can safely reclaim'), 'Idle card must be rendered');
-  console.log('[PASS] 1. Idle phase renders non-empty body and Scan this PC button');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Idle phase must have exactly 1 scan button, found ${scanButtons.length}`);
+  console.log('[PASS] 1. Idle phase: non-empty body, Scan this PC header button (count === 1)');
 }
 
 // Test 2: Phase SCANNING
@@ -100,7 +125,9 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.includes('Scanning Your System'), 'Must render scanning progress card');
   assert(html.includes('Scanning…'), 'Header action button must show Scanning…');
   assert(html.includes('Files Scanned'), 'Metrics row must be present');
-  console.log('[PASS] 2. Scanning phase renders scanning progress and loading state');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Scanning phase must have exactly 1 scan action button, found ${scanButtons.length}`);
+  console.log('[PASS] 2. Scanning phase: progress card and Scanning… header action (count === 1)');
 }
 
 // Test 3: Phase RESULTS (with categories)
@@ -122,9 +149,11 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.length > 500, 'Results body must not be empty');
   assert(html.includes('Review scan results and select categories to clean'), 'Subtitle must be review prompt');
   assert(html.includes('Temporary Files'), 'Category card must be rendered');
-  assert(html.includes('Start Clean'), 'Start Clean button must be present in body');
+  assert(html.includes('Start Clean'), 'Start Clean button must be present in body as primary action');
   assert(html.includes('Rescan'), 'Header action must have Rescan button');
-  console.log('[PASS] 3. Results phase (with items) renders category cards and Start Clean button');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Results phase (with items) must have exactly 1 scan button (Rescan), found ${scanButtons.length}`);
+  console.log('[PASS] 3. Results phase (with items): Rescan in header (count === 1), Start Clean stays primary in body');
 }
 
 // Test 4: Phase RESULTS (with 0 categories - clean system)
@@ -136,8 +165,11 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.length > 500, 'Results body with 0 categories must not be empty');
   assert(html.includes('No Junk Files Found'), 'Must render zero-findings card instead of empty void');
   assert(html.includes('Your system is already clean and optimized'), 'Must show clean confirmation');
-  assert(html.includes('Scan Again'), 'Must provide Scan Again CTA');
-  console.log('[PASS] 4. Results phase (with 0 items) renders clean state card rather than blank grid');
+  assert(html.includes('Rescan'), 'Header action has Rescan button');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Results phase (0 items) must have exactly 1 scan button in header, found ${scanButtons.length}`);
+  assert(!html.includes('Scan Again'), 'Zero-findings card must be text-only with NO duplicate scan button');
+  console.log('[PASS] 4. Results phase (0 items): zero-findings card is text-only, Rescan in header (count === 1)');
 }
 
 // Test 5: Phase CLEANING
@@ -148,7 +180,9 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.length > 500, 'Cleaning body must not be empty');
   assert(html.includes('Cleaning Your System'), 'Must render cleaning card');
   assert(html.includes('Cleaning…'), 'Header action must show Cleaning…');
-  console.log('[PASS] 5. Cleaning phase renders cleaning progress card');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Cleaning phase must have exactly 1 scan action button, found ${scanButtons.length}`);
+  console.log('[PASS] 5. Cleaning phase: cleaning progress card and Cleaning… header action (count === 1)');
 }
 
 // Test 6: Phase DONE-SUCCESS
@@ -168,8 +202,10 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.includes('System successfully optimized'), 'Subtitle must show optimization text on success');
   assert(html.includes('Cleanup Complete!'), 'Must show success title');
   assert(html.includes('150'), 'Must show removed file count');
-  assert(html.includes('Scan Again'), 'Must have Scan Again button');
-  console.log('[PASS] 6. Done-success renders Cleanup Complete report card');
+  assert(html.includes('View Recovery Info'), 'Must have View Recovery Info button');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Complete phase (success) must have exactly 1 scan button, found ${scanButtons.length}`);
+  console.log('[PASS] 6. Done-success: Cleanup Complete report card, Scan Again solely in header (count === 1)');
 }
 
 // Test 7: Phase DONE-PARTIAL
@@ -195,8 +231,9 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.includes('Cleanup Complete!'), 'Partial clean retains complete heading');
   assert(html.includes('in use and skipped'), 'Must report locked files count');
   assert(html.includes('administrator permission required'), 'Must report admin files count');
-  assert(html.includes('Scan Again'), 'Must have Scan Again button');
-  console.log('[PASS] 7. Done-partial renders Cleanup Complete with skipped reasons breakdown');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Complete phase (partial) must have exactly 1 scan button, found ${scanButtons.length}`);
+  console.log('[PASS] 7. Done-partial: skipped breakdown, Scan Again solely in header (count === 1)');
 }
 
 // Test 8: Phase DONE-TOTAL-FAILURE
@@ -223,10 +260,12 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.includes('Cleanup Incomplete'), 'Header card must show Cleanup Incomplete');
   assert(html.includes('No files could be removed'), 'Description must explain total failure');
   assert(html.includes('in use and skipped'), 'Must show in use reason callout');
-  console.log('[PASS] 8. Done-total-failure displays truthful failure state and honest subtitle');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Complete phase (failure) must have exactly 1 scan button, found ${scanButtons.length}`);
+  console.log('[PASS] 8. Done-total-failure: truthful failure state, Scan Again solely in header (count === 1)');
 }
 
-// Test 9: Complete phase with NULL report (the bug reproduction scenario!)
+// Test 9: Complete phase with NULL report (stale / missing report scenario)
 {
   const html = ReactDOMServer.renderToString(React.createElement(CleanerPage, {
     initialPhase: 'complete',
@@ -236,8 +275,9 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(!html.includes('System successfully optimized'), 'Must NOT display stale System successfully optimized subtitle when report is missing');
   assert(html.includes('System scan and cleanup ready'), 'Subtitle falls back gracefully');
   assert(html.includes('Cleanup Finished'), 'Body contains fallback cleanup card');
-  assert(html.includes('Scan Again'), 'Provides action to scan again');
-  console.log('[PASS] 9. Complete with null report renders non-empty fallback card (blank body fixed)');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Complete with null report must have exactly 1 scan button in header, found ${scanButtons.length}`);
+  console.log('[PASS] 9. Complete with null report: fallback card text-only, Scan Again solely in header (count === 1)');
 }
 
 // Test 10: Unknown/unmatched phase fallback
@@ -248,8 +288,9 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   assert(html.length > 500, 'Unknown phase must NEVER render empty body');
   assert(html.includes('System Cleaner'), 'Contains title');
   assert(html.includes('Ready to scan and clean junk files'), 'Renders fallback recovery card');
-  assert(html.includes('Scan this PC'), 'Provides recovery button');
-  console.log('[PASS] 10. Unknown phase falls back to non-empty recovery view with Scan button');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Unknown phase must have exactly 1 scan button in header, found ${scanButtons.length}`);
+  console.log('[PASS] 10. Unknown phase fallback: recovery view text-only, Scan this PC solely in header (count === 1)');
 }
 
 // Test 11: Pending permission phase
@@ -259,7 +300,9 @@ assert(typeof CleanerPage === 'function', 'CleanerPage should be exported as a R
   }));
   assert(html.length > 500, 'Pending permission body must not be empty');
   assert(html.includes('Administrator Permission Required'), 'Renders informative permission message in body');
-  console.log('[PASS] 11. Pending-permission phase renders informative background body');
+  const scanButtons = getScanButtons(html);
+  assert.strictEqual(scanButtons.length, 1, `Pending permission phase must have exactly 1 scan action button, found ${scanButtons.length}`);
+  console.log('[PASS] 11. Pending-permission phase: informative body, Cleaning… header action (count === 1)');
 }
 
-console.log('--- ALL 11 CLEANER PAGE PHASE TESTS PASSED SUCCESSFULLY! ---');
+console.log('--- ALL 11 CLEANER PAGE PHASE & SINGLE SCAN TRIGGER TESTS PASSED! ---');
