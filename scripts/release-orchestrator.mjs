@@ -256,7 +256,7 @@ export async function promptSecret(promptText = 'Password: ') {
 /**
  * Validates GitHub token against repository permissions.
  */
-export async function validateGitHubToken(token, repo = 'pranavop45/propel-releases') {
+export async function validateGitHubToken(token, repo = 'PranavTechie/propel-releases') {
   if (!token || typeof token !== 'string' || !token.trim()) {
     return { valid: false, error: 'Token is empty.' }
   }
@@ -321,7 +321,7 @@ export async function ensureGitHubToken(isDryRun = false) {
 
   while (true) {
     if (token) {
-      console.log('   Validating GitHub token against pranavop45/propel-releases...')
+      console.log('   Validating GitHub token against PranavTechie/propel-releases...')
       const check = await validateGitHubToken(token)
       if (check.valid) {
         console.log(`   ✔ GitHub token validated successfully (${check.user ? 'owner: ' + check.user : 'authorized'}).`)
@@ -335,7 +335,7 @@ export async function ensureGitHubToken(isDryRun = false) {
 
     console.log('\n' + '─'.repeat(70))
     console.log('🔑 GITHUB PERSONAL ACCESS TOKEN REQUIRED:')
-    console.log('   A GitHub token with release publish permissions on "pranavop45/propel-releases" is needed.')
+    console.log('   A GitHub token with release publish permissions on "PranavTechie/propel-releases" is needed.')
     console.log('   Security: The token is read securely without echoing and held ONLY in process memory.')
     console.log('   It will NOT be saved to files, logs, git, or permanent environment variables.')
     console.log('─'.repeat(70) + '\n')
@@ -512,7 +512,7 @@ export function checkRemoteTag(gitTag, remote = 'origin', cwd = ROOT_APP) {
 /**
  * Checks if GitHub Release exists and verifies uploaded asset completeness.
  */
-export async function checkRemoteRelease(gitTag, token = null, repo = 'pranavop45/propel-releases') {
+export async function checkRemoteRelease(gitTag, token = null, repo = 'PranavTechie/propel-releases') {
   if (process.env.PROPEL_MOCK_REMOTE_RELEASE_EXISTS !== undefined) {
     const exists = process.env.PROPEL_MOCK_REMOTE_RELEASE_EXISTS === '1'
     if (!exists) return { exists: false }
@@ -1595,9 +1595,9 @@ async function main() {
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 15 — Publish GitHub Release
   // ═══════════════════════════════════════════════════════════════════════════
-  printStepBanner(15, 'Publish GitHub Release', `Final publication of Propel v${fullVersion} to pranavop45/propel-releases`)
+  printStepBanner(15, 'Publish GitHub Release', `Final publication of Propel v${fullVersion} to PranavTechie/propel-releases`)
 
-  console.log(`   Repository:  pranavop45/propel-releases`)
+  console.log(`   Repository:  PranavTechie/propel-releases`)
   console.log(`   Release Tag: ${gitTag}`)
   console.log(`   Assets:      ${installerName}, latest.yml, ${installerName}.blockmap`)
 
@@ -1663,13 +1663,13 @@ async function main() {
       } catch (err) {
         haltOnFailure(15, 'Publish GitHub Release', err.message, {
           failedCommand: 'node scripts/release-publish.mjs',
-          recoveryAdvice: 'Check GitHub token permissions, network connectivity, and release repository state on pranavop45/propel-releases.',
+          recoveryAdvice: 'Check GitHub token permissions, network connectivity, and release repository state on PranavTechie/propel-releases.',
         })
       }
     }
 
-    printStepSuccess(15, 'Publish GitHub Release', isDryRun ? '[SIMULATION] GitHub release publication simulated. Zero network uploads made.' : `Propel v${fullVersion} published to pranavop45/propel-releases!`)
-    saveCheckpoint(fullVersion, 15, { summary: `Propel v${fullVersion} published to pranavop45/propel-releases!` })
+    printStepSuccess(15, 'Publish GitHub Release', isDryRun ? '[SIMULATION] GitHub release publication simulated. Zero network uploads made.' : `Propel v${fullVersion} published to PranavTechie/propel-releases!`)
+    saveCheckpoint(fullVersion, 15, { summary: `Propel v${fullVersion} published to PranavTechie/propel-releases!` })
     if (!await askStepConfirmation(
       `\nPublication complete. Run Step 16 final verification?\n\n   [YES] Continue\n   [NO]  Stop safely\n\n> `
     )) {
@@ -1685,7 +1685,7 @@ async function main() {
   try {
     console.log('   Querying GitHub Releases API...')
     try {
-      const res = await fetch('https://api.github.com/repos/pranavop45/propel-releases/releases/latest', {
+      const res = await fetch('https://api.github.com/repos/PranavTechie/propel-releases/releases/latest', {
         headers: { Accept: 'application/vnd.github+json' },
         signal: AbortSignal.timeout(8000),
       })
@@ -1702,7 +1702,7 @@ async function main() {
 
     console.log('\n   Website Dynamic Resolver Check:')
     console.log(`   • Hook file: ${WEBSITE_RELEASE_HOOK_PATH}`)
-    console.log(`   • Target repo: pranavop45/propel-releases`)
+    console.log(`   • Target repo: PranavTechie/propel-releases`)
     console.log(`   • Matching regex: /^Propel-Setup-.+\\.exe$/i`)
     console.log(`   • Public downloads: https://cleanmasterpro.in/downloads`)
 

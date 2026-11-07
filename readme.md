@@ -358,7 +358,7 @@ Rust toolchain
 Windows development environment
 Required environment variables
 Install
-git clone https://github.com/pranavop45/propel-app.git
+git clone https://github.com/PranavTechie/propel-app.git
 
 cd propel-app
 
@@ -457,7 +457,7 @@ https://cleanmasterpro.in
 
 GitHub
 
-https://github.com/pranavop45/propel-app
+https://github.com/PranavTechie/propel-app
 
 ✦ License
 

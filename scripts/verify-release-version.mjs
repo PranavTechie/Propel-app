@@ -169,11 +169,11 @@ try {
 // ── 12. propel-website Dynamic Release Resolution Hook ─────────────────────
 try {
   const content = readFileSync(WEBSITE_RELEASE_HOOK_PATH, 'utf8')
-  const repoMatch = content.includes('pranavop45/propel-releases')
+  const repoMatch = content.includes('PranavTechie/propel-releases')
   const assetMatch = content.includes('INSTALLER_NAME') && content.includes('/^Propel-Setup-.+\\.exe$/i')
   addCheck(
     'propel-website use-github-release.ts',
-    'Configured for pranavop45/propel-releases dynamic resolution',
+    'Configured for PranavTechie/propel-releases dynamic resolution',
     repoMatch && assetMatch,
   )
 } catch (err) {

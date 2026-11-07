@@ -83,7 +83,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "pranavop45",
+        "owner": "PranavTechie",
         "repo": "propel-releases"
       }
     ],

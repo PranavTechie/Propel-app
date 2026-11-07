@@ -277,7 +277,7 @@ runTest(
     if (!output.includes("ALL CHECKS PASSED")) {
       throw new Error(`Verification failed:\n${output}`);
     }
-    if (!output.includes("pranavop45/propel-releases")) {
+    if (!output.includes("PranavTechie/propel-releases")) {
       throw new Error(
         "Verification did not check website dynamic GitHub release hook",
       );

@@ -85,7 +85,7 @@ export function initUpdater(): void {
   try {
     autoUpdater.setFeedURL({
       provider: 'github',
-      owner: 'pranavop45',
+      owner: 'PranavTechie',
       repo: 'propel-releases',
     })
   } catch {

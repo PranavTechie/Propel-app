@@ -9,7 +9,7 @@
 
 ### Dynamic Website Release Resolution
 `propel-website` dynamically resolves the latest published release using client-side GitHub Releases API queries (`app/hooks/use-github-release.ts`):
-- Repository: `pranavop45/propel-releases`
+- Repository: `PranavTechie/propel-releases`
 - Asset matching: `^Propel-Setup-.*\.exe$`
 - Cache lifetime: 5 minutes (`300_000 ms`) with `localStorage` fallback.
 
@@ -92,7 +92,7 @@ npm run release:orchestrate -- 1.5.0 --dry-run
 12. **Commit desktop release**: Stages only approved desktop release files, displays staged diff, prompts for confirmation, and creates the desktop release commit.
 13. **Create & push tag**: Checks tag existence, prompts for confirmation, creates annotated tag `v<version>`, verifies it points to HEAD commit, and pushes tag & `main`.
 14. **Publishing dry-run**: Runs guarded `release-publish.mjs --dry-run` to ensure all installer hashes, ASAR signatures, and metadata match without uploading anything.
-15. **Publish GitHub Release**: Checks `GH_TOKEN`, requires explicit final confirmation (`Type YES to publish or NO to stop.`), and executes guarded publication to `pranavop45/propel-releases`.
+15. **Publish GitHub Release**: Checks `GH_TOKEN`, requires explicit final confirmation (`Type YES to publish or NO to stop.`), and executes guarded publication to `PranavTechie/propel-releases`.
 16. **Final verification**: Queries GitHub Releases API for tag and asset presence, checks website download resolver configuration, and displays final release summary.
 
 ---
