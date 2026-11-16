@@ -5,6 +5,7 @@ import * as path from 'path'
 import * as crypto from 'crypto'
 import si from 'systeminformation'
 import { getDeviceIdFilePath, getLicenseFilePath, getUserDataDir } from '../utils/userData'
+import { sanitizeDeviceName, DEFAULT_DEVICE_NAME } from './systemHelpers'
 
 export { getUserDataDir }
 
@@ -24,6 +25,15 @@ export function getDeviceUUID(): { device_id: string; registered_at?: string } {
     console.warn('[STORAGE] Failed to write device ID to', storePath, err)
   }
   return { device_id: newId }
+}
+
+/** The PC's hostname, shown to the user in their device list. */
+export function getDeviceName(): string {
+  try {
+    return sanitizeDeviceName(os.hostname())
+  } catch {
+    return DEFAULT_DEVICE_NAME
+  }
 }
 
 export function markDeviceRegistered(): void {

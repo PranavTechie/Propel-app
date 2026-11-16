@@ -26,7 +26,7 @@
     "release:publish": "node scripts/release-publish.mjs",
     "release:orchestrate": "node scripts/release-orchestrator.mjs",
     "test:release": "node scripts/test-release-infrastructure.mjs",
-    "test": "node --import tsx --test electron/services/cleaner/__tests__/**/*.test.ts"
+    "test": "node --import tsx --test electron/services/cleaner/__tests__/**/*.test.ts electron/native/__tests__/*.test.ts"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",

@@ -26,6 +26,7 @@ export function useDevicePing() {
         await flushPendingDeviceRelease(session.access_token).catch(() => {})
         const { device_id: deviceId, registered_at } = await window.electronAPI.system.getDeviceUUID()
         const isNewLogin = !registered_at
+        const deviceName = (await window.electronAPI.system.getDeviceName().catch(() => '')).slice(0, 100) || 'Windows PC'
         
         const response = await fetch(apiUrl('/devices/ping'), {
           method: 'POST',
@@ -35,7 +36,7 @@ export function useDevicePing() {
           },
           body: JSON.stringify({
             device_id: deviceId,
-            device_name: 'Windows PC',
+            device_name: deviceName,
             os_info: 'Windows',
             register: isNewLogin
           })

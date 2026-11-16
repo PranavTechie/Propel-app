@@ -40,6 +40,8 @@ const api = {
       ipcRenderer.invoke("system:get-fingerprint"),
     getDeviceUUID: (): Promise<{ device_id: string; registered_at?: string }> =>
       ipcRenderer.invoke("system:get-device-uuid"),
+    getDeviceName: (): Promise<string> =>
+      ipcRenderer.invoke("system:get-device-name"),
     markDeviceRegistered: (): Promise<void> =>
       ipcRenderer.invoke("system:mark-device-registered"),
     clearDeviceRegistration: (): Promise<void> =>
