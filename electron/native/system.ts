@@ -1,11 +1,22 @@
-import { execSync } from 'child_process'
+import { execSync, execFile } from 'child_process'
+import { promisify } from 'util'
 import * as os from 'os'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
 import si from 'systeminformation'
 import { getDeviceIdFilePath, getLicenseFilePath, getUserDataDir } from '../utils/userData'
-import { sanitizeDeviceName, DEFAULT_DEVICE_NAME } from './systemHelpers'
+import {
+  sanitizeDeviceName,
+  DEFAULT_DEVICE_NAME,
+  OPTIMIZE_DRIVE_TIMEOUT_MS,
+  normalizeDriveLetter,
+  buildOptimizeVolumeArgs,
+  describeOptimizeResult,
+  type OptimizeDriveResult,
+} from './systemHelpers'
+
+const execFileAsync = promisify(execFile)
 
 export { getUserDataDir }
 
@@ -185,9 +196,17 @@ export async function isAdmin(): Promise<boolean> {
   }
 }
 
-export async function optimizeDrive(
-  driveLetter: string = 'C',
-): Promise<{ success: boolean; message?: string; error?: string }> {
+/**
+ * Runs Optimize-Volume without forcing -Defrag: Windows picks ReTrim (SSD) or
+ * defrag (HDD) by media type. Async (does not block the main process), argument
+ * array (no shell), 10-minute timeout.
+ */
+export async function optimizeDrive(driveLetter?: unknown): Promise<OptimizeDriveResult> {
+  const letter = normalizeDriveLetter(driveLetter ?? 'C')
+  if (!letter) {
+    return { success: false, error: 'Invalid drive. Please pick a drive letter such as C.' }
+  }
+
   const elevated = await isAdmin()
   if (!elevated) {
     return {
@@ -196,21 +215,16 @@ export async function optimizeDrive(
     }
   }
 
-  const cleanLetter = driveLetter.replace(/[^a-zA-Z]/g, '') || 'C'
   try {
-    execSync(
-      `powershell -NoProfile -NonInteractive -Command "Optimize-Volume -DriveLetter ${cleanLetter} -Defrag"`,
-      { timeout: 30000, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
-    )
-    return {
-      success: true,
-      message: `Drive ${cleanLetter}: optimization completed successfully.`,
-    }
+    await execFileAsync('powershell.exe', buildOptimizeVolumeArgs(letter), {
+      timeout: OPTIMIZE_DRIVE_TIMEOUT_MS,
+      windowsHide: true,
+      maxBuffer: 4 * 1024 * 1024,
+    })
+    return describeOptimizeResult(letter, null)
   } catch (e: any) {
-    return {
-      success: false,
-      error: e?.message ?? 'Drive optimization failed.',
-    }
+    console.error('[optimizeDrive] Optimize-Volume failed:', e?.killed ? 'timeout' : e?.code, e?.stderr || e?.message)
+    return describeOptimizeResult(letter, e)
   }
 }
 
