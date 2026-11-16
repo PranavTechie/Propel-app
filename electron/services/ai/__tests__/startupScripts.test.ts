@@ -31,7 +31,7 @@ const FOLDER_HIVE = 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Explor
 function entry(location: StartupEntry['location'], name: string, command: string): StartupEntry {
   return {
     id: `${location}_${name}`, name, displayName: name, command, location, enabled: true,
-    impact: 'low', impactLabel: 'Low', estimatedDelaySec: 0, recommendation: '', publisher: '',
+    impact: 'low', impactLabel: 'Low', estimatedDelaySec: 0, recommendation: '', publisher: '', isProtected: false,
   }
 }
 

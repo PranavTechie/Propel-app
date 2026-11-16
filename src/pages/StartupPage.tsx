@@ -5,6 +5,7 @@ import {
   Scan,
   CheckCircle,
   Loader2,
+  Lock,
 } from "lucide-react";
 import { useSessionStore } from "@/store/sessionStore";
 import { cn } from "@/utils/cn";
@@ -18,12 +19,29 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonRow } from "@/components/ui/Skeleton";
 import type { Tone } from "@/theme/thresholds";
 import { useLayoutReady } from "@/components/ui/hooks/useLiveGate";
-import type { StartupAnalysis, StartupEntry } from "@/types";
+import { Tooltip } from "@/components/ui/Tooltip";
+import type { StartupAnalysis, StartupEntry, StartupToggleCode } from "@/types";
 
 function impactTone(impact: StartupEntry["impact"]): Tone {
   if (impact === "critical" || impact === "high") return "critical";
   if (impact === "medium") return "warning";
   return "healthy";
+}
+
+const SYSTEM_ITEM_TOOLTIP = "Windows needs this to run correctly";
+
+function toggleErrorMessage(code: StartupToggleCode): string {
+  switch (code) {
+    case "PROTECTED_ENTRY":
+      return "This is a Windows system item. Windows needs it to run correctly, so Propel will not change it.";
+    case "REQUIRES_ADMIN":
+      return "This item requires administrator privileges to modify. Restart Propel as Administrator and try again.";
+    case "NOT_FOUND":
+    case "INVALID_REQUEST":
+      return "Could not change this startup item. Press Scan Startup and try again.";
+    default:
+      return "Failed to modify startup entry.";
+  }
 }
 
 export const StartupPage: React.FC = () => {
@@ -50,12 +68,20 @@ export const StartupPage: React.FC = () => {
 
   const toggleEntry = useCallback(
     async (entry: StartupEntry) => {
+      if (entry.isProtected) return;
       setTogglingId(entry.id);
       setError(null);
       try {
-        const ok = await window.propel.ai.setStartupEntryEnabled(entry, !entry.enabled);
-        if (!ok) {
-          setError("Could not change this startup item. Press Scan Startup and try again.");
+        const result = await window.propel.ai.setStartupEntryEnabled(entry, !entry.enabled);
+        if (!result.ok) {
+          setError(toggleErrorMessage(result.code));
+          if (result.code === "PROTECTED_ENTRY") {
+            setAi((s) => ({
+              suEntries: s.suEntries.map((item) =>
+                item.id === entry.id ? { ...item, isProtected: true } : item
+              ),
+            }));
+          }
           return;
         }
         setAi((s) => ({
@@ -63,12 +89,8 @@ export const StartupPage: React.FC = () => {
             item.id === entry.id ? { ...item, enabled: !item.enabled } : item
           ),
         }));
-      } catch (err: any) {
-        setError(
-          err?.message === "RequiresAdmin"
-            ? "This item requires administrator privileges to modify."
-            : "Failed to modify startup entry."
-        );
+      } catch {
+        setError("Failed to modify startup entry.");
       } finally {
         setTogglingId(null);
       }
@@ -166,6 +188,7 @@ export const StartupPage: React.FC = () => {
               <ul className="divide-y divide-line-subtle">
                 {entries.map((entry) => {
                   const busy = togglingId === entry.id;
+                  const locked = entry.isProtected === true;
                   return (
                     <motion.li
                       key={entry.id}
@@ -185,7 +208,21 @@ export const StartupPage: React.FC = () => {
                           <p className={cn("truncate text-body font-semibold", entry.enabled ? "text-fg-1" : "text-fg-3")}>
                             {entry.displayName}
                           </p>
-                          <p className="truncate text-caption text-fg-3">{entry.publisher || entry.location}</p>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <p className="truncate text-caption text-fg-3">{entry.publisher || entry.location}</p>
+                            {locked && (
+                              <Tooltip content={SYSTEM_ITEM_TOOLTIP}>
+                                <span
+                                  tabIndex={0}
+                                  aria-label={`System item. ${SYSTEM_ITEM_TOOLTIP}`}
+                                  className="inline-flex shrink-0 cursor-default items-center gap-1 rounded-full bg-surface-inset px-1.5 py-px text-[10.5px] font-semibold text-fg-2 focus-visible:outline-none focus-visible:shadow-ring"
+                                >
+                                  <Lock aria-hidden className="h-3 w-3" />
+                                  System item
+                                </span>
+                              </Tooltip>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-col items-start gap-1">
@@ -199,9 +236,13 @@ export const StartupPage: React.FC = () => {
                         </span>
                         <Toggle
                           checked={entry.enabled}
-                          disabled={busy}
+                          disabled={busy || locked}
                           onCheckedChange={() => toggleEntry(entry)}
-                          aria-label={`${entry.enabled ? "Disable" : "Enable"} ${entry.displayName} at startup`}
+                          aria-label={
+                            locked
+                              ? `${entry.displayName} is a Windows system item and cannot be changed`
+                              : `${entry.enabled ? "Disable" : "Enable"} ${entry.displayName} at startup`
+                          }
                         />
                       </div>
                     </motion.li>

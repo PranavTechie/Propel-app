@@ -36,6 +36,8 @@ export interface StartupEntry {
   estimatedDelaySec: number
   recommendation: string
   publisher: string
+  /** Windows system item (under %SystemRoot%, Windows Defender/Security, SecurityHealth...). Never toggled. */
+  isProtected: boolean
 }
 
 export interface StartupAnalysis {
@@ -83,6 +85,109 @@ function extractPublisher(command: string): string {
   if (lower.includes('chrome')) return 'Google LLC'
   if (lower.includes('microsoft') || lower.includes('\\office\\')) return 'Microsoft Corporation'
   return 'Unknown Publisher'
+}
+
+// ── Protected (Windows system) entries ─────────────────────────────────────
+export interface ProtectionContext {
+  env: Record<string, string | undefined>
+  /** Canonical long path when the file exists (expands 8.3 names), else null. */
+  realpath?: (p: string) => string | null
+}
+
+const PROTECTED_NAMES = new Set(['securityhealth', 'securityhealthsystray'])
+const PROTECTED_NAME_PREFIX = 'windowsdefender'
+const PROTECTED_FOLDERS = new Set(['windows defender', 'windows security'])
+
+function nativeRealpath(p: string): string | null {
+  try {
+    return fs.realpathSync.native(p)
+  } catch {
+    return null
+  }
+}
+
+const DEFAULT_PROTECTION_CONTEXT: ProtectionContext = { env: process.env, realpath: nativeRealpath }
+
+function envLookup(env: ProtectionContext['env']): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const [k, v] of Object.entries(env)) if (typeof v === 'string') map.set(k.toLowerCase(), v)
+  return map
+}
+
+/** Expands %VAR% (case-insensitive); unknown variables are left as they are. */
+export function expandEnvVars(value: string, env: ProtectionContext['env']): string {
+  const vars = envLookup(env)
+  return value.replace(/%([^%\\/:*?"<>|\s]+)%/g, (m, k: string) => vars.get(k.toLowerCase()) ?? m)
+}
+
+/** The program path at the start of a Run command (quoted, or unquoted with spaces). */
+export function extractExecutablePath(command: string): string {
+  const c = command.trim()
+  if (c.startsWith('"')) {
+    const end = c.indexOf('"', 1)
+    return (end > 0 ? c.slice(1, end) : c.slice(1)).trim()
+  }
+  const m = /^(.+?\.(?:exe|com|bat|cmd|lnk|dll|scr))(?=[\s,]|$)/i.exec(c)
+  return m ? m[1] : (c.split(/\s+/)[0] ?? '')
+}
+
+/** Lower-case absolute path without trailing separator, or '' when not an absolute drive/UNC path. */
+function canonicalWinPath(p: string, systemRoot: string, realpath?: ProtectionContext['realpath']): string {
+  let s = p.trim().replace(/\//g, '\\').replace(/^\\\\\?\\/, '').replace(/^\\\?\?\\/, '')
+  if (/^\\systemroot(\\|$)/i.test(s)) s = systemRoot + s.slice('\\SystemRoot'.length)
+  if (!/^[a-z]:\\/i.test(s) && !/^\\\\[^\\]/.test(s)) return ''
+  s = path.win32.resolve(s)
+  const real = realpath?.(s)
+  if (real) s = path.win32.resolve(real.replace(/^\\\\\?\\/, ''))
+  return s.replace(/\\+$/, '').toLowerCase()
+}
+
+/** SecurityHealth, SecurityHealthSystray, WindowsDefender* (case and spacing ignored). */
+export function isProtectedStartupName(name: string): boolean {
+  const n = String(name ?? '').toLowerCase().replace(/\s+/g, '')
+  return PROTECTED_NAMES.has(n) || n.startsWith(PROTECTED_NAME_PREFIX)
+}
+
+/** True when the command's program lives under %SystemRoot% or a Windows Defender/Security folder. */
+export function isProtectedStartupPath(command: string, ctx: ProtectionContext = DEFAULT_PROTECTION_CONTEXT): boolean {
+  if (typeof command !== 'string' || !command.trim()) return false
+  const vars = envLookup(ctx.env)
+  const rawRoot = expandEnvVars(vars.get('systemroot') ?? vars.get('windir') ?? 'C:\\Windows', ctx.env)
+  const root = canonicalWinPath(rawRoot, 'C:\\Windows', ctx.realpath) || 'c:\\windows'
+
+  const exe = extractExecutablePath(expandEnvVars(command, ctx.env))
+  let target = canonicalWinPath(exe, root, ctx.realpath)
+  // Bare program name ("ctfmon.exe"): Windows finds it in System32 / SystemRoot.
+  if (!target && exe && !/[\\/:]/.test(exe) && ctx.realpath) {
+    for (const dir of [path.win32.join(root, 'System32'), root]) {
+      const hit = ctx.realpath(path.win32.join(dir, exe))
+      if (hit) { target = canonicalWinPath(hit, root, ctx.realpath); break }
+    }
+  }
+  if (!target) return false
+  if (target === root || target.startsWith(root + '\\')) return true
+  return target.split('\\').some(seg => PROTECTED_FOLDERS.has(seg.replace(/\s+/g, ' ').trim()))
+}
+
+export function isProtectedStartupEntry(
+  name: string,
+  command: string,
+  ctx: ProtectionContext = DEFAULT_PROTECTION_CONTEXT,
+): boolean {
+  return isProtectedStartupName(name) || isProtectedStartupPath(command, ctx)
+}
+
+/** Target of a startup-folder shortcut (Electron shell API, main process only), else null. */
+function readShortcutTarget(lnkPath: string): string | null {
+  if (!/\.lnk(\.disabled)?$/i.test(lnkPath)) return null
+  try {
+    // Lazy require: keeps this module importable by plain-Node unit tests.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { shell } = require('electron') as typeof import('electron')
+    return shell?.readShortcutLink?.(lnkPath)?.target || null
+  } catch {
+    return null
+  }
 }
 
 // ── Read registry startup entries ──────────────────────────────────────────
@@ -145,6 +250,7 @@ async function getRegistryStartupEntries(
           estimatedDelaySec: delaySec,
           recommendation: getRecommendation(impact, name),
           publisher: extractPublisher(command),
+          isProtected: isProtectedStartupEntry(name, command),
         } satisfies StartupEntry
       })
   } catch {
@@ -185,6 +291,7 @@ async function getStartupFolderEntries(folderPath: string, location: StartupEntr
         estimatedDelaySec: delaySec,
         recommendation: getRecommendation(impact, name),
         publisher: extractPublisher(command),
+        isProtected: isProtectedStartupEntry(name, command) || isProtectedStartupPath(readShortcutTarget(command) ?? ''),
       })
     }
   } catch { /* skip */ }
@@ -379,74 +486,84 @@ function readStartupLocation(location: StartupEntry['location']): Promise<Startu
   return getStartupFolderEntries(getStartupFolders()[location], location)
 }
 
-export async function setStartupEntryEnabled(rawEntry: unknown, enabled: unknown): Promise<boolean> {
-  if (typeof enabled !== 'boolean') return false
+export type StartupToggleCode = 'PROTECTED_ENTRY' | 'REQUIRES_ADMIN' | 'INVALID_REQUEST' | 'NOT_FOUND' | 'FAILED'
+export type StartupToggleResult = { ok: true } | { ok: false; code: StartupToggleCode }
+
+/**
+ * Decides which scanned entry a renderer request may change. Pure apart from `readLocation`.
+ * Protection comes from the main-process scan; whatever the renderer claims is ignored.
+ */
+export async function resolveToggleTarget(
+  rawEntry: unknown,
+  enabled: unknown,
+  readLocation: (location: StartupEntry['location']) => Promise<StartupEntry[]>,
+): Promise<{ ok: true; entry: StartupEntry } | { ok: false; code: StartupToggleCode }> {
+  if (typeof enabled !== 'boolean') return { ok: false, code: 'INVALID_REQUEST' }
   const request = parseStartupToggleRequest(rawEntry)
-  if (!request) {
-    console.warn('[startup] Refused toggle: invalid entry')
-    return false
+  if (!request) return { ok: false, code: 'INVALID_REQUEST' }
+  // Refuse protected names before touching the system at all.
+  if (isProtectedStartupName(request.name)) return { ok: false, code: 'PROTECTED_ENTRY' }
+  const entry = matchScannedEntry(request, await readLocation(request.location))
+  if (!entry) return { ok: false, code: 'NOT_FOUND' }
+  if (entry.isProtected || isProtectedStartupEntry(entry.name, entry.command)) {
+    return { ok: false, code: 'PROTECTED_ENTRY' }
   }
-  const entry = matchScannedEntry(request, await readStartupLocation(request.location))
-  if (!entry) {
-    console.warn('[startup] Refused toggle: entry not in the current startup list')
-    return false
+  return { ok: true, entry }
+}
+
+export async function setStartupEntryEnabled(rawEntry: unknown, enabled: unknown): Promise<StartupToggleResult> {
+  const target = await resolveToggleTarget(rawEntry, enabled, readStartupLocation)
+  if (!target.ok) {
+    console.warn('[startup] Refused toggle:', target.code)
+    return target
   }
+  const entry = target.entry
+  const turnOn = enabled as boolean
 
   // Check admin rights if modifying HKLM or All-Users
   const requiresAdmin = entry.location === 'HKLM_Run' || entry.location === 'StartupFolder_All'
 
   if (entry.location === 'HKCU_Run' || entry.location === 'HKLM_Run') {
     try {
-      await runEncodedPowerShell(buildRegistrySetScript(entry, enabled, requiresAdmin))
-      return true
+      await runEncodedPowerShell(buildRegistrySetScript(entry, turnOn, requiresAdmin))
+      return { ok: true }
     } catch (err: any) {
-      if (err.stderr && err.stderr.includes('RequiresAdmin')) {
-        throw new Error('RequiresAdmin') // Fix 5: Throw explicit error for UI
-      }
-      return false
+      if (err?.stderr && String(err.stderr).includes('RequiresAdmin')) return { ok: false, code: 'REQUIRES_ADMIN' }
+      return { ok: false, code: 'FAILED' }
     }
   }
 
-  if (entry.location === 'StartupFolder_User' || entry.location === 'StartupFolder_All') {
-    const folder = getStartupFolders()[entry.location]
-    const baseName = path.basename(entry.command).replace(DISABLED_SUFFIX, '')
-    const normal = entry.command.replace(DISABLED_SUFFIX, '')
-    const disabled = normal + '.disabled'
-    if (!isDirectStartupFolderFile(folder, normal) || !isDirectStartupFolderFile(folder, disabled)) {
-      console.warn('[startup] Refused toggle: path outside the startup folder')
-      return false
-    }
+  const folder = getStartupFolders()[entry.location]
+  const baseName = path.basename(entry.command).replace(DISABLED_SUFFIX, '')
+  const normal = entry.command.replace(DISABLED_SUFFIX, '')
+  const disabled = normal + '.disabled'
+  if (!isDirectStartupFolderFile(folder, normal) || !isDirectStartupFolderFile(folder, disabled)) {
+    console.warn('[startup] Refused toggle: path outside the startup folder')
+    return { ok: false, code: 'INVALID_REQUEST' }
+  }
 
-    // Admin check for all users folder
-    if (requiresAdmin) {
-      try {
-        await runEncodedPowerShell(ADMIN_CHECK_SCRIPT)
-      } catch (err: any) {
-        if (err.stderr && err.stderr.includes('RequiresAdmin')) {
-          throw new Error('RequiresAdmin')
-        }
-        return false
-      }
-    }
-
+  // Admin check for all users folder
+  if (requiresAdmin) {
     try {
-      if (enabled) {
-        if (fs.existsSync(disabled)) {
-          fs.renameSync(disabled, normal)
-        }
-
-        await runEncodedPowerShell(buildFolderEnableScript(entry.name, baseName)).catch(() => {})
-        return true
-      } else {
-        if (fs.existsSync(normal)) {
-          fs.renameSync(normal, disabled)
-        }
-
-        await runEncodedPowerShell(buildFolderDisableScript(baseName)).catch(() => {})
-        return true
-      }
-    } catch { /* permission denied */ }
+      await runEncodedPowerShell(ADMIN_CHECK_SCRIPT)
+    } catch (err: any) {
+      if (err?.stderr && String(err.stderr).includes('RequiresAdmin')) return { ok: false, code: 'REQUIRES_ADMIN' }
+      return { ok: false, code: 'FAILED' }
+    }
   }
 
-  return false
+  try {
+    if (turnOn) {
+      if (fs.existsSync(disabled)) fs.renameSync(disabled, normal)
+      await runEncodedPowerShell(buildFolderEnableScript(entry.name, baseName)).catch(() => {})
+    } else {
+      if (fs.existsSync(normal)) fs.renameSync(normal, disabled)
+      await runEncodedPowerShell(buildFolderDisableScript(baseName)).catch(() => {})
+    }
+    return { ok: true }
+  } catch {
+    // permission denied
+    return { ok: false, code: 'FAILED' }
+  }
 }
+

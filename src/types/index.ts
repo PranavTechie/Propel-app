@@ -298,7 +298,12 @@ export interface StartupEntry {
   estimatedDelaySec: number
   recommendation: string
   publisher: string
+  /** Windows system item; shown locked and refused by the main process. */
+  isProtected: boolean
 }
+
+/** Error codes from ai:startup-set-enabled (mirrors electron/services/ai/startupAnalyzerService.ts). */
+export type StartupToggleCode = 'PROTECTED_ENTRY' | 'REQUIRES_ADMIN' | 'INVALID_REQUEST' | 'NOT_FOUND' | 'FAILED'
 
 export interface StartupAnalysis {
   entries: StartupEntry[]

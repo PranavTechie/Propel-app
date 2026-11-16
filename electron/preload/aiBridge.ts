@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron'
 import type { SmartBoostAnalysis, SmartBoostResult } from '../services/ai/smartBoostService'
-import type { StartupAnalysis, StartupEntry } from '../services/ai/startupAnalyzerService'
+import type { StartupAnalysis, StartupEntry, StartupToggleResult } from '../services/ai/startupAnalyzerService'
 import type { DuplicateScanResult, DeleteDuplicatesResult, DuplicateScanProgress } from '../services/ai/duplicateFinderService'
 
 export const aiBridge = {
@@ -27,7 +27,7 @@ export const aiBridge = {
   analyzeStartup: (): Promise<StartupAnalysis> =>
     ipcRenderer.invoke('ai:startup-analyze'),
 
-  setStartupEntryEnabled: (entry: StartupEntry, enabled: boolean): Promise<boolean> =>
+  setStartupEntryEnabled: (entry: StartupEntry, enabled: boolean): Promise<StartupToggleResult> =>
     ipcRenderer.invoke('ai:startup-set-enabled', entry, enabled),
 
   // ── Duplicate Finder ─────────────────────────────────────────────────────
