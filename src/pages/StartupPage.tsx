@@ -53,7 +53,11 @@ export const StartupPage: React.FC = () => {
       setTogglingId(entry.id);
       setError(null);
       try {
-        await window.propel.ai.setStartupEntryEnabled(entry, !entry.enabled);
+        const ok = await window.propel.ai.setStartupEntryEnabled(entry, !entry.enabled);
+        if (!ok) {
+          setError("Could not change this startup item. Press Scan Startup and try again.");
+          return;
+        }
         setAi((s) => ({
           suEntries: s.suEntries.map((item) =>
             item.id === entry.id ? { ...item, enabled: !item.enabled } : item

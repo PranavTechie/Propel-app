@@ -191,6 +191,18 @@ async function getStartupFolderEntries(folderPath: string, location: StartupEntr
   return entries
 }
 
+type StartupFolderLocation = 'StartupFolder_User' | 'StartupFolder_All'
+
+/** The only two folders the Startup Manager may rename files in. */
+function getStartupFolders(): Record<StartupFolderLocation, string> {
+  const appDataRoaming = process.env.APPDATA ?? os.homedir()
+  const programData = process.env.ProgramData ?? 'C:\\ProgramData'
+  return {
+    StartupFolder_User: path.join(appDataRoaming, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
+    StartupFolder_All: path.join(programData, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
+  }
+}
+
 // ── Main analysis function ──────────────────────────────────────────────────
 export async function analyzeStartup(): Promise<StartupAnalysis> {
   const [hkcuEntries, hklmEntries] = await Promise.all([
@@ -198,15 +210,10 @@ export async function analyzeStartup(): Promise<StartupAnalysis> {
     getRegistryStartupEntries('HKLM', 'HKLM_Run'),
   ])
 
-  const appDataRoaming = process.env.APPDATA ?? os.homedir()
-  const programData = process.env.ProgramData ?? 'C:\\ProgramData'
-
-  const userStartupFolder = path.join(appDataRoaming, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
-  const allUsersStartupFolder = path.join(programData, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup')
-
+  const folders = getStartupFolders()
   const [userFolderEntries, allFolderEntries] = await Promise.all([
-    getStartupFolderEntries(userStartupFolder, 'StartupFolder_User'),
-    getStartupFolderEntries(allUsersStartupFolder, 'StartupFolder_All')
+    getStartupFolderEntries(folders.StartupFolder_User, 'StartupFolder_User'),
+    getStartupFolderEntries(folders.StartupFolder_All, 'StartupFolder_All')
   ])
 
   const entries = [...hkcuEntries, ...hklmEntries, ...userFolderEntries, ...allFolderEntries]
@@ -304,7 +311,87 @@ function runEncodedPowerShell(script: string, timeout = 8000) {
   return execAsync(`powershell -NoProfile -NonInteractive -EncodedCommand ${encoded}`, { timeout })
 }
 
-export async function setStartupEntryEnabled(entry: StartupEntry, enabled: boolean): Promise<boolean> {
+// ── Validation of the renderer's entry ─────────────────────────────────────
+const STARTUP_LOCATIONS: readonly StartupEntry['location'][] = ['HKCU_Run', 'HKLM_Run', 'StartupFolder_User', 'StartupFolder_All']
+const MAX_ENTRY_NAME_LENGTH = 260
+const CONTROL_CHARS = /[\x00-\x1f\x7f]/
+const DISABLED_SUFFIX = /\.disabled$/i
+
+/** What the main process takes from the renderer: which entry, never what to write. */
+export interface StartupToggleRequest {
+  location: StartupEntry['location']
+  name: string
+  /** Startup folder only: lower-case file name without ".disabled". */
+  fileKey?: string
+}
+
+/**
+ * Lower-case file name of a startup folder item without ".disabled", or null when
+ * it is not a .lnk/.exe file name (separators, "..", other extensions).
+ */
+export function startupFileKey(filePath: string): string | null {
+  if (typeof filePath !== 'string' || !filePath || CONTROL_CHARS.test(filePath)) return null
+  const base = path.win32.basename(filePath).replace(DISABLED_SUFFIX, '')
+  if (!base || base.startsWith('.')) return null
+  const ext = path.win32.extname(base).toLowerCase()
+  if (ext !== '.lnk' && ext !== '.exe') return null
+  return base.toLowerCase()
+}
+
+/** Validates the entry sent over IPC. Returns null for anything malformed. */
+export function parseStartupToggleRequest(entry: unknown): StartupToggleRequest | null {
+  if (!entry || typeof entry !== 'object') return null
+  const { location, name, command } = entry as Record<string, unknown>
+  if (typeof location !== 'string' || !STARTUP_LOCATIONS.includes(location as StartupEntry['location'])) return null
+  if (typeof name !== 'string' || !name.trim() || name.length > MAX_ENTRY_NAME_LENGTH || CONTROL_CHARS.test(name)) return null
+  const loc = location as StartupEntry['location']
+  if (loc === 'HKCU_Run' || loc === 'HKLM_Run') return { location: loc, name }
+  const fileKey = typeof command === 'string' ? startupFileKey(command) : null
+  if (!fileKey) return null
+  return { location: loc, name, fileKey }
+}
+
+/**
+ * The single entry from a fresh system scan that matches the request, or null.
+ * The command/path used afterwards comes from this scanned entry, never from the renderer.
+ */
+export function matchScannedEntry(request: StartupToggleRequest, scanned: StartupEntry[]): StartupEntry | null {
+  const matches = scanned.filter(e =>
+    e.location === request.location &&
+    e.name === request.name &&
+    (request.fileKey === undefined || startupFileKey(e.command) === request.fileKey),
+  )
+  return matches.length === 1 ? matches[0] : null
+}
+
+/** True only for a .lnk/.exe (optionally .disabled) file directly inside `folder`. */
+export function isDirectStartupFolderFile(folder: string, filePath: string): boolean {
+  const w = path.win32
+  if (typeof filePath !== 'string' || !w.isAbsolute(filePath) || CONTROL_CHARS.test(filePath)) return false
+  const resolved = w.resolve(filePath)
+  if (w.dirname(resolved).toLowerCase() !== w.resolve(folder).toLowerCase()) return false
+  return startupFileKey(resolved) !== null
+}
+
+function readStartupLocation(location: StartupEntry['location']): Promise<StartupEntry[]> {
+  if (location === 'HKCU_Run') return getRegistryStartupEntries('HKCU', 'HKCU_Run')
+  if (location === 'HKLM_Run') return getRegistryStartupEntries('HKLM', 'HKLM_Run')
+  return getStartupFolderEntries(getStartupFolders()[location], location)
+}
+
+export async function setStartupEntryEnabled(rawEntry: unknown, enabled: unknown): Promise<boolean> {
+  if (typeof enabled !== 'boolean') return false
+  const request = parseStartupToggleRequest(rawEntry)
+  if (!request) {
+    console.warn('[startup] Refused toggle: invalid entry')
+    return false
+  }
+  const entry = matchScannedEntry(request, await readStartupLocation(request.location))
+  if (!entry) {
+    console.warn('[startup] Refused toggle: entry not in the current startup list')
+    return false
+  }
+
   // Check admin rights if modifying HKLM or All-Users
   const requiresAdmin = entry.location === 'HKLM_Run' || entry.location === 'StartupFolder_All'
 
@@ -321,7 +408,14 @@ export async function setStartupEntryEnabled(entry: StartupEntry, enabled: boole
   }
 
   if (entry.location === 'StartupFolder_User' || entry.location === 'StartupFolder_All') {
-    const baseName = path.basename(entry.command).replace(/\.disabled$/i, '')
+    const folder = getStartupFolders()[entry.location]
+    const baseName = path.basename(entry.command).replace(DISABLED_SUFFIX, '')
+    const normal = entry.command.replace(DISABLED_SUFFIX, '')
+    const disabled = normal + '.disabled'
+    if (!isDirectStartupFolderFile(folder, normal) || !isDirectStartupFolderFile(folder, disabled)) {
+      console.warn('[startup] Refused toggle: path outside the startup folder')
+      return false
+    }
 
     // Admin check for all users folder
     if (requiresAdmin) {
@@ -337,8 +431,6 @@ export async function setStartupEntryEnabled(entry: StartupEntry, enabled: boole
 
     try {
       if (enabled) {
-        const disabled = entry.command.endsWith('.disabled') ? entry.command : entry.command + '.disabled'
-        const normal = entry.command.endsWith('.disabled') ? entry.command.slice(0, -9) : entry.command
         if (fs.existsSync(disabled)) {
           fs.renameSync(disabled, normal)
         }
@@ -346,8 +438,6 @@ export async function setStartupEntryEnabled(entry: StartupEntry, enabled: boole
         await runEncodedPowerShell(buildFolderEnableScript(entry.name, baseName)).catch(() => {})
         return true
       } else {
-        const normal = entry.command.endsWith('.disabled') ? entry.command.slice(0, -9) : entry.command
-        const disabled = normal + '.disabled'
         if (fs.existsSync(normal)) {
           fs.renameSync(normal, disabled)
         }

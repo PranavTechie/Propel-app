@@ -9,7 +9,6 @@ import {
   analyzeStartup,
   setStartupEntryEnabled,
 } from '../../services/ai/startupAnalyzerService'
-import type { StartupEntry } from '../../services/ai/startupAnalyzerService'
 import {
   scanForDuplicates,
   deleteSelectedDuplicates,
@@ -44,7 +43,9 @@ export function setupAIIPC(): void {
     return analyzeStartup()
   })
 
-  ipcMain.handle('ai:startup-set-enabled', async (_event, entry: StartupEntry, enabled: boolean) => {
+  // The renderer's entry is untrusted: setStartupEntryEnabled validates it and acts
+  // only on the matching entry from a fresh scan (registry value / startup folder file).
+  ipcMain.handle('ai:startup-set-enabled', async (_event, entry: unknown, enabled: unknown) => {
     return setStartupEntryEnabled(entry, enabled)
   })
 
