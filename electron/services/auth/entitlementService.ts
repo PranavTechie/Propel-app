@@ -1,8 +1,7 @@
 import axios from 'axios'
 import { saveCachedEntitlement, getAuthEpoch } from './entitlementCache'
 
-// We get API_BASE from env or fallback for local dev
-const API_BASE = process.env.VITE_API_BASE_URL || 'https://cleanmasterpro-backend-server.onrender.com'
+import { API_BASE } from '../../config/api'
 
 export interface EntitlementResponse {
   success: boolean

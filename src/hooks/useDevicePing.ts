@@ -1,10 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useAppStore, selectSession, selectPhase } from '@/store/appStore'
 import { logout, flushPendingDeviceRelease } from '@/services/auth/logout'
+import { apiUrl } from '@/lib/api'
 
 const PING_INTERVAL = 6 * 60 * 60 * 1000 // 6 hours
-
-const API_BASE = 'https://propel-backend.onrender.com/api' // using prod url
 
 export function useDevicePing() {
   const session = useAppStore(selectSession)
@@ -28,10 +27,7 @@ export function useDevicePing() {
         const { device_id: deviceId, registered_at } = await window.electronAPI.system.getDeviceUUID()
         const isNewLogin = !registered_at
         
-        const rawBase = import.meta.env.VITE_API_BASE_URL || "https://cleanmasterpro-backend-server.onrender.com";
-        const baseUrl = rawBase.endsWith('/api') ? rawBase : `${rawBase.replace(/\/$/, '')}/api`;
-
-        const response = await fetch(`${baseUrl}/devices/ping`, {
+        const response = await fetch(apiUrl('/devices/ping'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

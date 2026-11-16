@@ -9,10 +9,16 @@ import { aiBridge } from "./aiBridge";
 import systemCheckBridge from "./systemCheckBridge";
 import permissionsBridge from "./permissionsBridge";
 import { exclusionsBridge } from "./exclusionsBridge";
+import { API_BASE } from "../config/api";
 
 export type ElectronAPI = typeof api;
 
 const api = {
+  // ── Build-time config (read-only values, no IPC) ─────────
+  config: {
+    apiBase: API_BASE,
+  },
+
   // ── Window Controls ─────────────────────────────────────
   window: {
     minimize: () => ipcRenderer.send("window:minimize"),

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = process.env.VITE_API_BASE_URL || 'https://cleanmasterpro-backend-server.onrender.com';
+import { API_BASE } from '../../config/api';
 
 export interface PCAdvisorQuotaExceeded {
   ok: false;

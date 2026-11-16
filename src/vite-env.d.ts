@@ -21,8 +21,8 @@ interface ImportMetaEnv {
   // Razorpay public key (renderer-safe, non-secret)
   readonly VITE_RAZORPAY_KEY_ID: string
 
-  // Backend API base URL (used by web frontend in PropelPage)
-  readonly VITE_API_BASE_URL: string
+  // Backend API base URL is NOT read here: use apiUrl() from '@/lib/api'
+  // (value fixed at build time in electron/config/api.ts, exposed via preload).
 }
 
 interface ImportMeta {

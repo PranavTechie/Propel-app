@@ -6,6 +6,7 @@
 import { supabase } from "@/lib/supabase";
 import { useAppStore } from "@/store/appStore";
 import { useSessionStore } from "@/store/sessionStore";
+import { apiUrl } from "@/lib/api";
 import {
   createLogout,
   readStoredSession,
@@ -15,17 +16,12 @@ import {
 
 const RELEASE_TIMEOUT_MS = 5000;
 
-function apiBase(): string {
-  const rawBase = import.meta.env.VITE_API_BASE_URL || "https://cleanmasterpro-backend-server.onrender.com";
-  return rawBase.endsWith("/api") ? rawBase : `${rawBase.replace(/\/$/, "")}/api`;
-}
-
 /** DELETE /devices/:id. true when released or already gone (404). */
 async function releaseDeviceOnServer(deviceId: string, token: string): Promise<boolean> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), RELEASE_TIMEOUT_MS);
   try {
-    const res = await fetch(`${apiBase()}/devices/${encodeURIComponent(deviceId)}`, {
+    const res = await fetch(apiUrl(`/devices/${encodeURIComponent(deviceId)}`), {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
       signal: controller.signal,
